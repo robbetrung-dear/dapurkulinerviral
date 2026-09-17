@@ -2756,29 +2756,34 @@ git push -u origin main</pre>
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { firebaseConfig, IS_DEMO_MODE } from "/firebase-config.js";
+    import { firebaseConfig, IS_DEMO_MODE } from "/firebase-config.js?v=2";
 
     // Inisialisasi Firebase & Dynamic Custom Configuration
     let app, db, auth;
     let activeFirebaseConfig = { ...firebaseConfig };
 
-    // Cek custom config yang pernah disimpan oleh Admin di browser/local storage
-    try {
-      const storedCustom = localStorage.getItem("dapur_firebase_custom_config");
-      if (storedCustom) {
-        const parsed = JSON.parse(storedCustom);
-        if (parsed && parsed.apiKey && !parsed.apiKey.includes("YOUR_FIREBASE")) {
-          activeFirebaseConfig = parsed;
+    // Prioritaskan Environment Variables Server jika sudah diatur valid
+    if (IS_DEMO_MODE) {
+      // Jika server masih mode demo, coba baca dari local storage browser
+      try {
+        const storedCustom = localStorage.getItem("dapur_firebase_custom_config");
+        if (storedCustom) {
+          const parsed = JSON.parse(storedCustom);
+          if (parsed && parsed.apiKey && !parsed.apiKey.includes("YOUR_FIREBASE")) {
+            activeFirebaseConfig = parsed;
+          }
         }
+      } catch (e) {
+        console.warn("Error reading stored custom firebase config:", e);
       }
-    } catch (e) {
-      console.warn("Error reading stored custom firebase config:", e);
     }
 
     function initFirebaseModule(cfg) {
       try {
         if (cfg && cfg.apiKey && !cfg.apiKey.includes("YOUR_FIREBASE")) {
-          app = initializeApp(cfg);
+          if (!app) {
+            app = initializeApp(cfg);
+          }
           db = getDatabase(app);
           auth = getAuth(app);
           signInAnonymously(auth).catch(err => console.warn("Anon Auth note:", err));

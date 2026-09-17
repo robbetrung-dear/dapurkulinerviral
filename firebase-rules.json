@@ -27,6 +27,18 @@
     "analytics": {
       ".read": true,
       ".write": "auth != null"
+    },
+    "system_ping": {
+      ".read": true,
+      ".write": true
+    },
+    "menu_items": {
+      ".read": true,
+      ".write": true
+    },
+    "site_config": {
+      ".read": true,
+      ".write": true
     }
   }
 }

@@ -18,11 +18,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve firebase-config.js from project root
-app.get('/firebase-config.js', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'firebase-config.js'));
-});
-
 // Serve firebase-rules.json from project root
 app.get('/firebase-rules.json', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'firebase-rules.json'));
@@ -257,6 +252,29 @@ const handleWebhook = async (req: express.Request, res: express.Response) => {
 
 app.post('/functions/webhook', handleWebhook);
 app.post('/api/webhook', handleWebhook);
+
+// Dynamic firebase-config.js endpoint to serve server-side environment variables
+app.get('/firebase-config.js', (req, res) => {
+  const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "";
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "";
+  const databaseURL = process.env.FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL || `https://${projectId}-default-rtdb.asia-southeast1.firebasedatabase.app`;
+  
+  const jsContent = `// firebase-config.js (Dynamically generated from server environment variables)
+export const firebaseConfig = {
+  apiKey: "${apiKey}",
+  authDomain: "${projectId ? projectId + '.firebaseapp.com' : ''}",
+  databaseURL: "${databaseURL}",
+  projectId: "${projectId}",
+  storageBucket: "${projectId ? projectId + '.appspot.com' : ''}",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef1234567890"
+};
+
+export const IS_DEMO_MODE = !firebaseConfig.apiKey || firebaseConfig.apiKey.includes("YOUR_FIREBASE");
+`;
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(jsContent);
+});
 
 // Serve static assets from public/ directory
 const publicDir = path.join(process.cwd(), 'public');
