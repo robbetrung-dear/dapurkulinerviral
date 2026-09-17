@@ -122,24 +122,24 @@
   <!-- Navbar (Editable Logo, Judul Per Kata, & Warna) -->
   <header class="sticky top-0 z-40 border-b border-stone-200/90 backdrop-blur-md transition-colors" :style="{ backgroundColor: (siteConfig.headerBgColor || '#ffffff') + 'f2' }">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <!-- Logo Toko (Icon FontAwesome / Gambar Kustom URL & Warna Background Editable) -->
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md overflow-hidden transition-all flex-shrink-0" :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-md overflow-hidden transition-all flex-shrink-0" :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
           <template x-if="siteConfig.logoType === 'image' && siteConfig.logoImage">
             <img :src="siteConfig.logoImage" alt="Logo Toko" class="w-full h-full object-cover" />
           </template>
           <template x-if="siteConfig.logoType !== 'image' || !siteConfig.logoImage">
-            <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" class="text-lg"></i>
+            <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" class="text-sm sm:text-lg"></i>
           </template>
         </div>
-        <div>
+        <div class="min-w-0">
           <!-- Judul Toko dengan Warna Masing-Masing Kata (Editable Manual di Admin) -->
-          <div class="inline-flex items-center gap-1.5 font-black text-lg sm:text-xl tracking-tight flex-wrap">
+          <div class="font-black text-sm sm:text-xl tracking-tight truncate">
             <template x-for="(word, wIdx) in getBrandWords()" :key="'header-word-' + wIdx">
-              <span :style="{ color: word.color }" x-text="word.text"></span>
+              <span :style="{ color: word.color }" x-text="word.text + ' '"></span>
             </template>
           </div>
-          <span class="hidden sm:inline-block ml-2 text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded-md font-medium border border-stone-200" x-text="siteConfig.tagline"></span>
+          <span class="hidden sm:inline-block mt-0.5 text-[10px] sm:text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded-md font-medium border border-stone-200 truncate max-w-full" x-text="siteConfig.tagline"></span>
         </div>
       </div>
 
@@ -156,7 +156,7 @@
       </nav>
 
       <!-- Cart Trigger, Track Order, and Admin Settings Button -->
-      <div class="flex items-center gap-2 sm:gap-3">
+      <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
         <!-- Tombol Panel Admin (Hanya Gambar Icon Gembok Saja, Tanpa Teks) -->
         <button 
           @click="openAdminModal()" 
@@ -521,11 +521,11 @@
               </div>
               <div class="flex justify-between text-xs text-stone-600 mt-1">
                 <span>Kurir Dipilih:</span>
-                <span class="font-bold text-brand-600" x-text="selectedCourier ? selectedCourier.courier_name + ' (' + formatRupiah(selectedCourier.price) + ')' : 'Belum dipilih'"></span>
+                <span class="font-bold text-brand-600" x-text="selectedCourier ? selectedCourier.courier_name + ' (Estimasi ' + formatRupiah(selectedCourier.price) + ')' : 'Belum dipilih'"></span>
               </div>
               <div class="flex justify-between text-sm font-extrabold text-stone-900 mt-2 pt-2 border-t border-dashed border-stone-300">
-                <span>Total Catering + Ongkir:</span>
-                <span class="text-brand-700 font-black text-base" x-text="formatRupiah((cateringPax * selectedCateringPackage.pricePerPax) + (selectedCourier ? selectedCourier.price : 0))"></span>
+                <span>Total Catering (Makanan Saja):</span>
+                <span class="text-brand-700 font-black text-base" x-text="formatRupiah((cateringPax * selectedCateringPackage.pricePerPax))"></span>
               </div>
             </div>
 
@@ -691,13 +691,24 @@
                   <span class="font-semibold text-stone-900" x-text="formatRupiah(cartSubtotal)"></span>
                 </div>
 
-                <div class="pt-1 flex items-center justify-between text-xs text-stone-600">
-                  <span>Ongkos Kirim (<span x-text="selectedCourier ? selectedCourier.courier_name : '-'"></span>):</span>
-                  <span class="font-semibold text-stone-900" x-text="formatRupiah(selectedCourier ? selectedCourier.price : 0)"></span>
+                <div class="pt-1 flex items-center justify-between text-xs text-stone-500 italic">
+                  <span>Estimasi Ongkir (<span x-text="selectedCourier ? selectedCourier.courier_name : '-'"></span>):</span>
+                  <span class="font-semibold" x-text="selectedCourier && selectedCourier.courier_code === 'pickup' ? 'Gratis' : (selectedCourier ? formatRupiah(selectedCourier.price) + ' (Bayar di Aplikasi)' : '0')"></span>
                 </div>
 
-                <div class="pt-3 flex items-center justify-between text-sm sm:text-base font-extrabold text-stone-900">
-                  <span>Total Pembayaran:</span>
+                <div x-show="selectedCourier && selectedCourier.courier_code !== 'pickup'" class="pt-2">
+                  <div class="bg-blue-50 border border-blue-100 p-2.5 rounded-lg text-[10px] text-blue-800 space-y-1.5 leading-snug">
+                    <p class="font-bold flex items-center gap-1"><i class="fa-solid fa-motorcycle"></i> Panduan Pengiriman Mandiri</p>
+                    <p>Karena Anda menggunakan kurir online (pihak ketiga), silakan klik aplikasi di bawah untuk memesan kurir secara mandiri setelah checkout selesai.</p>
+                    <div class="flex flex-wrap items-center gap-2 pt-1">
+                      <a href="https://gojek.com" target="_blank" @click="alert('Perkiraan ongkir mungkin sedikit berbeda pada platform kurir pilihan anda dan harga yang pasti akan mengikuti yang tertera pada aplikasi kurir terpilih.')" class="px-2.5 py-1 bg-[#00aa13] text-white rounded-md font-bold hover:bg-green-700 transition flex items-center gap-1"><i class="fa-solid fa-motorcycle"></i> Buka Gojek</a>
+                      <a href="https://grab.com" target="_blank" @click="alert('Perkiraan ongkir mungkin sedikit berbeda pada platform kurir pilihan anda dan harga yang pasti akan mengikuti yang tertera pada aplikasi kurir terpilih.')" class="px-2.5 py-1 bg-[#00b14f] text-white rounded-md font-bold hover:bg-emerald-700 transition flex items-center gap-1"><i class="fa-solid fa-route"></i> Buka Grab</a>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pt-3 flex items-center justify-between text-sm sm:text-base font-extrabold text-stone-900 mt-2 border-t border-stone-200">
+                  <span>Total (Hanya Makanan):</span>
                   <span class="text-brand-700 text-lg sm:text-xl font-black" x-text="formatRupiah(grandTotal)"></span>
                 </div>
               </div>
@@ -961,7 +972,7 @@
 
   <!-- MODAL PEMBAYARAN QRIS INSTAN (STATIS & DINAMIS) -->
   <div x-cloak x-show="isQrisModalOpen" class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div @click.away="isQrisModalOpen = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 relative my-8">
+    <div @click.away="isQrisModalOpen = false" class="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-stone-200 relative my-8">
       
       <button @click="isQrisModalOpen = false" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full flex items-center justify-center">
         <i class="fa-solid fa-xmark text-lg"></i>
@@ -988,16 +999,16 @@
       <div x-show="siteConfig.paymentConfig.qrisType === 'both'" class="mt-4 flex rounded-xl bg-stone-100 p-1 text-xs font-bold">
         <button 
           type="button"
-          @click="activeQrisTab = 'dynamic'" 
-          :class="activeQrisTab === 'dynamic' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500 hover:text-stone-900'" 
+          @click="qrisViewMode = 'dynamic'" 
+          :class="qrisViewMode === 'dynamic' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500 hover:text-stone-900'" 
           class="flex-1 py-1.5 rounded-lg transition text-center flex items-center justify-center gap-1">
           <i class="fa-solid fa-bolt text-[11px]"></i>
           <span>QRIS Dinamis</span>
         </button>
         <button 
           type="button"
-          @click="activeQrisTab = 'static'" 
-          :class="activeQrisTab === 'static' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500 hover:text-stone-900'" 
+          @click="qrisViewMode = 'static'" 
+          :class="qrisViewMode === 'static' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500 hover:text-stone-900'" 
           class="flex-1 py-1.5 rounded-lg transition text-center flex items-center justify-center gap-1">
           <i class="fa-solid fa-store text-[11px]"></i>
           <span>QRIS Toko</span>
@@ -1014,10 +1025,10 @@
 
         <!-- QR Code Image -->
         <div class="bg-white p-2.5 rounded-2xl shadow-md border border-stone-200">
-          <template x-if="activeQrisTab === 'dynamic' || siteConfig.paymentConfig.qrisType === 'dynamic'">
+          <template x-if="siteConfig.paymentConfig.qrisType === 'dynamic' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'dynamic')">
             <img :src="getDynamicQrisUrl(activeOrder.totalAmount || grandTotal, activeOrder.orderId || 'DEMO')" alt="QRIS Dinamis" class="w-56 h-56 object-contain" />
           </template>
-          <template x-if="activeQrisTab === 'static' && siteConfig.paymentConfig.qrisType !== 'dynamic'">
+          <template x-if="siteConfig.paymentConfig.qrisType === 'static' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'static')">
             <img :src="siteConfig.paymentConfig.qrisImage || 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=DAPUR_KULINER_VIRAL'" alt="QRIS Statis Toko" class="w-56 h-56 object-contain" />
           </template>
         </div>
@@ -1076,7 +1087,7 @@
 
   <!-- MODAL PEMBAYARAN TRANSFER BANK MANUAL -->
   <div x-cloak x-show="isBankModalOpen" class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div @click.away="isBankModalOpen = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 relative my-8">
+    <div @click.away="isBankModalOpen = false" class="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-stone-200 relative my-8">
       
       <button @click="isBankModalOpen = false" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full flex items-center justify-center">
         <i class="fa-solid fa-xmark text-lg"></i>
@@ -1166,7 +1177,7 @@
 
   <!-- MODAL REALTIME ORDER TRACKER (Progress Bar Update Otomatis via Firebase onValue) -->
   <div x-cloak x-show="isTrackerOpen" class="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div @click.away="isTrackerOpen = false" class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative">
+    <div @click.away="isTrackerOpen = false" class="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-stone-200 relative">
       
       <button @click="isTrackerOpen = false" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full flex items-center justify-center">
         <i class="fa-solid fa-xmark text-lg"></i>
@@ -1218,10 +1229,20 @@
         </div>
 
         <div class="mt-4 pt-3 border-t border-stone-200 text-xs text-stone-600 flex items-center justify-between">
-          <span>Total: <strong x-text="formatRupiah(activeOrder.totalAmount || 0)"></strong></span>
+          <span>Total Makanan: <strong x-text="formatRupiah(activeOrder.totalAmount || 0)"></strong></span>
           <button @click="downloadReceiptPDF(activeOrder)" :disabled="!activeOrder.orderId" class="text-brand-600 font-bold hover:underline flex items-center gap-1 disabled:opacity-40">
             <i class="fa-solid fa-file-pdf"></i> Unduh Struk PDF
           </button>
+        </div>
+
+        <!-- Opsi Pesan Kurir Mandiri di Tracker (Bila ada) -->
+        <div x-show="activeOrder.courier && activeOrder.courier.code !== 'pickup'" class="mt-4 bg-blue-50 border border-blue-100 p-3 rounded-xl text-[11px] text-blue-800 space-y-1.5 text-left leading-snug">
+          <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-motorcycle text-sm"></i> Segera Pesan Kurir Anda</p>
+          <p>Jika makanan sudah "Selesai", Anda dapat memesan <strong x-text="activeOrder.courier ? activeOrder.courier.name : 'kurir'"></strong> secara mandiri via aplikasi. Ongkir diperkirakan <strong x-text="activeOrder.courier ? formatRupiah(activeOrder.courier.price) : 0"></strong>.</p>
+          <div class="flex flex-wrap items-center gap-2 pt-1.5">
+            <a href="https://gojek.com" target="_blank" @click="alert('Perkiraan ongkir mungkin sedikit berbeda pada platform kurir pilihan anda dan harga yang pasti akan mengikuti yang tertera pada aplikasi kurir terpilih.')" class="px-3 py-1.5 bg-[#00aa13] text-white rounded-lg font-bold hover:bg-green-700 transition flex items-center gap-1.5"><i class="fa-solid fa-motorcycle"></i> Buka Gojek</a>
+            <a href="https://grab.com" target="_blank" @click="alert('Perkiraan ongkir mungkin sedikit berbeda pada platform kurir pilihan anda dan harga yang pasti akan mengikuti yang tertera pada aplikasi kurir terpilih.')" class="px-3 py-1.5 bg-[#00b14f] text-white rounded-lg font-bold hover:bg-emerald-700 transition flex items-center gap-1.5"><i class="fa-solid fa-route"></i> Buka Grab</a>
+          </div>
         </div>
       </div>
 
@@ -1251,9 +1272,14 @@
             <i class="fa-solid fa-cart-shopping text-brand-600 text-lg"></i>
             <h3 class="font-extrabold text-stone-900 text-lg">Keranjang Belanja</h3>
           </div>
-          <button @click="isCartOpen = false" class="w-8 h-8 rounded-full text-stone-400 hover:text-stone-700 flex items-center justify-center">
-            <i class="fa-solid fa-xmark text-lg"></i>
-          </button>
+          <div class="flex items-center gap-3">
+            <button x-show="cart.length > 0" @click="emptyCart()" class="text-xs text-red-500 hover:text-red-700 font-bold flex items-center gap-1">
+              <i class="fa-solid fa-trash-can"></i> Kosongkan
+            </button>
+            <button @click="isCartOpen = false" class="w-8 h-8 rounded-full text-stone-400 hover:text-stone-700 flex items-center justify-center">
+              <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+          </div>
         </div>
 
         <div class="p-5 overflow-y-auto flex-1 divide-y divide-stone-100">
@@ -1297,7 +1323,7 @@
 
   <!-- MODAL 1: AUTENTIKASI ADMIN DENGAN KEAMANAN PASSWORD -->
   <div x-cloak x-show="isAdminAuthModalOpen" class="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div @click.away="isAdminAuthModalOpen = false" class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative">
+    <div @click.away="isAdminAuthModalOpen = false" class="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-stone-200 relative">
       
       <button @click="isAdminAuthModalOpen = false" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full flex items-center justify-center">
         <i class="fa-solid fa-xmark text-lg"></i>
@@ -1758,6 +1784,46 @@
                 </div>
               </div>
             </template>
+          </div>
+
+          <!-- Section: Catering Packages -->
+          <div class="mt-8 bg-stone-50 p-4 rounded-2xl border border-stone-200">
+            <h4 class="font-extrabold text-stone-900 text-sm mb-3">Paket Catering</h4>
+            <div class="space-y-4">
+              <template x-for="(pkg, pkgIndex) in cateringPackages" :key="pkg.id">
+                <div class="p-4 bg-white rounded-xl border border-stone-200">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs font-bold text-stone-700 mb-1">Nama Paket</label>
+                      <input type="text" x-model="pkg.name" class="w-full p-2 border border-stone-300 rounded text-xs" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-stone-700 mb-1">Harga per Pax</label>
+                      <input type="number" x-model.number="pkg.pricePerPax" class="w-full p-2 border border-stone-300 rounded text-xs" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-stone-700 mb-1">Min Pax</label>
+                      <input type="number" x-model.number="pkg.minPax" class="w-full p-2 border border-stone-300 rounded text-xs" />
+                    </div>
+                    <div class="flex items-center gap-2 mt-4">
+                      <input type="checkbox" x-model="pkg.isPopular" :id="'pop-'+pkg.id" class="rounded text-brand-600 focus:ring-brand-500 w-4 h-4">
+                      <label :for="'pop-'+pkg.id" class="text-xs font-bold text-stone-700 cursor-pointer">Tandai "Paling Laris"</label>
+                    </div>
+                    <div class="sm:col-span-2">
+                      <label class="block text-xs font-bold text-stone-700 mb-1">Deskripsi Singkat</label>
+                      <textarea x-model="pkg.description" rows="2" class="w-full p-2 border border-stone-300 rounded text-xs"></textarea>
+                    </div>
+                    <div class="sm:col-span-2">
+                      <label class="block text-xs font-bold text-stone-700 mb-1">Daftar Isi Paket (pisahkan dengan koma)</label>
+                      <textarea :value="pkg.items.join(', ')" @input="pkg.items = $event.target.value.split(',').map(s=>s.trim()).filter(Boolean)" rows="2" class="w-full p-2 border border-stone-300 rounded text-xs"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <button @click="saveSiteConfig()" class="px-4 py-2 bg-brand-600 text-white rounded text-xs font-bold hover:bg-brand-700">Simpan Perubahan Catering</button>
+            </div>
           </div>
         </div>
 
@@ -2558,7 +2624,7 @@ git push -u origin main</pre>
 
   <!-- MODAL 3: FORM TAMBAH / EDIT MENU ITEM -->
   <div x-cloak x-show="isMenuFormOpen" class="fixed inset-0 z-[70] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div @click.away="isMenuFormOpen = false" class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 relative">
+    <div @click.away="isMenuFormOpen = false" class="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-stone-200 relative">
       
       <button @click="isMenuFormOpen = false" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full flex items-center justify-center">
         <i class="fa-solid fa-xmark text-lg"></i>
@@ -3229,7 +3295,8 @@ git push -u origin main</pre>
 
         // DAFTAR TARIF 7 KURIR BERDAMPINGAN DARI BITESHIP PROXY
         courierRates: [
-          { courier_code: 'gosend', courier_name: 'GoSend', courier_service_name: 'Instant (Motor/Mobil)', price: 15000, estimated_etd: '1 - 2 Jam (Saran Makanan Panas)', badge_color: 'border-emerald-500 text-emerald-700 bg-emerald-50', icon: 'fa-motorcycle', recommended: true },
+          { courier_code: 'pickup', courier_name: 'Ambil Sendiri', courier_service_name: 'Diambil di Toko', price: 0, estimated_etd: 'Kapan Saja', badge_color: 'border-blue-500 text-blue-700 bg-blue-50', icon: 'fa-person-walking-luggage', recommended: true },
+          { courier_code: 'gosend', courier_name: 'GoSend', courier_service_name: 'Instant (Motor/Mobil)', price: 15000, estimated_etd: '1 - 2 Jam (Saran Makanan Panas)', badge_color: 'border-emerald-500 text-emerald-700 bg-emerald-50', icon: 'fa-motorcycle', recommended: false },
           { courier_code: 'grab', courier_name: 'GrabExpress', courier_service_name: 'Same Day Makanan', price: 14000, estimated_etd: '2 - 4 Jam', badge_color: 'border-green-500 text-green-700 bg-green-50', icon: 'fa-route', recommended: false },
           { courier_code: 'jnt', courier_name: 'J&T Express', courier_service_name: 'EZ Reguler (Pack Box)', price: 12000, estimated_etd: 'Besok Sampai (1 Hari)', badge_color: 'border-red-500 text-red-700 bg-red-50', icon: 'fa-bolt', recommended: false },
           { courier_code: 'sicepat', courier_name: 'SiCepat', courier_service_name: 'BEST (Besok Sampai)', price: 13000, estimated_etd: 'Besok Sampai (1 Hari)', badge_color: 'border-orange-500 text-orange-700 bg-orange-50', icon: 'fa-gauge-high', recommended: false },
@@ -3293,6 +3360,9 @@ git push -u origin main</pre>
             if (savedConfig) {
               const parsed = JSON.parse(savedConfig);
               this.siteConfig = { ...this.siteConfig, ...parsed };
+              if (parsed.cateringPackages) {
+                this.cateringPackages = parsed.cateringPackages;
+              }
             }
           } catch (e) {
             console.warn("Error loading saved config:", e);
@@ -3323,6 +3393,9 @@ git push -u origin main</pre>
                 window.FirebaseBridge.listenSiteConfig((liveConfig) => {
                   if (liveConfig) {
                     this.siteConfig = { ...this.siteConfig, ...liveConfig };
+                    if (liveConfig.cateringPackages) {
+                      this.cateringPackages = liveConfig.cateringPackages;
+                    }
                   }
                 });
               }
@@ -3422,8 +3495,7 @@ git push -u origin main</pre>
         },
 
         get grandTotal() {
-          const courierFee = this.selectedCourier ? this.selectedCourier.price : 0;
-          return this.cartSubtotal + courierFee;
+          return this.cartSubtotal;
         },
 
         formatRupiah(number) {
@@ -3458,6 +3530,15 @@ git push -u origin main</pre>
           this.cart = this.cart.filter(c => c.id !== id);
         },
 
+        emptyCart() {
+          if(confirm("Apakah Anda yakin ingin mengosongkan keranjang belanja?")) {
+            this.cart = [];
+            this.selectedCourier = null;
+            this.selectedCourierCode = '';
+            this.calculateOngkir();
+          }
+        },
+
         selectCateringPackage(pkg) {
           this.selectedCateringPackage = pkg;
           if (this.cateringPax < pkg.minPax) {
@@ -3482,11 +3563,19 @@ git push -u origin main</pre>
         selectCourier(cr) {
           this.selectedCourier = cr;
           this.selectedCourierCode = cr.courier_code;
+          if (cr.courier_code !== 'pickup') {
+            this.showToast('Perkiraan ongkir mungkin sedikit berbeda, harga akhir mengikuti aplikasi kurir.');
+          }
         },
 
         onCourierDropdownChange() {
           const found = this.courierRates.find(r => r.courier_code === this.selectedCourierCode);
-          if (found) this.selectedCourier = found;
+          if (found) {
+            this.selectedCourier = found;
+            if (found.courier_code !== 'pickup') {
+              this.showToast('Perkiraan ongkir mungkin sedikit berbeda, harga akhir mengikuti aplikasi kurir.');
+            }
+          }
         },
 
         // Panggil Cloudflare Pages Function Proxy /functions/ongkir.js (Biteship)
@@ -3527,16 +3616,32 @@ git push -u origin main</pre>
             return;
           }
 
+          this.customerAddress = "Mencari lokasi...";
+
           navigator.geolocation.getCurrentPosition(
-            (pos) => {
+            async (pos) => {
               const { latitude, longitude } = pos.coords;
-              this.customerAddress = `Lokasi GPS: [Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}] (Kecamatan terdekat, Jabodetabek)`;
+              try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                if (res.ok) {
+                   const data = await res.json();
+                   if (data.display_name) {
+                     this.customerAddress = data.display_name;
+                   } else {
+                     this.customerAddress = `Lokasi GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+                   }
+                } else {
+                   this.customerAddress = `Lokasi GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+                }
+              } catch (e) {
+                this.customerAddress = `Lokasi GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+              }
               this.calculateOngkir();
             },
             (err) => {
               console.warn("Geolocation denied or error:", err);
-              this.customerAddress = "Jl. Sudirman No. 45, Kebayoran Baru, Jakarta Selatan";
-              this.calculateOngkir();
+              this.customerAddress = "";
+              alert("Gagal mendapatkan lokasi. Pastikan izin lokasi (GPS) aktif di browser Anda.");
             },
             { timeout: 8000, enableHighAccuracy: true }
           );
@@ -4282,6 +4387,7 @@ git push -u origin main</pre>
         },
 
         async saveSiteConfig() {
+          this.siteConfig.cateringPackages = this.cateringPackages;
           await window.FirebaseBridge.saveSiteConfig(this.siteConfig);
           this.showToast('Pengaturan website berhasil disimpan ke Firebase!');
         },
