@@ -942,6 +942,8 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-stone-900">
             <input type="text" x-model="b2bForm.company" required placeholder="Nama Perusahaan / Instansi *" class="p-3 rounded-xl bg-white text-xs sm:text-sm focus:outline-none" />
             <input type="text" x-model="b2bForm.pic" required placeholder="Nama PIC (Contact Person) *" class="p-3 rounded-xl bg-white text-xs sm:text-sm focus:outline-none" />
+            <input type="text" x-model="b2bForm.phone" required placeholder="No. WhatsApp PIC *" class="p-3 rounded-xl bg-white text-xs sm:text-sm focus:outline-none" />
+            <input type="text" x-model="b2bForm.address" required placeholder="Alamat Pengiriman *" class="p-3 rounded-xl bg-white text-xs sm:text-sm focus:outline-none" />
             <input type="number" x-model.number="b2bForm.quantity" min="50" required placeholder="Jumlah Box (Min. 50 Pax) *" class="p-3 rounded-xl bg-white text-xs sm:text-sm focus:outline-none" />
             <input type="date" x-model="b2bForm.eventDate" required class="p-3 rounded-xl bg-white text-xs sm:text-sm focus:outline-none" />
           </div>
@@ -949,7 +951,7 @@
 
           <button type="submit" class="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center gap-2">
             <i class="fa-brands fa-whatsapp text-lg"></i>
-            <span>Kirim Proposal & Konsultasi ke WhatsApp Admin B2B</span>
+            <span>Kirim Pesanan & Konsultasi WhatsApp Admin B2B</span>
           </button>
         </form>
       </div>
@@ -3110,6 +3112,8 @@ git push -u origin main</pre>
         b2bForm: {
           company: '',
           pic: '',
+          phone: '',
+          address: '',
           quantity: 50,
           eventDate: '',
           notes: ''
@@ -3972,16 +3976,89 @@ git push -u origin main</pre>
 
         // Form B2B Corporate kirim ke WhatsApp Admin
         sendB2BWhatsApp() {
+          this.downloadB2BPDF(); // Unduh otomatis PDF
+
           const adminNumber = this.cleanPhone(this.siteConfig.phone);
           const text = `*PROPOSAL CATERING B2B / CORPORATE*\n` +
             `🏢 Perusahaan: ${this.b2bForm.company}\n` +
             `👤 PIC: ${this.b2bForm.pic}\n` +
+            `📞 No. WhatsApp: ${this.b2bForm.phone}\n` +
+            `📍 Alamat: ${this.b2bForm.address}\n` +
             `📦 Jumlah Porsi: ${this.b2bForm.quantity} Box\n` +
             `📅 Tanggal Acara: ${this.b2bForm.eventDate}\n` +
             `📝 Catatan Tambahan: ${this.b2bForm.notes || '-'}\n\n` +
             `Mohon penawaran harga resmi & invoice faktur. Terima kasih!`;
 
           window.open(`https://wa.me/${adminNumber}?text=${encodeURIComponent(text)}`, '_blank');
+        },
+
+        downloadB2BPDF() {
+          try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+              orientation: 'portrait',
+              unit: 'mm',
+              format: 'a4'
+            });
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(18);
+            doc.text("FORMULIR PESANAN CATERING B2B", 105, 20, { align: "center" });
+
+            doc.setFontSize(14);
+            doc.text(this.siteConfig.brandName || "DAPUR KULINER VIRAL", 105, 28, { align: "center" });
+            
+            doc.setLineWidth(0.5);
+            doc.line(20, 32, 190, 32);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(12);
+            let y = 45;
+            
+            doc.text(`TANGGAL PESAN: ${new Date().toLocaleDateString('id-ID')}`, 20, y);
+            y += 10;
+            
+            doc.setFont("helvetica", "bold");
+            doc.text("DATA PEMESAN", 20, y);
+            doc.setFont("helvetica", "normal");
+            y += 8;
+            
+            doc.text(`Nama Perusahaan / Instansi: ${this.b2bForm.company}`, 20, y);
+            y += 8;
+            doc.text(`Nama PIC: ${this.b2bForm.pic}`, 20, y);
+            y += 8;
+            doc.text(`No. WhatsApp: ${this.b2bForm.phone}`, 20, y);
+            y += 8;
+            
+            // Handle long address wrapping
+            const addressLines = doc.splitTextToSize(`Alamat Pengiriman: ${this.b2bForm.address}`, 170);
+            doc.text(addressLines, 20, y);
+            y += (addressLines.length * 8) + 2;
+
+            doc.setFont("helvetica", "bold");
+            doc.text("DETAIL PESANAN", 20, y);
+            doc.setFont("helvetica", "normal");
+            y += 8;
+
+            doc.text(`Tanggal Acara: ${this.b2bForm.eventDate}`, 20, y);
+            y += 8;
+            doc.text(`Jumlah Porsi: ${this.b2bForm.quantity} Box`, 20, y);
+            y += 8;
+            
+            const notesLines = doc.splitTextToSize(`Catatan Tambahan: ${this.b2bForm.notes || '-'}`, 170);
+            doc.text(notesLines, 20, y);
+            
+            y += (notesLines.length * 8) + 15;
+            
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(10);
+            doc.text("* Formulir ini dihasilkan secara otomatis oleh sistem.", 20, y);
+
+            doc.save(`Formulir_Catering_B2B_${this.b2bForm.company.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+          } catch (e) {
+            console.error("Gagal men-generate PDF:", e);
+            this.showToast("Terjadi kesalahan saat mengunduh PDF.");
+          }
         },
 
         scrollToSection(id) {
