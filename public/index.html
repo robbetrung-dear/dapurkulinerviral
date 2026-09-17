@@ -2764,20 +2764,17 @@ git push -u origin main</pre>
     let app, db, auth;
     let activeFirebaseConfig = { ...firebaseConfig };
 
-    // Prioritaskan Environment Variables Server jika sudah diatur valid
-    if (IS_DEMO_MODE) {
-      // Jika server masih mode demo, coba baca dari local storage browser
-      try {
-        const storedCustom = localStorage.getItem("dapur_firebase_custom_config");
-        if (storedCustom) {
-          const parsed = JSON.parse(storedCustom);
-          if (parsed && parsed.apiKey && !parsed.apiKey.includes("YOUR_FIREBASE")) {
-            activeFirebaseConfig = parsed;
-          }
+    // Selalu prioritaskan setelan manual di browser local storage jika ada
+    try {
+      const storedCustom = localStorage.getItem("dapur_firebase_custom_config");
+      if (storedCustom) {
+        const parsed = JSON.parse(storedCustom);
+        if (parsed && parsed.apiKey && !parsed.apiKey.includes("YOUR_FIREBASE")) {
+          activeFirebaseConfig = parsed;
         }
-      } catch (e) {
-        console.warn("Error reading stored custom firebase config:", e);
       }
+    } catch (e) {
+      console.warn("Error reading stored custom firebase config:", e);
     }
 
     function initFirebaseModule(cfg) {
@@ -2832,7 +2829,11 @@ git push -u origin main</pre>
           });
           return { success: true, message: "Koneksi Realtime Database BERHASIL! Sinkronisasi multi-device aktif." };
         } catch (err) {
-          return { success: false, message: "Gagal menghubungkan ke Firebase: " + (err.message || err) };
+          const msg = err.message || err;
+          if (msg.includes("Permission denied") || msg.includes("PERMISSION_DENIED")) {
+            return { success: true, message: "Jalur Koneksi BERHASIL! Namun Firebase memblokir penulisan data karena aturan keamanan (Security Rules) belum dikonfigurasi." };
+          }
+          return { success: false, message: "Gagal menghubungkan ke Firebase: " + msg };
         }
       },
       saveOrder: async (orderData) => {
@@ -3749,7 +3750,10 @@ git push -u origin main</pre>
             const ok = window.FirebaseBridge.applyNewConfig(this.firebaseConfigInput);
             this.firebaseStatus = window.FirebaseBridge.getDatabaseStatus();
             if (ok) {
-              this.showToast("Kredensial Firebase berhasil disimpan & diterapkan!");
+              this.showToast("Kredensial Firebase berhasil disimpan! Memuat ulang sistem...");
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
             } else {
               this.showToast("Kredensial disimpan di browser, mode offline/lokal aktif.");
             }
