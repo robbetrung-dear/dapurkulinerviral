@@ -3600,7 +3600,7 @@ git push -u origin main</pre>
           const totalGrams = Math.max(1000, Math.ceil(this.cateringPax * 400));
           
           try {
-            const res = await fetch('/functions/ongkir', {
+            const res = await fetch('/ongkir', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -3730,7 +3730,7 @@ git push -u origin main</pre>
 
             // QRIS Dinamis / Both → panggil Midtrans Charge API via Cloudflare Function
             try {
-              const res = await fetch('/functions/payment', {
+              const res = await fetch('/payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3791,7 +3791,7 @@ git push -u origin main</pre>
 
           // JIKA METODE PEMBAYARAN = MIDTRANS SNAP ONLINE GATEWAY
           try {
-            const res = await fetch('/functions/payment', {
+            const res = await fetch('/payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
