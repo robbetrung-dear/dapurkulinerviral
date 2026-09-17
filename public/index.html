@@ -1025,9 +1025,23 @@
 
         <!-- QR Code Image -->
         <div class="bg-white p-2.5 rounded-2xl shadow-md border border-stone-200">
-          <template x-if="siteConfig.paymentConfig.qrisType === 'dynamic' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'dynamic')">
-            <img :src="getDynamicQrisUrl(activeOrder.totalAmount || grandTotal, activeOrder.orderId || 'DEMO')" alt="QRIS Dinamis" class="w-56 h-56 object-contain" />
-          </template>
+<template x-if="siteConfig.paymentConfig.qrisType === 'dynamic' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'dynamic')">
+  <div class="flex flex-col items-center">
+    <template x-if="midtransQrUrl">
+      <img :src="midtransQrUrl" alt="QRIS Dinamis Midtrans" class="w-56 h-56 object-contain" />
+    </template>
+    <template x-if="!midtransQrUrl">
+      <div class="w-56 h-56 flex flex-col items-center justify-center bg-stone-100 rounded-xl border border-dashed border-stone-300 text-center p-4">
+        <i class="fa-solid fa-qrcode text-4xl text-stone-400 mb-2"></i>
+        <p class="text-xs text-stone-500 font-semibold">QR Midtrans tidak tersedia</p>
+        <p class="text-[10px] text-stone-400 mt-1">Silakan gunakan QRIS Statis Toko</p>
+      </div>
+    </template>
+    <template x-if="midtransQrIsMock">
+      <span class="mt-2 text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded">MODE SIMULASI (Belum Production)</span>
+    </template>
+  </div>
+</template>
           <template x-if="siteConfig.paymentConfig.qrisType === 'static' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'static')">
             <img :src="siteConfig.paymentConfig.qrisImage || 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=DAPUR_KULINER_VIRAL'" alt="QRIS Statis Toko" class="w-56 h-56 object-contain" />
           </template>
@@ -3100,6 +3114,8 @@ git push -u origin main</pre>
         qrisViewMode: 'dynamic', // 'dynamic' | 'static'
         qrisTimerSeconds: 900,
         qrisTimerInterval: null,
+        midtransQrUrl: null,
+        midtransQrIsMock: false,
 
         // KREDENSIAL & STATUS FIREBASE REALTIME
         firebaseConfigInput: {
@@ -3702,9 +3718,67 @@ git push -u origin main</pre>
 
           // JIKA METODE PEMBAYARAN = QRIS (Statis & Dinamis)
           if (this.selectedPaymentMethod === 'qris') {
-            this.isProcessingPayment = false;
-            this.startQrisTimer();
-            this.isQrisModalOpen = true;
+            const qrisType = this.siteConfig.paymentConfig.qrisType;
+
+            // Jika hanya QRIS Statis, langsung tampilkan modal
+            if (qrisType === 'static') {
+              this.isProcessingPayment = false;
+              this.startQrisTimer();
+              this.isQrisModalOpen = true;
+              return;
+            }
+
+            // QRIS Dinamis / Both → panggil Midtrans Charge API via Cloudflare Function
+            try {
+              const res = await fetch('/functions/payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  order_id: orderId,
+                  gross_amount: this.grandTotal,
+                  customer_details: {
+                    name: this.customerName,
+                    phone: this.customerPhone,
+                    address: this.customerAddress
+                  },
+                  item_details: this.cart.map(i => ({
+                    id: i.id,
+                    price: i.price,
+                    quantity: i.quantity,
+                    name: i.name
+                  }))
+                })
+              });
+
+              const data = await res.json();
+              this.isProcessingPayment = false;
+
+              if (data.success && data.qr_code_url) {
+                // BERHASIL: simpan URL QR dari Midtrans
+                this.midtransQrUrl = data.qr_code_url;
+                this.midtransQrIsMock = data.is_mock === true;
+                if (qrisType === 'both') this.qrisViewMode = 'dynamic';
+                if (data.is_mock) {
+                  this.showToast('Mode simulasi Midtrans aktif (Server Key belum diisi).');
+                }
+              } else {
+                // Gagal: fallback ke QR statis
+                console.warn('Midtrans gagal:', data.error || 'Unknown error');
+                this.midtransQrUrl = null;
+                this.midtransQrIsMock = false;
+                this.showToast('Gagal membuat QRIS Dinamis. Menggunakan QRIS Statis.');
+              }
+
+              this.startQrisTimer();
+              this.isQrisModalOpen = true;
+
+            } catch (err) {
+              console.warn('Midtrans network error:', err);
+              this.isProcessingPayment = false;
+              this.midtransQrUrl = null;
+              this.startQrisTimer();
+              this.isQrisModalOpen = true;
+            }
             return;
           }
 
