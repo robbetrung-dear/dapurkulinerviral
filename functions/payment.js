@@ -1,5 +1,5 @@
 /**
- * functions/payment.js - Cloudflare Pages Function
+ * public/functions/payment.js - Cloudflare Pages Function
  * Charge API Midtrans untuk QRIS DINAMIS (Nominal Pas Otomatis).
  * 
  * Spesifikasi:
