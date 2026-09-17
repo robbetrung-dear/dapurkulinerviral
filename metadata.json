@@ -1,0 +1,7 @@
+{
+  "name": "Dapur Viral & Catering Cloudflare Template",
+  "description": "Template Landing Page Dapur Kuliner & Catering siap deploy ke Cloudflare Pages dengan Midtrans Snap, Biteship Ongkir, Firebase Realtime Database, dan Dasbor Analitik.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

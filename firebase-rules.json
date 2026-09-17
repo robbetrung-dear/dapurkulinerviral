@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "orders": {
+      ".read": true,
+      "$order_id": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['orderId', 'customer', 'items', 'totalAmount', 'status', 'createdAt'])",
+        "status": {
+          ".validate": "newData.val() == 'Pending' || newData.val() == 'Dibayar' || newData.val() == 'Diproses' || newData.val() == 'Dikirim' || newData.val() == 'Selesai' || newData.val() == 'Dibatalkan'"
+        },
+        "totalAmount": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        }
+      },
+      ".indexOn": ["status", "createdAt", "customer/phone"]
+    },
+    "status": {
+      ".read": true,
+      "$order_id": {
+        ".write": "auth != null"
+      }
+    },
+    "logs": {
+      ".read": "auth != null && auth.token.admin === true",
+      ".write": "auth != null"
+    },
+    "analytics": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+}

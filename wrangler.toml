@@ -1,0 +1,26 @@
+# wrangler.toml
+# Konfigurasi Cloudflare Pages Functions & Durable Objects
+
+name = "dapur-viral-landing"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "public"
+
+[vars]
+MIDTRANS_IS_PRODUCTION = "false"
+# API Keys sensitif di bawah ini WAJIB diset via Cloudflare Pages Dashboard:
+# Project Settings > Environment Variables (atau via command wrangler secret put):
+# MIDTRANS_SERVER_KEY = "YOUR_MIDTRANS_SERVER_KEY_HERE"
+# MIDTRANS_CLIENT_KEY = "YOUR_MIDTRANS_CLIENT_KEY_HERE"
+# BITESHIP_API_KEY = "YOUR_BITESHIP_API_KEY_HERE"
+# FIREBASE_DATABASE_URL = "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app"
+# FIREBASE_DATABASE_SECRET = "YOUR_DATABASE_SECRET_FOR_REST_ADMIN_HERE"
+
+# Definisi Durable Object (jika menggunakan fitur WebSocket Realtime Worker)
+[durable_objects]
+bindings = [
+  { name = "ORDER_SYNC", class_name = "OrderSyncSession" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["OrderSyncSession"]
