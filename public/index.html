@@ -2916,6 +2916,9 @@ git push -u origin main</pre>
         return () => {};
       }
     };
+    
+    // Beri tahu Alpine bahwa FirebaseBridge sudah siap
+    window.dispatchEvent(new CustomEvent('firebase-bridge-ready'));
   </script>
 
   <!-- ALPINE.JS APPLICATION COMPONENT -->
@@ -3314,22 +3317,25 @@ git push -u origin main</pre>
           }
 
           // 3. Realtime Listener dari Firebase jika aktif
-          try {
-            if (window.FirebaseBridge && window.FirebaseBridge.listenSiteConfig) {
-              window.FirebaseBridge.listenSiteConfig((liveConfig) => {
-                if (liveConfig) {
-                  this.siteConfig = { ...this.siteConfig, ...liveConfig };
-                }
-              });
-            }
-            if (window.FirebaseBridge && window.FirebaseBridge.listenMenu) {
-              window.FirebaseBridge.listenMenu((liveMenu) => {
-                if (liveMenu && Array.isArray(liveMenu) && liveMenu.length > 0) {
-                  this.menuItems = liveMenu;
-                }
-              });
-            }
-          } catch (e) {}
+          const syncFirebaseListeners = () => {
+            try {
+              if (window.FirebaseBridge && window.FirebaseBridge.listenSiteConfig) {
+                window.FirebaseBridge.listenSiteConfig((liveConfig) => {
+                  if (liveConfig) {
+                    this.siteConfig = { ...this.siteConfig, ...liveConfig };
+                  }
+                });
+              }
+              if (window.FirebaseBridge && window.FirebaseBridge.listenMenu) {
+                window.FirebaseBridge.listenMenu((liveMenu) => {
+                  if (liveMenu && Array.isArray(liveMenu) && liveMenu.length > 0) {
+                    this.menuItems = liveMenu;
+                  }
+                });
+              }
+            } catch (e) {}
+          };
+          syncFirebaseListeners();
 
           // 4. Cek Sesi Admin yang masih aktif
           try {
@@ -3339,17 +3345,26 @@ git push -u origin main</pre>
           } catch (e) {}
 
           // 5. Inisialisasi status Firebase & Credentials untuk Panel Admin
-          try {
-            if (window.FirebaseBridge) {
-              const activeCfg = window.FirebaseBridge.getConfig();
-              if (activeCfg) {
-                this.firebaseConfigInput = { ...this.firebaseConfigInput, ...activeCfg };
+          const syncFirebaseToAlpine = () => {
+            try {
+              if (window.FirebaseBridge) {
+                const activeCfg = window.FirebaseBridge.getConfig();
+                if (activeCfg) {
+                  this.firebaseConfigInput = { ...this.firebaseConfigInput, ...activeCfg };
+                }
+                this.firebaseStatus = window.FirebaseBridge.getDatabaseStatus();
               }
-              this.firebaseStatus = window.FirebaseBridge.getDatabaseStatus();
+            } catch (e) {
+              console.warn("Init firebase status note:", e);
             }
-          } catch (e) {
-            console.warn("Init firebase status note:", e);
-          }
+          };
+          syncFirebaseToAlpine();
+
+          // Re-sync if FirebaseBridge loads after Alpine init
+          window.addEventListener('firebase-bridge-ready', () => {
+            syncFirebaseListeners();
+            syncFirebaseToAlpine();
+          });
 
           // Pilih kurir awal default
           this.selectedCourier = this.courierRates[0];
