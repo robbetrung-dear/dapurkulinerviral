@@ -1,11 +1,12 @@
 /**
  * functions/payment.js - Cloudflare Pages Function
- * Proxy API untuk Midtrans Snap Payment Gateway.
+ * Charge API Midtrans untuk QRIS DINAMIS (Nominal Pas Otomatis).
  * 
- * Spesifikasi Khusus:
- * - TANPA KARTU KREDIT (Credit card dinonaktifkan di enabled_payments).
- * - Metode aktif: QRIS, Transfer Bank (BCA, Mandiri, BNI, BRI, Permata), E-Wallet (GoPay, ShopeePay).
- * - Menjaga Server Key Midtrans tetap privat (tidak bocor ke browser).
+ * Spesifikasi:
+ * - HANYA QRIS (nominal otomatis terisi).
+ * - Tanpa kartu kredit.
+ * - QR muncul LANGSUNG di halaman aplikasi (bukan redirect).
+ * - Mode simulasi otomatis jika Server Key belum diisi.
  */
 
 export async function onRequest(context) {
@@ -49,30 +50,36 @@ export async function onRequest(context) {
     const serverKey = env.MIDTRANS_SERVER_KEY || "YOUR_MIDTRANS_SERVER_KEY_HERE";
     const isProduction = env.MIDTRANS_IS_PRODUCTION === "true";
 
-    // Mode Simulasi / Demo jika Midtrans belum diisi oleh pembeli template
-    if (!serverKey || serverKey.includes("YOUR_MIDTRANS")) {
-      const mockToken = "MOCK_SNAP_" + order_id + "_" + Date.now();
+    // ============================================================
+    // MODE SIMULASI (untuk testing template sebelum punya akun Midtrans)
+    // ============================================================
+    if (!serverKey || serverKey.includes("YOUR_MIDTRANS") || serverKey === "SKIP_DULU") {
+      const mockQrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=MOCK-QRIS-" + order_id;
       return new Response(JSON.stringify({
         success: true,
-        token: mockToken,
-        redirect_url: `https://app.sandbox.midtrans.com/snap/v2/vtweb/${mockToken}`,
+        payment_type: "qris",
+        qr_code_url: mockQrUrl,
+        order_id: order_id,
+        gross_amount: gross_amount,
+        transaction_id: "MOCK-" + Date.now(),
         is_mock: true,
-        note: "Mode simulasi aktif karena MIDTRANS_SERVER_KEY masih placeholder di Cloudflare. Checkout demo dapat dites langsung."
+        note: "Mode simulasi aktif. Isi MIDTRANS_SERVER_KEY yang asli di Cloudflare Environment Variables untuk production."
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    // Midtrans Snap Endpoint URL
-    const snapUrl = isProduction
-      ? "https://app.midtrans.com/snap/v1/transactions"
-      : "https://app.sandbox.midtrans.com/snap/v1/transactions";
+    // ============================================================
+    // MODE PRODUCTION/SANDBOX - Charge API untuk QRIS Dinamis
+    // ============================================================
+    const chargeUrl = isProduction
+      ? "https://api.midtrans.com/v2/charge"
+      : "https://api.sandbox.midtrans.com/v2/charge";
 
-    // Base64 encode server key untuk Basic Auth Midtrans
     const authHeader = "Basic " + btoa(serverKey + ":");
 
-    // Parameter Transaksi Midtrans Snap
-    const transactionParams = {
+    const chargeData = {
+      payment_type: "qris",
       transaction_details: {
         order_id: order_id,
         gross_amount: Math.round(Number(gross_amount))
@@ -80,17 +87,7 @@ export async function onRequest(context) {
       customer_details: {
         first_name: customer_details.name || "Pelanggan",
         email: customer_details.email || "customer@dapurkuliner.id",
-        phone: customer_details.phone || "08123456789",
-        billing_address: {
-          first_name: customer_details.name || "Pelanggan",
-          address: customer_details.address || "Alamat Pengiriman",
-          phone: customer_details.phone || "08123456789"
-        },
-        shipping_address: {
-          first_name: customer_details.name || "Pelanggan",
-          address: customer_details.address || "Alamat Pengiriman",
-          phone: customer_details.phone || "08123456789"
-        }
+        phone: customer_details.phone || "08123456789"
       },
       item_details: item_details.length > 0 ? item_details.map(item => ({
         id: item.id || "item-" + Math.random().toString(36).substring(7),
@@ -103,51 +100,65 @@ export async function onRequest(context) {
         quantity: 1,
         name: "Pesanan Kuliner / Catering"
       }],
-      // PENTING: NONAKTIFKAN KARTU KREDIT (Sesuai spesifikasi prompt)
-      // Hanya izinkan QRIS, Transfer Bank (BCA, Mandiri, BNI, BRI, Permata), E-Wallet
-      enabled_payments: [
-        "gopay",
-        "shopeepay",
-        "qris",
-        "bca_va",
-        "bni_va",
-        "bri_va",
-        "echannel", // Mandiri Bill
-        "permata_va",
-        "other_va"
-      ],
-      callbacks: {
-        finish: (env.APP_URL || "https://pages.dev") + "/?order_id=" + order_id + "&status=success"
+      qris: {
+        acquirer: "gopay" // Bisa diganti "shopeepay" jika ingin acquirer berbeda
+      },
+      // Custom expiry: QR berlaku 15 menit
+      custom_expiry: {
+        expiry_duration: 15,
+        unit: "minute"
       }
     };
 
-    const midtransRes = await fetch(snapUrl, {
+    const midtransRes = await fetch(chargeUrl, {
       method: "POST",
       headers: {
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Authorization": authHeader
       },
-      body: JSON.stringify(transactionParams)
+      body: JSON.stringify(chargeData)
     });
 
     const midtransData = await midtransRes.json();
 
     if (!midtransRes.ok) {
       return new Response(JSON.stringify({
-        error: midtransData.error_messages || "Gagal membuat transaksi Midtrans Snap",
-        details: midtransData
+        error: midtransData.status_message || "Gagal membuat QRIS Dinamis",
+        details: midtransData,
+        success: false
       }), {
         status: midtransRes.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
+    // Ekstrak URL gambar QR dari actions
+    let qrCodeUrl = null;
+    let qrString = null;
+    if (midtransData.actions && Array.isArray(midtransData.actions)) {
+      const qrAction = midtransData.actions.find(a => a.name === "generate-qr-code");
+      if (qrAction) qrCodeUrl = qrAction.url;
+    }
+    if (midtransData.qr_string) {
+      qrString = midtransData.qr_string;
+    }
+
+    // Fallback: kalau URL QR tidak tersedia, generate sendiri dari qr_string
+    if (!qrCodeUrl && qrString) {
+      qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + encodeURIComponent(qrString);
+    }
+
     return new Response(JSON.stringify({
       success: true,
-      token: midtransData.token,
-      redirect_url: midtransData.redirect_url,
-      order_id: order_id,
+      payment_type: "qris",
+      qr_code_url: qrCodeUrl,
+      qr_string: qrString,
+      order_id: midtransData.order_id,
+      transaction_id: midtransData.transaction_id,
+      gross_amount: midtransData.gross_amount,
+      expiry_time: midtransData.expiry_time,
+      transaction_status: midtransData.transaction_status,
       is_mock: false
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
