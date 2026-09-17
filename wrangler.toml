@@ -1,6 +1,5 @@
 # wrangler.toml
-# Konfigurasi Cloudflare Pages Functions & Durable Objects
-
+# Konfigurasi Cloudflare Pages Functions
 name = "dapur-viral-landing"
 compatibility_date = "2024-09-01"
 pages_build_output_dir = "public"
@@ -14,13 +13,3 @@ MIDTRANS_IS_PRODUCTION = "false"
 # BITESHIP_API_KEY = "YOUR_BITESHIP_API_KEY_HERE"
 # FIREBASE_DATABASE_URL = "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app"
 # FIREBASE_DATABASE_SECRET = "YOUR_DATABASE_SECRET_FOR_REST_ADMIN_HERE"
-
-# Definisi Durable Object (jika menggunakan fitur WebSocket Realtime Worker)
-[durable_objects]
-bindings = [
-  { name = "ORDER_SYNC", class_name = "OrderSyncSession" }
-]
-
-[[migrations]]
-tag = "v1"
-new_classes = ["OrderSyncSession"]
