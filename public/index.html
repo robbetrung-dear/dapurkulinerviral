@@ -3746,11 +3746,23 @@ git push -u origin main</pre>
             alert("Mohon isi minimal API Key dan Project ID Firebase!");
             return;
           }
+          
+          // Sinkronisasi ke server node.js agar tersimpan global
+          try {
+            await fetch('/api/firebase-config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.firebaseConfigInput)
+            });
+          } catch(e) {
+            console.warn("Gagal sinkronisasi config ke server", e);
+          }
+
           if (window.FirebaseBridge && window.FirebaseBridge.applyNewConfig) {
             const ok = window.FirebaseBridge.applyNewConfig(this.firebaseConfigInput);
             this.firebaseStatus = window.FirebaseBridge.getDatabaseStatus();
             if (ok) {
-              this.showToast("Kredensial Firebase berhasil disimpan! Memuat ulang sistem...");
+              this.showToast("Kredensial Firebase berhasil disimpan secara global! Memuat ulang sistem...");
               setTimeout(() => {
                 window.location.reload();
               }, 1500);

@@ -253,21 +253,61 @@ const handleWebhook = async (req: express.Request, res: express.Response) => {
 app.post('/functions/webhook', handleWebhook);
 app.post('/api/webhook', handleWebhook);
 
+import fs from "fs";
+
+// Try to load globally saved config
+let savedFirebaseConfig: any = {};
+try {
+  if (fs.existsSync('firebase-credentials.json')) {
+    savedFirebaseConfig = JSON.parse(fs.readFileSync('firebase-credentials.json', 'utf8'));
+  }
+} catch (e) {
+  console.warn("No valid firebase-credentials.json found");
+}
+
 // Dynamic API endpoint to serve server-side environment variables
 app.get('/api/firebase-config', (req, res) => {
+  if (savedFirebaseConfig && savedFirebaseConfig.apiKey) {
+    return res.json(savedFirebaseConfig);
+  }
+
   const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "";
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "";
-  const databaseURL = process.env.FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL || `https://${projectId}-default-rtdb.asia-southeast1.firebasedatabase.app`;
+  let projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "";
+  const databaseURL = process.env.FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL || "";
+
+  if (!projectId && databaseURL) {
+    const match = databaseURL.match(/https:\/\/(.*?)-default-rtdb/);
+    if (match && match[1]) {
+      projectId = match[1];
+    }
+  }
+
+  const finalDatabaseURL = databaseURL || (projectId ? `https://${projectId}-default-rtdb.asia-southeast1.firebasedatabase.app` : "");
   
   res.json({
     apiKey: apiKey,
     authDomain: projectId ? projectId + '.firebaseapp.com' : '',
-    databaseURL: databaseURL,
+    databaseURL: finalDatabaseURL,
     projectId: projectId,
     storageBucket: projectId ? projectId + '.appspot.com' : '',
     messagingSenderId: "123456789012",
     appId: "1:123456789012:web:abcdef1234567890"
   });
+});
+
+app.post('/api/firebase-config', (req, res) => {
+  try {
+    const config = req.body;
+    if (config && config.apiKey) {
+      savedFirebaseConfig = config;
+      fs.writeFileSync('firebase-credentials.json', JSON.stringify(config, null, 2));
+      res.json({ success: true, message: "Credentials saved globally to server" });
+    } else {
+      res.status(400).json({ error: "Invalid config payload" });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Serve static assets from public/ directory
