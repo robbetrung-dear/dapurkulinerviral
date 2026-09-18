@@ -123,7 +123,7 @@
   </style>
 </head>
 
-<body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917' }" x-data="dapurApp()" x-init="initApp()">
+<body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
   <!-- Top Notification Ribbon Running Text (Marquee Background Hitam) -->
   <div class="bg-black text-white text-xs py-2 overflow-hidden relative border-b border-stone-800 select-none z-30" :style="{ backgroundColor: siteConfig.promoRibbonBg || '#000000' }">
@@ -148,26 +148,26 @@
 
   <!-- Navbar (Editable Logo, Judul Per Kata 2 Baris, & Warna) -->
   <header class="sticky top-0 z-40 border-b border-stone-200/90 backdrop-blur-md transition-colors" :style="{ backgroundColor: (siteConfig.headerBgColor || '#ffffff') + 'f2' }">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+    <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-1.5 sm:gap-4 overflow-x-hidden">
       
       <!-- Brand Logo & Judul 2 Baris (Dapur atas, Kuliner Viral bawah - Tanpa Subjudul) -->
-      <div class="flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
+      <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
         <!-- Logo Toko -->
-        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-md overflow-hidden transition-all flex-shrink-0" :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-md overflow-hidden transition-all flex-shrink-0" :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
           <template x-if="siteConfig.logoType === 'image' && siteConfig.logoImage">
             <img :src="siteConfig.logoImage" alt="Logo Toko" class="w-full h-full object-cover" />
           </template>
           <template x-if="siteConfig.logoType !== 'image' || !siteConfig.logoImage">
-            <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" class="text-sm sm:text-lg"></i>
+            <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" class="text-xs sm:text-lg"></i>
           </template>
         </div>
 
         <!-- Judul 2 Baris: Baris Atas "DAPUR", Baris Bawah "KULINER VIRAL" (Ukuran Font Sama Besar) -->
         <div class="flex flex-col justify-center min-w-0">
-          <div class="font-black text-sm sm:text-base md:text-lg tracking-tight leading-tight uppercase">
+          <div class="font-black text-xs sm:text-base md:text-lg tracking-tight leading-tight uppercase truncate">
             <span :style="{ color: getBrandFirstWord().color }" x-text="getBrandFirstWord().text"></span>
           </div>
-          <div class="font-black text-sm sm:text-base md:text-lg tracking-tight leading-tight flex items-center gap-1 whitespace-nowrap">
+          <div class="font-black text-xs sm:text-base md:text-lg tracking-tight leading-tight flex items-center gap-1 whitespace-nowrap">
             <template x-for="(word, wIdx) in getBrandRemainingWords()" :key="'header-rem-' + wIdx">
               <span :style="{ color: word.color }" x-text="word.text"></span>
             </template>
@@ -183,22 +183,22 @@
         <a href="#b2b-section" class="hover:text-brand-600" x-text="siteConfig.navB2bText || 'Catering B2B'"></a>
       </nav>
 
-      <!-- Action Buttons (Menu 3 Garis, Analitik, Admin Lock, Keranjang) - Responsif di Tablet & Mobile -->
-      <div class="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+      <!-- Action Buttons (Menu 3 Garis, Analitik, Admin Lock, Keranjang) - Responsif Bebas Potong di Mobile -->
+      <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0 pr-1">
         <!-- Tombol Menu Navigasi 3 Garis (Hamburger Menu dengan Tombol Cepat) -->
         <button 
           type="button"
           @click="isNavMenuOpen = !isNavMenuOpen" 
-          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-stone-300 text-stone-700 hover:text-brand-600 hover:border-brand-500 hover:bg-stone-50 transition shadow-2xs active:scale-95 flex-shrink-0"
+          class="w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 flex items-center justify-center gap-1.5 rounded-xl border border-stone-300 text-stone-700 hover:text-brand-600 hover:border-brand-500 hover:bg-stone-50 transition shadow-2xs active:scale-95 flex-shrink-0"
           :class="isNavMenuOpen ? 'bg-brand-50 text-brand-600 border-brand-500 ring-2 ring-brand-500/20' : ''"
           title="Menu Navigasi Cepat (3 Garis)" 
           aria-label="Buka Menu Navigasi Cepat">
-          <i :class="isNavMenuOpen ? 'fa-solid fa-xmark text-base' : 'fa-solid fa-bars text-base'"></i>
+          <i :class="isNavMenuOpen ? 'fa-solid fa-xmark text-sm sm:text-base' : 'fa-solid fa-bars text-sm sm:text-base'"></i>
           <span class="text-xs font-black hidden sm:inline" x-text="isNavMenuOpen ? 'Tutup' : 'Menu'"></span>
         </button>
 
         <!-- Dasbor Analitik Link -->
-        <a href="/analytics.html" class="flex items-center gap-1.5 text-brand-700 bg-brand-50 px-2.5 sm:px-3 py-1.5 rounded-xl border border-brand-200 hover:bg-brand-100 transition text-xs font-bold whitespace-nowrap shadow-2xs" title="Dasbor Analitik Penjualan">
+        <a href="/analytics.html" class="w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 flex items-center justify-center gap-1.5 text-brand-700 bg-brand-50 rounded-xl border border-brand-200 hover:bg-brand-100 transition text-xs font-bold whitespace-nowrap shadow-2xs flex-shrink-0" title="Dasbor Analitik Penjualan">
           <i class="fa-solid fa-chart-line text-xs"></i>
           <span class="hidden md:inline">Analitik</span>
         </a>
@@ -206,17 +206,17 @@
         <!-- Tombol Panel Admin (Hanya Gambar Icon Gembok Saja, Tanpa Teks) -->
         <button 
           @click="openAdminModal()" 
-          class="w-9 h-9 rounded-xl border border-stone-300 text-stone-600 hover:text-brand-600 hover:border-brand-500 hover:bg-stone-50 flex items-center justify-center transition shadow-sm active:scale-95 flex-shrink-0" 
+          class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl border border-stone-300 text-stone-600 hover:text-brand-600 hover:border-brand-500 hover:bg-stone-50 flex items-center justify-center transition shadow-2xs active:scale-95 flex-shrink-0" 
           title="Panel Admin" 
           aria-label="Panel Admin">
-          <i class="fa-solid fa-lock text-sm"></i>
+          <i class="fa-solid fa-lock text-xs sm:text-sm"></i>
         </button>
 
-        <!-- Tombol Keranjang -->
-        <button @click="isCartOpen = true" class="relative bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-2 flex-shrink-0">
-          <i class="fa-solid fa-cart-shopping"></i>
+        <!-- Tombol Keranjang: Selalu Utuh & Tidak Terpotong di Mobile -->
+        <button @click="isCartOpen = true" class="relative bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xs transition flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          <i class="fa-solid fa-cart-shopping text-xs sm:text-sm"></i>
           <span class="hidden sm:inline">Keranjang</span>
-          <span class="bg-white text-brand-700 font-extrabold text-xs px-2 py-0.5 rounded-full" x-text="cartTotalCount"></span>
+          <span class="bg-white text-brand-700 font-extrabold text-[11px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full" x-text="cartTotalCount"></span>
         </button>
       </div>
 
@@ -369,25 +369,35 @@
 
         <p class="mt-4 sm:mt-6 text-stone-300 text-base sm:text-lg leading-relaxed" x-text="siteConfig.heroDescription"></p>
 
-        <!-- Double Action Buttons (Editable Teks & Warna) -->
-        <div class="mt-8 flex flex-wrap gap-4 items-center">
+        <!-- Action Buttons (Tinggi Seragam & Presisi) -->
+        <div class="mt-8 flex flex-wrap gap-3 sm:gap-4 items-center">
           <button 
             @click="activeTab = 'menu'; scrollToSection('tab-section')" 
             :style="{ backgroundColor: siteConfig.heroBtn1Bg || siteConfig.themeAccent || '#ea580c', color: siteConfig.heroBtn1TextColor || '#ffffff' }" 
-            class="px-6 py-3.5 rounded-xl font-bold text-sm sm:text-base shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+            class="h-12 sm:h-[52px] px-5 sm:px-6 rounded-xl border border-transparent font-bold text-sm sm:text-base shadow-lg transition-all transform hover:-translate-y-0.5 inline-flex items-center justify-center gap-2 active:scale-95 flex-shrink-0">
             <i class="fa-solid fa-bowl-food"></i>
-            <span x-text="siteConfig.heroBtn1"></span>
+            <span x-text="siteConfig.heroBtn1 || 'Pesan Satuan'"></span>
+          </button>
+
+          <!-- Link 'Cek Semua Promo!' (Tinggi Identik & Presisi dengan Tombol Lainnya) -->
+          <button 
+            type="button"
+            @click="activeTab = 'menu'; scrollToSection('tab-section')"
+            class="h-12 sm:h-[52px] px-5 sm:px-6 rounded-xl border border-amber-300 font-bold text-sm sm:text-base bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md transition-all transform hover:-translate-y-0.5 inline-flex items-center justify-center gap-2 group active:scale-95 flex-shrink-0">
+            <span class="bg-stone-950 text-amber-300 text-[10px] uppercase font-black px-2 py-1 rounded-md tracking-wider leading-none inline-flex items-center" x-text="siteConfig.promoRibbonBadge || 'PROMO'"></span>
+            <span class="whitespace-nowrap" x-text="siteConfig.promoRibbonLinkText || 'Cek Semua Promo!'"></span>
+            <i class="fa-solid fa-tag text-xs transition-transform group-hover:scale-125"></i>
           </button>
 
           <button 
             @click="activeTab = 'catering'; scrollToSection('catering-section')" 
             :style="{ backgroundColor: siteConfig.heroBtn2Bg || '#292524', color: siteConfig.heroBtn2TextColor || '#ffffff' }" 
-            class="px-6 py-3.5 rounded-xl border border-stone-600 font-bold text-sm sm:text-base backdrop-blur-sm transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+            class="h-12 sm:h-[52px] px-5 sm:px-6 rounded-xl border border-stone-600 font-bold text-sm sm:text-base backdrop-blur-sm transition-all transform hover:-translate-y-0.5 inline-flex items-center justify-center gap-2 active:scale-95 flex-shrink-0">
             <i class="fa-solid fa-boxes-packing text-brand-400"></i>
-            <span x-text="siteConfig.heroBtn2"></span>
+            <span x-text="siteConfig.heroBtn2 || 'Order Catering Box'"></span>
           </button>
           
-          <div class="flex items-center gap-3 ml-2 text-stone-400 text-xs font-medium">
+          <div class="flex items-center gap-3 ml-1 sm:ml-2 text-stone-400 text-xs font-medium">
             <div class="flex -space-x-2">
               <span class="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold border-2 border-stone-800">4.9★</span>
               <span class="w-7 h-7 rounded-full bg-brand-600 text-white flex items-center justify-center text-[10px] font-bold border-2 border-stone-800"><i class="fa-solid fa-shield-halved"></i></span>
@@ -447,7 +457,12 @@
               @click="selectedCategory = cat.id; currentPage = 1"
               :class="selectedCategory === cat.id ? 'bg-brand-600 text-white font-bold shadow-md shadow-brand-600/20' : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200 font-medium shadow-sm'"
               class="px-4 py-2.5 rounded-xl text-xs sm:text-sm whitespace-nowrap transition flex items-center gap-1.5 flex-shrink-0">
-              <i :class="'fa-solid ' + cat.icon"></i>
+              <template x-if="cat.icon && (cat.icon.startsWith('http') || cat.icon.startsWith('data:image'))">
+                <img :src="cat.icon" :alt="cat.name" class="w-4 h-4 object-contain rounded flex-shrink-0" />
+              </template>
+              <template x-if="!cat.icon || (!cat.icon.startsWith('http') && !cat.icon.startsWith('data:image'))">
+                <i :class="cat.icon && cat.icon.includes(' ') ? cat.icon : ('fa-solid ' + (cat.icon || 'fa-tag'))"></i>
+              </template>
               <span x-text="cat.name"></span>
               <span class="text-[10px] px-1.5 py-0.5 rounded-full" :class="selectedCategory === cat.id ? 'bg-brand-700 text-white' : 'bg-stone-100 text-stone-500'" x-text="getCategoryCount(cat.id)"></span>
             </button>
@@ -501,6 +516,14 @@
               </div>
               <div class="absolute bottom-2 left-2">
                 <span class="px-2 py-0.5 text-[10px] font-bold bg-stone-900/80 text-white rounded backdrop-blur-sm" x-text="item.categoryLabel"></span>
+              </div>
+
+              <!-- LOGO ICON CABE CANTIK DI POJOK KANAN BAWAH GAMBAR MENU (HANYA MUNCUL JIKA MENU SPICY) -->
+              <div x-show="item.isSpicy" class="absolute bottom-2 right-2 z-10">
+                <div class="flex items-center gap-1.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white px-2.5 py-1 rounded-xl shadow-lg border border-red-300/60 backdrop-blur-xs transform group-hover:scale-110 transition duration-200" title="Menu Pedas / Mengandung Cabe">
+                  <i class="fa-solid fa-pepper-hot text-amber-300 text-xs drop-shadow-xs animate-pulse"></i>
+                  <span class="text-[10px] font-black uppercase tracking-wider drop-shadow-xs">Pedas</span>
+                </div>
               </div>
             </div>
 
@@ -989,62 +1012,62 @@
           </p>
         </div>
 
-        <!-- 3 Mitra Food Delivery Apps -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <!-- 3 Mitra Food Delivery Apps (Rapih, Responsif, Tidak Tumpuk/Luber) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 lg:gap-5">
           
           <!-- ShopeeFood Card -->
-          <a :href="siteConfig.deliveryLinks.shopeefood" target="_blank" rel="noopener noreferrer" class="group p-5 rounded-2xl border-2 border-orange-100 hover:border-orange-500 bg-gradient-to-br from-orange-50/50 to-white hover:shadow-lg hover:shadow-orange-500/10 transition-all flex items-center justify-between">
-            <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-2xl bg-orange-500 text-white flex items-center justify-center text-2xl shadow-md shadow-orange-500/30 group-hover:scale-110 transition">
+          <a :href="siteConfig.deliveryLinks.shopeefood" target="_blank" rel="noopener noreferrer" class="group relative p-4 sm:p-5 rounded-2xl border-2 border-orange-100 hover:border-orange-500 bg-gradient-to-br from-orange-50/50 to-white hover:shadow-lg hover:shadow-orange-500/10 transition-all flex items-center justify-between gap-3 overflow-hidden">
+            <div class="flex items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
+              <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-orange-500 text-white flex items-center justify-center text-xl sm:text-2xl shadow-md shadow-orange-500/30 group-hover:scale-110 transition flex-shrink-0">
                 <i class="fa-solid fa-bag-shopping"></i>
               </div>
-              <div>
-                <div class="flex items-center gap-1.5">
-                  <span class="font-black text-stone-900 text-base">ShopeeFood</span>
-                  <span class="text-[10px] bg-orange-100 text-orange-700 font-bold px-1.5 py-0.5 rounded">Official</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-nowrap">
+                  <span class="font-black text-stone-900 text-sm sm:text-base leading-tight whitespace-nowrap">ShopeeFood</span>
+                  <span class="text-[10px] bg-orange-100 text-orange-700 font-bold px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap flex-shrink-0">Official</span>
                 </div>
-                <p class="text-xs text-stone-500 mt-0.5">Voucher Diskon s.d 40% & Koin</p>
+                <p class="text-[11px] sm:text-xs text-stone-500 mt-1 leading-snug truncate" title="Voucher Diskon s.d 40% & Koin">Voucher Diskon s.d 40% & Koin</p>
               </div>
             </div>
-            <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition">
+            <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition flex-shrink-0 shadow-2xs">
               <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
             </div>
           </a>
 
           <!-- GrabFood Card -->
-          <a :href="siteConfig.deliveryLinks.grabfood" target="_blank" rel="noopener noreferrer" class="group p-5 rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 bg-gradient-to-br from-emerald-50/50 to-white hover:shadow-lg hover:shadow-emerald-500/10 transition-all flex items-center justify-between">
-            <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-md shadow-emerald-500/30 group-hover:scale-110 transition">
+          <a :href="siteConfig.deliveryLinks.grabfood" target="_blank" rel="noopener noreferrer" class="group relative p-4 sm:p-5 rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 bg-gradient-to-br from-emerald-50/50 to-white hover:shadow-lg hover:shadow-emerald-500/10 transition-all flex items-center justify-between gap-3 overflow-hidden">
+            <div class="flex items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
+              <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl sm:text-2xl shadow-md shadow-emerald-500/30 group-hover:scale-110 transition flex-shrink-0">
                 <i class="fa-solid fa-motorcycle"></i>
               </div>
-              <div>
-                <div class="flex items-center gap-1.5">
-                  <span class="font-black text-stone-900 text-base">GrabFood</span>
-                  <span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">GrabMerchant</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-nowrap">
+                  <span class="font-black text-stone-900 text-sm sm:text-base leading-tight whitespace-nowrap">GrabFood</span>
+                  <span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap flex-shrink-0">GrabMerchant</span>
                 </div>
-                <p class="text-xs text-stone-500 mt-0.5">Pengiriman Cepat & GrabUnlimited</p>
+                <p class="text-[11px] sm:text-xs text-stone-500 mt-1 leading-snug truncate" title="Pengiriman Cepat & GrabUnlimited">Pengiriman Cepat & GrabUnlimited</p>
               </div>
             </div>
-            <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition">
+            <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition flex-shrink-0 shadow-2xs">
               <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
             </div>
           </a>
 
           <!-- GoFood Card -->
-          <a :href="siteConfig.deliveryLinks.gofood" target="_blank" rel="noopener noreferrer" class="group p-5 rounded-2xl border-2 border-red-100 hover:border-red-500 bg-gradient-to-br from-red-50/50 to-white hover:shadow-lg hover:shadow-red-500/10 transition-all flex items-center justify-between">
-            <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center text-2xl shadow-md shadow-red-500/30 group-hover:scale-110 transition">
+          <a :href="siteConfig.deliveryLinks.gofood" target="_blank" rel="noopener noreferrer" class="group relative p-4 sm:p-5 rounded-2xl border-2 border-red-100 hover:border-red-500 bg-gradient-to-br from-red-50/50 to-white hover:shadow-lg hover:shadow-red-500/10 transition-all flex items-center justify-between gap-3 overflow-hidden">
+            <div class="flex items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
+              <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center text-xl sm:text-2xl shadow-md shadow-red-500/30 group-hover:scale-110 transition flex-shrink-0">
                 <i class="fa-solid fa-utensils"></i>
               </div>
-              <div>
-                <div class="flex items-center gap-1.5">
-                  <span class="font-black text-stone-900 text-base">GoFood</span>
-                  <span class="text-[10px] bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded">Super Partner</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-nowrap">
+                  <span class="font-black text-stone-900 text-sm sm:text-base leading-tight whitespace-nowrap">GoFood</span>
+                  <span class="text-[10px] bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap flex-shrink-0">Super Partner</span>
                 </div>
-                <p class="text-xs text-stone-500 mt-0.5">Promo GoPay Plus & Diskon Menu</p>
+                <p class="text-[11px] sm:text-xs text-stone-500 mt-1 leading-snug truncate" title="Promo GoPay Plus & Diskon Menu">Promo GoPay Plus & Diskon Menu</p>
               </div>
             </div>
-            <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition">
+            <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition flex-shrink-0 shadow-2xs">
               <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
             </div>
           </a>
@@ -1556,6 +1579,45 @@
     </div>
   </div>
 
+  <!-- MODAL PERMINTAAN IZIN AKSES LOKASI (GPS) BAHASA INDONESIA -->
+  <div x-cloak x-show="isLocationModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-xs">
+    <div @click.away="rejectLocationPermission()" class="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-7 shadow-2xl border border-stone-200 text-center relative">
+      <!-- Tombol Tutup X -->
+      <button @click="rejectLocationPermission()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 transition" aria-label="Tutup">
+        <i class="fa-solid fa-xmark text-sm"></i>
+      </button>
+
+      <!-- Icon Pin Lokasi GPS -->
+      <div class="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto text-2xl mb-4 shadow-inner">
+        <i class="fa-solid fa-location-dot animate-bounce"></i>
+      </div>
+
+      <h3 class="text-base sm:text-lg font-extrabold text-stone-900 mb-2 leading-snug">
+        Permintaan Akses Lokasi Geografis
+      </h3>
+
+      <p class="text-xs sm:text-sm text-stone-600 leading-relaxed mb-6">
+        Aplikasi meminta akses ke lokasi geografis Anda untuk mendeteksi alamat pengantaran dan menghitung estimasi ongkos kirim pesanan secara otomatis dan akurat. Apakah Anda ingin mengizinkan akses lokasi?
+      </p>
+
+      <div class="flex items-center gap-3">
+        <button 
+          type="button" 
+          @click="rejectLocationPermission()" 
+          class="w-1/2 py-2.5 rounded-xl border border-stone-300 text-stone-700 hover:bg-stone-100 text-xs font-bold transition">
+          Tolak
+        </button>
+        <button 
+          type="button" 
+          @click="confirmLocationPermission()" 
+          class="w-1/2 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-md shadow-orange-600/30 transition flex items-center justify-center gap-1.5 active:scale-95">
+          <i class="fa-solid fa-check"></i>
+          <span>Izinkan Akses</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- CART SIDEBAR DRAWER -->
   <div x-cloak x-show="isCartOpen" class="fixed inset-0 z-50 overflow-hidden">
     <div @click="isCartOpen = false" class="absolute inset-0 bg-black/50 backdrop-blur-xs transition-opacity"></div>
@@ -2050,10 +2112,40 @@
               </div>
 
               <!-- Input jika tipe Gambar -->
-              <div x-show="siteConfig.logoType === 'image'" class="sm:col-span-2">
-                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">URL Gambar Logo (HTTPS)</label>
-                <input type="url" x-model="siteConfig.logoImage" placeholder="https://example.com/logo.png" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-stone-50" />
-                <p class="text-[10px] text-stone-400 mt-1">Disarankan gambar berasio 1:1 persegi (PNG transparan atau JPG).</p>
+              <div x-show="siteConfig.logoType === 'image'" class="sm:col-span-2 space-y-3">
+                <label class="block text-xs font-bold text-stone-700 uppercase">Gambar Logo Toko (File atau URL)</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                    <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                      <i class="fa-solid fa-cloud-arrow-up text-brand-600"></i>
+                      <span>Upload dari Perangkat</span>
+                    </label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      @change="handleFileUpload($event, 'logoImage')" 
+                      class="block w-full text-xs text-stone-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer" 
+                    />
+                  </div>
+                  <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                    <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                      <i class="fa-solid fa-link text-brand-600"></i>
+                      <span>Atau Masukkan URL</span>
+                    </label>
+                    <input type="url" x-model="siteConfig.logoImage" placeholder="https://example.com/logo.png" class="w-full p-2 rounded-xl border border-stone-300 text-xs bg-white" />
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-3" x-show="siteConfig.logoImage">
+                  <img :src="siteConfig.logoImage" alt="Preview Logo" class="w-12 h-12 object-cover rounded-xl border border-stone-300 shadow-xs" />
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] text-stone-500">Preview Logo</span>
+                    <button type="button" @click="siteConfig.logoImage = ''" class="text-xs text-red-500 hover:text-red-700 font-bold ml-2">
+                      <i class="fa-solid fa-trash-can"></i> Hapus
+                    </button>
+                  </div>
+                </div>
+                <p class="text-[10px] text-stone-400">Disarankan gambar berasio 1:1 persegi (PNG transparan atau JPG).</p>
               </div>
             </div>
           </div>
@@ -2145,13 +2237,115 @@
               <h4 class="font-extrabold text-stone-900 text-sm">Katalog & Tampilan Menu</h4>
               <p class="text-xs text-stone-500">Edit daftar menu, diskon harga, deskripsi, foto URL, dan pengaturan paginasi.</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button 
+                type="button"
+                @click="openAddCategoryModal()" 
+                class="px-3.5 py-2 bg-white hover:bg-stone-100 text-stone-700 font-bold text-xs rounded-xl border border-stone-300 shadow-2xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-layer-group text-brand-600"></i>
+                <span>+ Kategori Baru</span>
+              </button>
               <button 
                 @click="openAddMenuModal()" 
                 class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
                 <i class="fa-solid fa-plus"></i>
                 <span>+ Tambah Menu Baru</span>
               </button>
+            </div>
+          </div>
+
+          <!-- SECTION KELOLA KATEGORI MENU & SIMBOL/ICON (EDIT, TAMBAH, UPLOAD FILE/URL ICON, HAPUS) -->
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-xs">
+                    <i class="fa-solid fa-layer-group"></i>
+                  </span>
+                  <h4 class="font-extrabold text-stone-900 text-sm">Kelola Kategori Menu & Simbol / Icon</h4>
+                </div>
+                <p class="text-xs text-stone-500 mt-0.5">Tambah kategori baru, edit simbol/icon (pilih simbol atau upload foto & URL), urutkan posisi, dan hapus kategori.</p>
+              </div>
+              <button 
+                type="button"
+                @click="openAddCategoryModal()" 
+                class="px-3.5 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-xs rounded-xl border border-brand-200 transition flex items-center gap-1.5 self-start sm:self-auto">
+                <i class="fa-solid fa-plus text-[10px]"></i>
+                <span>Tambah Kategori Baru</span>
+              </button>
+            </div>
+
+            <!-- List Kategori yang Ada -->
+            <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <template x-for="(cat, catIdx) in menuCategories" :key="cat.id">
+                <div class="p-3 rounded-xl border border-stone-200 bg-stone-50/70 hover:bg-white hover:border-brand-300 hover:shadow-xs transition flex items-center justify-between gap-2.5">
+                  <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                    <!-- Icon / Simbol Preview -->
+                    <div class="w-9 h-9 rounded-xl bg-white border border-stone-200 flex items-center justify-center text-brand-600 shadow-2xs flex-shrink-0 overflow-hidden">
+                      <template x-if="cat.icon && (cat.icon.startsWith('http') || cat.icon.startsWith('data:image'))">
+                        <img :src="cat.icon" :alt="cat.name" class="w-7 h-7 object-contain rounded" />
+                      </template>
+                      <template x-if="!cat.icon || (!cat.icon.startsWith('http') && !cat.icon.startsWith('data:image'))">
+                        <i :class="cat.icon && cat.icon.includes(' ') ? cat.icon : ('fa-solid ' + (cat.icon || 'fa-tag'))"></i>
+                      </template>
+                    </div>
+
+                    <!-- Info Kategori -->
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5">
+                        <span class="font-bold text-xs text-stone-900 truncate" x-text="cat.name"></span>
+                        <span x-show="cat.id === 'all'" class="text-[9px] bg-stone-200 text-stone-600 px-1.5 py-0.2 rounded font-semibold whitespace-nowrap">Utama</span>
+                      </div>
+                      <div class="flex items-center gap-2 text-[10px] text-stone-400 mt-0.5">
+                        <span class="font-mono truncate text-stone-500" x-text="cat.id"></span>
+                        <span>•</span>
+                        <span class="font-semibold text-stone-600" x-text="getCategoryCount(cat.id) + ' menu'"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Actions: Geser Urutan, Edit, Hapus -->
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    <!-- Geser Ke Atas/Kiri (hanya jika catIdx > 1) -->
+                    <button 
+                      x-show="catIdx > 1" 
+                      type="button" 
+                      @click="moveCategory(catIdx, -1)" 
+                      class="w-6 h-6 rounded-md hover:bg-stone-200 text-stone-400 hover:text-stone-700 flex items-center justify-center text-[10px] transition" 
+                      title="Pindah ke Atas">
+                      <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                    <!-- Geser Ke Bawah/Kanan (jika bukan index terakhir dan bukan 'all') -->
+                    <button 
+                      x-show="catIdx > 0 && catIdx < menuCategories.length - 1" 
+                      type="button" 
+                      @click="moveCategory(catIdx, 1)" 
+                      class="w-6 h-6 rounded-md hover:bg-stone-200 text-stone-400 hover:text-stone-700 flex items-center justify-center text-[10px] transition" 
+                      title="Pindah ke Bawah">
+                      <i class="fa-solid fa-arrow-down"></i>
+                    </button>
+
+                    <!-- Edit Kategori -->
+                    <button 
+                      type="button" 
+                      @click="openEditCategoryModal(cat)" 
+                      class="p-1.5 rounded-lg hover:bg-brand-50 text-stone-500 hover:text-brand-600 transition" 
+                      title="Edit Kategori & Simbol/Icon">
+                      <i class="fa-solid fa-pen-to-square text-xs"></i>
+                    </button>
+
+                    <!-- Hapus Kategori (tidak bisa untuk 'all') -->
+                    <button 
+                      x-show="cat.id !== 'all'" 
+                      type="button" 
+                      @click="deleteCategory(cat.id)" 
+                      class="p-1.5 rounded-lg hover:bg-red-50 text-stone-400 hover:text-red-600 transition" 
+                      title="Hapus Kategori">
+                      <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -2191,12 +2385,23 @@
             <template x-for="item in filteredAdminMenuList" :key="item.id">
               <div class="p-3 bg-stone-50 hover:bg-stone-100/80 rounded-2xl border border-stone-200 flex items-center justify-between gap-3 transition">
                 <div class="flex items-center gap-3 min-w-0">
-                  <img :src="item.image" :alt="item.name" class="w-14 h-14 rounded-xl object-cover border border-stone-300 flex-shrink-0" />
+                  <div class="relative flex-shrink-0">
+                    <img :src="item.image" :alt="item.name" class="w-14 h-14 rounded-xl object-cover border border-stone-300" />
+                    <!-- Indikator Spicy di thumbnail admin -->
+                    <span x-show="item.isSpicy" class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] shadow-sm border border-white" title="Menu Pedas (Spicy)">
+                      <i class="fa-solid fa-pepper-hot text-[9px] text-amber-300"></i>
+                    </span>
+                  </div>
                   <div class="min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
                       <span class="font-extrabold text-xs sm:text-sm text-stone-900 truncate" x-text="item.name"></span>
                       <span class="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded font-semibold" x-text="item.categoryLabel"></span>
                       <span x-show="item.badge" class="text-[10px] bg-brand-600 text-white font-bold px-1.5 py-0.5 rounded" x-text="item.badge"></span>
+                      <!-- Badge Spicy -->
+                      <span x-show="item.isSpicy" class="text-[10px] bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border border-red-200" title="Menu Mengandung Cabe (Spicy)">
+                        <i class="fa-solid fa-pepper-hot text-red-500 text-[10px]"></i>
+                        <span>Spicy</span>
+                      </span>
                     </div>
                     <div class="flex items-center gap-2 mt-0.5 text-xs">
                       <span class="font-bold text-brand-700" x-text="formatRupiah(item.price)"></span>
@@ -2207,6 +2412,17 @@
                 </div>
 
                 <div class="flex items-center gap-1.5 flex-shrink-0">
+                  <!-- Quick Toggle Spicy / No -->
+                  <button 
+                    type="button"
+                    @click="toggleMenuItemSpicy(item)" 
+                    class="p-2 rounded-lg border text-xs font-bold transition flex items-center gap-1"
+                    :class="item.isSpicy ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100' : 'bg-white border-stone-300 text-stone-400 hover:text-stone-700'"
+                    :title="item.isSpicy ? 'Status: SPICY (Klik untuk nonaktifkan pedas)' : 'Status: TIDAK PEDAS (Klik untuk aktifkan Spicy)'">
+                    <i class="fa-solid fa-pepper-hot" :class="item.isSpicy ? 'text-red-600' : 'text-stone-300'"></i>
+                    <span class="hidden md:inline" x-text="item.isSpicy ? 'Spicy' : 'No'"></span>
+                  </button>
+
                   <button 
                     @click="openEditMenuModal(item)" 
                     class="p-2 rounded-lg bg-white border border-stone-300 hover:bg-stone-200 text-stone-700 text-xs font-bold transition flex items-center gap-1">
@@ -2280,44 +2496,122 @@
             <p class="text-xs text-stone-500">Sesuaikan gambar latar hero, warna overlay, warna latar website, dan warna tombol aksi.</p>
           </div>
 
-          <!-- Pengaturan Warna Background Halaman & Aksen Toko -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-2xl border border-stone-200">
-            <div>
-              <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Background Halaman Utama</label>
-              <div class="flex items-center gap-2">
-                <input type="color" x-model="siteConfig.pageBgColor" class="w-10 h-10 rounded-xl cursor-pointer border border-stone-300 p-0.5 bg-white" />
-                <input type="text" x-model="siteConfig.pageBgColor" class="flex-1 p-2 rounded-xl border border-stone-300 text-xs font-mono" placeholder="#fafaf9" />
+          <!-- Pengaturan Warna & Background Halaman Beranda Utama -->
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-4">
+            <h5 class="text-xs font-black uppercase text-stone-800 tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-palette text-brand-600"></i>
+              <span>Warna Halaman &amp; Aksen Toko</span>
+            </h5>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Background Halaman Dasar</label>
+                <div class="flex items-center gap-2">
+                  <input type="color" x-model="siteConfig.pageBgColor" class="w-10 h-10 rounded-xl cursor-pointer border border-stone-300 p-0.5 bg-white" />
+                  <input type="text" x-model="siteConfig.pageBgColor" class="flex-1 p-2 rounded-xl border border-stone-300 text-xs font-mono" placeholder="#fafaf9" />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Teks Utama Halaman</label>
-              <div class="flex items-center gap-2">
-                <input type="color" x-model="siteConfig.pageTextColor" class="w-10 h-10 rounded-xl cursor-pointer border border-stone-300 p-0.5 bg-white" />
-                <input type="text" x-model="siteConfig.pageTextColor" class="flex-1 p-2 rounded-xl border border-stone-300 text-xs font-mono" placeholder="#1c1917" />
+              <div>
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Teks Utama Halaman</label>
+                <div class="flex items-center gap-2">
+                  <input type="color" x-model="siteConfig.pageTextColor" class="w-10 h-10 rounded-xl cursor-pointer border border-stone-300 p-0.5 bg-white" />
+                  <input type="text" x-model="siteConfig.pageTextColor" class="flex-1 p-2 rounded-xl border border-stone-300 text-xs font-mono" placeholder="#1c1917" />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Aksen Restoran</label>
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <button type="button" @click="setThemeColor('#ea580c')" :class="siteConfig.themeAccent === '#ea580c' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-orange-600 transition" title="Oranye"></button>
-                <button type="button" @click="setThemeColor('#dc2626')" :class="siteConfig.themeAccent === '#dc2626' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-red-600 transition" title="Merah Pedas"></button>
-                <button type="button" @click="setThemeColor('#059669')" :class="siteConfig.themeAccent === '#059669' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-emerald-600 transition" title="Hijau Segar"></button>
-                <button type="button" @click="setThemeColor('#78350f')" :class="siteConfig.themeAccent === '#78350f' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-amber-900 transition" title="Coklat Kuliner"></button>
-                <input type="text" x-model="siteConfig.themeAccent" class="w-20 p-1.5 rounded-lg border border-stone-300 text-xs font-mono text-center" />
+              <div>
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Aksen Restoran</label>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <button type="button" @click="setThemeColor('#ea580c')" :class="siteConfig.themeAccent === '#ea580c' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-orange-600 transition" title="Oranye"></button>
+                  <button type="button" @click="setThemeColor('#dc2626')" :class="siteConfig.themeAccent === '#dc2626' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-red-600 transition" title="Merah Pedas"></button>
+                  <button type="button" @click="setThemeColor('#059669')" :class="siteConfig.themeAccent === '#059669' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-emerald-600 transition" title="Hijau Segar"></button>
+                  <button type="button" @click="setThemeColor('#78350f')" :class="siteConfig.themeAccent === '#78350f' ? 'ring-2 ring-stone-900 scale-105' : ''" class="w-7 h-7 rounded-lg bg-amber-900 transition" title="Coklat Kuliner"></button>
+                  <input type="text" x-model="siteConfig.themeAccent" class="w-20 p-1.5 rounded-lg border border-stone-300 text-xs font-mono text-center" />
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Pengaturan Gambar Hero & Overlay -->
+          <!-- FITUR BARU: BACKGROUND GAMBAR HALAMAN BERANDA APLIKASI (UPLOAD FILE & URL) -->
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <h5 class="text-xs font-black uppercase text-stone-800 tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-image text-brand-600"></i>
+                <span>Background Gambar Seluruh Halaman Beranda (Wallpaper Toko)</span>
+              </h5>
+              <template x-if="siteConfig.pageBgImage">
+                <button type="button" @click="siteConfig.pageBgImage = ''" class="text-xs text-red-500 hover:text-red-700 font-bold flex items-center gap-1">
+                  <i class="fa-solid fa-trash-can"></i> Hapus Background
+                </button>
+              </template>
+            </div>
+            <p class="text-xs text-stone-500">Pasang gambar atau foto sebagai wallpaper latar belakang seluruh halaman beranda aplikasi. Unggah langsung file dari perangkat (HP/Komputer) atau masukkan URL gambar.</p>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                  <i class="fa-solid fa-cloud-arrow-up text-brand-600"></i>
+                  <span>Upload Foto dari Perangkat</span>
+                </label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  @change="handleFileUpload($event, 'pageBgImage')" 
+                  class="block w-full text-xs text-stone-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer" 
+                />
+              </div>
+              <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                  <i class="fa-solid fa-link text-brand-600"></i>
+                  <span>Atau Tempel URL Gambar</span>
+                </label>
+                <input type="url" x-model="siteConfig.pageBgImage" placeholder="https://images.unsplash.com/..." class="w-full p-2 rounded-xl border border-stone-300 text-xs bg-white" />
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 mt-2" x-show="siteConfig.pageBgImage">
+              <img :src="siteConfig.pageBgImage" alt="Preview Background Halaman" class="w-24 h-16 object-cover rounded-xl border border-stone-300 shadow-xs" />
+              <div class="flex flex-col">
+                <span class="text-xs font-bold text-stone-800">Preview Background Halaman Beranda</span>
+                <span class="text-[11px] text-stone-500">Gambar akan tampil proporsional sebagai latar belakang tetap website.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pengaturan Gambar Hero (Banner Utama) & Overlay -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 rounded-2xl border border-stone-200">
-            <div class="sm:col-span-2">
-              <label class="block text-xs font-bold text-stone-700 uppercase mb-1">URL Gambar Background Hero</label>
-              <input type="url" x-model="siteConfig.heroImage" placeholder="https://images.unsplash.com/..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-stone-50 focus:bg-white" />
-              <div class="mt-2 flex items-center gap-3">
+            <div class="sm:col-span-2 space-y-3">
+              <label class="block text-xs font-bold text-stone-700 uppercase">Gambar Latar Hero Section (Banner Utama)</label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                  <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-up text-brand-600"></i>
+                    <span>Upload dari Perangkat</span>
+                  </label>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    @change="handleFileUpload($event, 'heroImage')" 
+                    class="block w-full text-xs text-stone-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer" 
+                  />
+                </div>
+                <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                  <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                    <i class="fa-solid fa-link text-brand-600"></i>
+                    <span>Atau Tempel URL Gambar</span>
+                  </label>
+                  <input type="url" x-model="siteConfig.heroImage" placeholder="https://images.unsplash.com/..." class="w-full p-2 rounded-xl border border-stone-300 text-xs bg-white" />
+                </div>
+              </div>
+
+              <div class="mt-2 flex items-center gap-3" x-show="siteConfig.heroImage">
                 <img :src="siteConfig.heroImage" alt="Preview Background" class="w-24 h-14 object-cover rounded-xl border border-stone-300 shadow-sm" />
-                <span class="text-[11px] text-stone-500">Live Preview Gambar Latar Hero Section</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] text-stone-500">Live Preview Gambar Latar Hero Section</span>
+                  <button type="button" @click="siteConfig.heroImage = ''" class="text-xs text-red-500 hover:text-red-700 font-bold ml-2">
+                    <i class="fa-solid fa-trash-can"></i> Hapus
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2666,12 +2960,28 @@
             </div>
 
             <div class="mt-4 border-t border-emerald-200/50 pt-4">
-              <h6 class="text-[11px] font-extrabold text-stone-700 uppercase mb-3">▶ Pengaturan QRIS Statis (Hanya Gambar)</h6>
-              <div class="grid grid-cols-1 gap-4">
-                <div>
-                  <label class="block text-xs font-bold text-stone-700 uppercase mb-1">URL Gambar QR Code Toko</label>
-                  <input type="url" x-model="siteConfig.paymentConfig.qrisImage" placeholder="https://..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white" />
-                  <p class="text-[10px] text-stone-500 mt-1">Upload 1 barcode QRIS (dari BCA/Nobu/GoPay/ShopeePay) ke imgur/cloudinary lalu tempel link-nya di sini.</p>
+              <h6 class="text-[11px] font-extrabold text-stone-700 uppercase mb-3">▶ Pengaturan QRIS Statis (Hanya Gambar Barcode)</h6>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3 bg-white rounded-xl border border-stone-200">
+                  <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-up text-emerald-600"></i>
+                    <span>Upload QRIS dari Perangkat</span>
+                  </label>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    @change="handleFileUpload($event, 'qrisImage')" 
+                    class="block w-full text-xs text-stone-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer" 
+                  />
+                  <p class="text-[10px] text-stone-400 mt-1">Upload foto/tangkapan layar QRIS dari BCA/Nobu/GoPay/ShopeePay</p>
+                </div>
+                <div class="p-3 bg-white rounded-xl border border-stone-200">
+                  <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                    <i class="fa-solid fa-link text-emerald-600"></i>
+                    <span>Atau Masukkan URL Gambar QRIS</span>
+                  </label>
+                  <input type="url" x-model="siteConfig.paymentConfig.qrisImage" placeholder="https://..." class="w-full p-2 rounded-xl border border-stone-300 text-xs bg-stone-50 focus:bg-white" />
+                  <p class="text-[10px] text-stone-400 mt-1">Atau tempel link URL gambar barcode QRIS langsung</p>
                 </div>
               </div>
             </div>
@@ -3117,21 +3427,60 @@ git push -u origin main</pre>
           <input type="text" x-model="menuForm.name" required placeholder="Contoh: Rice Bowl Katsu Spicy Mayo" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-bold" />
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Kategori Menu *</label>
             <select x-model="menuForm.category" @change="onMenuCategoryChange()" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-semibold">
-              <option value="rice_bowl">Bento & Rice Bowl</option>
-              <option value="mie">Aneka Mie</option>
-              <option value="cemilan">Cemilan / Side Dish</option>
-              <option value="ala_carte">Ala Carte</option>
-              <option value="viral">Viral & Dessert</option>
+              <template x-for="cat in menuCategories.filter(c => c.id !== 'all')" :key="cat.id">
+                <option :value="cat.id" x-text="cat.name"></option>
+              </template>
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Badge Promo (Opsional)</label>
-            <input type="text" x-model="menuForm.badge" placeholder="Contoh: VIRAL, PROMO 20%, PEDAS..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-semibold" />
+            <input type="text" x-model="menuForm.badge" placeholder="Contoh: VIRAL, BEST SELLER, PEDAS..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-semibold" />
+          </div>
+        </div>
+
+        <!-- FITUR PEDAS / TIDAK: SPICY/NO ON-OFF TOGGLE BUTTON -->
+        <div class="p-3.5 bg-rose-50/70 rounded-2xl border border-rose-200/80 transition">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-xs transition"
+                :class="menuForm.isSpicy ? 'bg-red-600 text-white shadow-red-600/30' : 'bg-stone-200 text-stone-500'">
+                <i class="fa-solid fa-pepper-hot" :class="menuForm.isSpicy ? 'text-amber-300 animate-pulse' : ''"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-black text-stone-900 uppercase">Tingkat Pedas (Cabe)</span>
+                  <span class="text-[10px] font-black px-2 py-0.5 rounded-full uppercase"
+                    :class="menuForm.isSpicy ? 'bg-red-600 text-white shadow-xs' : 'bg-stone-200 text-stone-600'"
+                    x-text="menuForm.isSpicy ? 'SPICY (PEDAS)' : 'NO (TIDAK PEDAS)'"></span>
+                </div>
+                <p class="text-[11px] text-stone-500 mt-0.5">
+                  <span x-show="menuForm.isSpicy" class="text-red-700 font-semibold">Aktif: Foto menu akan dipasang logo icon cabe cantik di pojok kanan bawah.</span>
+                  <span x-show="!menuForm.isSpicy">Nonaktif: Menu tidak pedas (tanpa logo cabe pada foto menu).</span>
+                </p>
+              </div>
+            </div>
+
+            <!-- Tombol Switch On/Off Spicy / No -->
+            <button 
+              type="button" 
+              @click="menuForm.isSpicy = !menuForm.isSpicy" 
+              :class="menuForm.isSpicy ? 'bg-red-600' : 'bg-stone-300'"
+              class="relative inline-flex h-7 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden shadow-inner"
+              role="switch"
+              :aria-checked="menuForm.isSpicy"
+              title="Klik untuk ubah status pedas Spicy / No">
+              <span 
+                :class="menuForm.isSpicy ? 'translate-x-7 bg-white' : 'translate-x-0 bg-white'"
+                class="pointer-events-none inline-block h-6 w-6 transform rounded-full shadow-md transition duration-200 ease-in-out flex items-center justify-center">
+                <i x-show="menuForm.isSpicy" class="fa-solid fa-pepper-hot text-[11px] text-red-600"></i>
+                <i x-show="!menuForm.isSpicy" class="fa-solid fa-xmark text-[10px] text-stone-400"></i>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -3147,12 +3496,38 @@ git push -u origin main</pre>
           </div>
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-stone-700 uppercase mb-1">URL Gambar Foto Makanan *</label>
-          <input type="url" x-model="menuForm.image" required placeholder="https://images.unsplash.com/..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white" />
+        <div class="space-y-3">
+          <label class="block text-xs font-bold text-stone-700 uppercase">Foto Menu Makanan *</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-cloud-arrow-up text-brand-600"></i>
+                <span>Upload dari Perangkat</span>
+              </label>
+              <input 
+                type="file" 
+                accept="image/*" 
+                @change="handleFileUpload($event, 'menuImage')" 
+                class="block w-full text-xs text-stone-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer" 
+              />
+            </div>
+            <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-link text-brand-600"></i>
+                <span>Atau Masukkan URL</span>
+              </label>
+              <input type="url" x-model="menuForm.image" placeholder="https://images.unsplash.com/..." class="w-full p-2 rounded-xl border border-stone-300 text-xs bg-white" />
+            </div>
+          </div>
+
           <div class="mt-2 flex items-center gap-3" x-show="menuForm.image">
-            <img :src="menuForm.image" alt="Preview Gambar" class="w-16 h-12 rounded-lg object-cover border border-stone-300" />
-            <span class="text-[11px] text-stone-500">Live Preview Foto Menu</span>
+            <img :src="menuForm.image" alt="Preview Gambar" class="w-16 h-12 rounded-lg object-cover border border-stone-300 shadow-2xs" />
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] text-stone-500">Live Preview Foto Menu</span>
+              <button type="button" @click="menuForm.image = ''" class="text-xs text-red-500 hover:text-red-700 font-bold ml-2">
+                <i class="fa-solid fa-trash-can"></i> Hapus Foto
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3164,6 +3539,159 @@ git push -u origin main</pre>
         <div class="pt-2 flex items-center justify-end gap-2">
           <button type="button" @click="isMenuFormOpen = false" class="px-4 py-2 text-xs font-bold text-stone-600 hover:bg-stone-100 rounded-xl">Batal</button>
           <button type="submit" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow transition">Simpan Menu</button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- MODAL 4: FORM EDIT / TAMBAH KATEGORI MENU & SIMBOL/ICON (UPLOAD FILE/URL) -->
+  <div x-cloak x-show="isCategoryModalOpen" class="fixed inset-0 z-[75] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div @click.away="isCategoryModalOpen = false" class="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-stone-200 relative">
+      
+      <button @click="isCategoryModalOpen = false" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full flex items-center justify-center">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-lg shadow-2xs">
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-extrabold text-stone-900" x-text="editingCategoryId ? 'Edit Kategori Menu' : 'Tambah Kategori Baru'"></h3>
+          <p class="text-xs text-stone-500">Kelola nama kategori & simbol icon (bisa upload file atau URL).</p>
+        </div>
+      </div>
+
+      <form @submit.prevent="saveCategory()" class="mt-5 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Nama Kategori *</label>
+          <input 
+            type="text" 
+            x-model="categoryForm.name" 
+            required 
+            placeholder="Contoh: Minuman Segar, Paket Hemat, Dimsum..." 
+            class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-bold text-stone-900 focus:ring-2 focus:ring-brand-500" 
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Kode / ID Unik Kategori</label>
+          <input 
+            type="text" 
+            x-model="categoryForm.id" 
+            :disabled="editingCategoryId === 'all'" 
+            placeholder="Otomatis di-generate dari nama kategori..." 
+            class="w-full p-2.5 rounded-xl border border-stone-300 text-xs font-mono bg-stone-50 disabled:bg-stone-100 disabled:text-stone-400" 
+          />
+          <p class="text-[10px] text-stone-400 mt-1">Digunakan sebagai identitas filter menu. Kosongkan untuk generate otomatis.</p>
+        </div>
+
+        <!-- SIMBOL / ICON KATEGORI: TABS PILIHAN (ICON FA vs GAMBAR FOTO / URL) -->
+        <div class="space-y-3 pt-2 border-t border-stone-100">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-bold text-stone-700 uppercase">Simbol / Icon Kategori</label>
+            <div class="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
+              <button 
+                type="button" 
+                @click="categoryForm.iconType = 'fa'" 
+                :class="categoryForm.iconType === 'fa' ? 'bg-white shadow-2xs text-brand-600 font-bold' : 'text-stone-500'" 
+                class="px-2.5 py-1 text-xs rounded-lg transition flex items-center gap-1">
+                <i class="fa-solid fa-icons text-[10px]"></i>
+                <span>Simbol Icon</span>
+              </button>
+              <button 
+                type="button" 
+                @click="categoryForm.iconType = 'image'" 
+                :class="categoryForm.iconType === 'image' ? 'bg-white shadow-2xs text-brand-600 font-bold' : 'text-stone-500'" 
+                class="px-2.5 py-1 text-xs rounded-lg transition flex items-center gap-1">
+                <i class="fa-solid fa-image text-[10px]"></i>
+                <span>Upload / URL Foto</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Preview Simbol Saat Ini -->
+          <div class="p-3 bg-stone-50 rounded-2xl border border-stone-200 flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-brand-600 text-white flex items-center justify-center text-xl shadow-sm flex-shrink-0 overflow-hidden">
+              <template x-if="categoryForm.iconType === 'image' && categoryForm.icon && (categoryForm.icon.startsWith('http') || categoryForm.icon.startsWith('data:image'))">
+                <img :src="categoryForm.icon" alt="Preview Icon" class="w-full h-full object-contain p-1 bg-white" />
+              </template>
+              <template x-if="categoryForm.iconType !== 'image' || !categoryForm.icon || (!categoryForm.icon.startsWith('http') && !categoryForm.icon.startsWith('data:image'))">
+                <i :class="categoryForm.icon && categoryForm.icon.includes(' ') ? categoryForm.icon : ('fa-solid ' + (categoryForm.icon || 'fa-tag'))"></i>
+              </template>
+            </div>
+            <div class="min-w-0 flex-1">
+              <span class="text-xs font-bold text-stone-800 block">Preview Simbol Kategori</span>
+              <span class="text-[11px] text-stone-500 block truncate" x-text="categoryForm.iconType === 'image' ? (categoryForm.icon ? 'Gambar Khusus Aktif' : 'Belum memilih gambar') : ('fa-solid ' + (categoryForm.icon || 'fa-tag'))"></span>
+            </div>
+          </div>
+
+          <!-- OPSI 1: FONT AWESOME ICONS GRID -->
+          <div x-show="categoryForm.iconType === 'fa'" class="space-y-2">
+            <label class="block text-[11px] font-bold text-stone-600">Pilih Simbol Populer:</label>
+            <div class="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-36 overflow-y-auto p-2 bg-stone-50 rounded-xl border border-stone-200">
+              <template x-for="ico in availableCategoryIcons" :key="ico">
+                <button 
+                  type="button" 
+                  @click="categoryForm.icon = ico" 
+                  :class="categoryForm.icon === ico ? 'bg-brand-600 text-white shadow-sm' : 'bg-white hover:bg-stone-200 text-stone-700'" 
+                  class="h-9 rounded-lg flex items-center justify-center text-sm transition border border-stone-200" 
+                  :title="ico">
+                  <i :class="'fa-solid ' + ico"></i>
+                </button>
+              </template>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-stone-600 mb-1">Atau Masukkan Kelas Icon FontAwesome Manual:</label>
+              <input 
+                type="text" 
+                x-model="categoryForm.icon" 
+                placeholder="fa-bowl-rice, fa-pepper-hot, fa-fire, dsb." 
+                class="w-full p-2 rounded-xl border border-stone-300 text-xs bg-white font-mono" 
+              />
+            </div>
+          </div>
+
+          <!-- OPSI 2: UPLOAD GAMBAR ATAU INPUT URL -->
+          <div x-show="categoryForm.iconType === 'image'" class="space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Upload dari Device -->
+              <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                  <i class="fa-solid fa-cloud-arrow-up text-brand-600"></i>
+                  <span>Upload Foto dari Device</span>
+                </label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  @change="handleFileUpload($event, 'categoryIcon')" 
+                  class="block w-full text-xs text-stone-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer" 
+                />
+              </div>
+
+              <!-- Input URL Gambar -->
+              <div class="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1 flex items-center gap-1.5">
+                  <i class="fa-solid fa-link text-brand-600"></i>
+                  <span>Atau Masukkan URL Simbol</span>
+                </label>
+                <input 
+                  type="url" 
+                  x-model="categoryForm.imageUrl" 
+                  @input="categoryForm.icon = categoryForm.imageUrl" 
+                  placeholder="https://.../icon.png" 
+                  class="w-full p-2 rounded-xl border border-stone-300 text-xs bg-white" 
+                />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="pt-3 border-t border-stone-200 flex items-center justify-end gap-2">
+          <button type="button" @click="isCategoryModalOpen = false" class="px-4 py-2 text-xs font-bold text-stone-600 hover:bg-stone-100 rounded-xl">Batal</button>
+          <button type="submit" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow transition">Simpan Kategori</button>
         </div>
       </form>
 
@@ -3497,6 +4025,24 @@ git push -u origin main</pre>
           });
         }
         return () => {};
+      },
+      // Realtime Database persistence untuk Kategori Menu (Admin CMS)
+      saveCategories: async (cats) => {
+        if (db) {
+          const catRef = ref(db, 'menu_categories');
+          await set(catRef, cats);
+        }
+        localStorage.setItem("dapur_menu_categories", JSON.stringify(cats));
+      },
+      listenCategories: (callback) => {
+        if (db) {
+          const catRef = ref(db, 'menu_categories');
+          return onValue(catRef, (snapshot) => {
+            const val = snapshot.val();
+            if (val && Array.isArray(val)) callback(val);
+          });
+        }
+        return () => {};
       }
     };
     
@@ -3515,6 +4061,7 @@ git push -u origin main</pre>
         isNavMenuOpen: false,
         isProcessingPayment: false,
         isLoadingOngkir: false,
+        isLocationModalOpen: false,
 
         // PENGATURAN TAMPILAN, KONTEN & BRANDING (EDITABLE DI ADMIN)
         siteConfig: {
@@ -3531,11 +4078,12 @@ git push -u origin main</pre>
           logoBgColor: '#ea580c',
           headerBgColor: '#ffffff',
           pageBgColor: '#fafaf9',
+          pageBgImage: '',
           pageTextColor: '#1c1917',
           themeAccent: '#ea580c',
           promoRibbon: '',
           promoRibbonBadge: 'PROMO',
-          promoRibbonLinkText: '',
+          promoRibbonLinkText: 'Cek Semua Promo!',
           promoRibbonBg: '#000000',
           promoRibbonTextColor: '#ffffff',
           navMenuText: 'Menu Harian',
@@ -3660,8 +4208,27 @@ git push -u origin main</pre>
           badge: '',
           badgeColor: 'bg-brand-600 text-white',
           image: '',
-          description: ''
+          description: '',
+          isSpicy: false
         },
+
+        // Form Tambah / Edit Kategori Menu & Simbol Icon (Admin)
+        isCategoryModalOpen: false,
+        editingCategoryId: null,
+        categoryForm: {
+          id: '',
+          name: '',
+          icon: 'fa-bowl-rice',
+          iconType: 'fa', // 'fa' | 'image'
+          imageUrl: ''
+        },
+        availableCategoryIcons: [
+          'fa-bowl-rice', 'fa-bowl-food', 'fa-cookie-bite', 'fa-egg', 'fa-fire',
+          'fa-pepper-hot', 'fa-burger', 'fa-pizza-slice', 'fa-drumstick-bite', 'fa-fish',
+          'fa-mug-hot', 'fa-glass-water', 'fa-martini-glass-citrus', 'fa-ice-cream', 'fa-cake-candles',
+          'fa-utensils', 'fa-kitchen-set', 'fa-lemon', 'fa-wheat-awn', 'fa-box-open',
+          'fa-star', 'fa-heart', 'fa-crown', 'fa-award', 'fa-tag', 'fa-border-all', 'fa-cubes'
+        ],
 
         // Form Ubah Password Admin
         changePasswordForm: {
@@ -3781,41 +4348,41 @@ git push -u origin main</pre>
         // DAFTAR MENU LENGKAP PERSIS SESUAI SCREENSHOT GRABMERCHANT
         menuItems: [
           // ALA CARTE
-          { id: 'ac-1', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Telur Orak Arik', price: 7000, description: 'Telur orak-arik lembut bumbu gurih khas dapur.', image: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=600&auto=format&fit=crop&q=80' },
-          { id: 'ac-2', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Chicken Egg Roll', price: 28000, badge: 'FAVORIT', description: 'Gulungan ayam lembut berbalut telur renyah ala bento.', image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&auto=format&fit=crop&q=80' },
-          { id: 'ac-3', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Telor Dadar', price: 7000, description: 'Telor dadar renyah khas rumahan bertabur daun bawang.', image: 'https://images.unsplash.com/photo-1510693206972-df098062cb71?w=600&auto=format&fit=crop&q=80' },
-          { id: 'ac-4', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Telor Ceplok', price: 7000, description: 'Telor ceplok mata sapi setengah matang / matang sempurna.', image: 'https://images.unsplash.com/photo-1508892336360-cf002061266e?w=600&auto=format&fit=crop&q=80' },
-          { id: 'ac-5', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Chicken Popcorn', price: 28000, description: 'Potongan ayam renyah bitesize dengan bumbu gurih rempah.', image: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600&auto=format&fit=crop&q=80' },
-          { id: 'ac-6', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Chicken Katsu', price: 25000, badge: 'BEST SELLER', description: 'Fillet dada ayam tebal berselimut tepung roti renyah keemasan.', image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&auto=format&fit=crop&q=80' },
+          { id: 'ac-1', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Telur Orak Arik', price: 7000, description: 'Telur orak-arik lembut bumbu gurih khas dapur.', image: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'ac-2', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Chicken Egg Roll', price: 28000, badge: 'FAVORIT', description: 'Gulungan ayam lembut berbalut telur renyah ala bento.', image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'ac-3', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Telor Dadar', price: 7000, description: 'Telor dadar renyah khas rumahan bertabur daun bawang.', image: 'https://images.unsplash.com/photo-1510693206972-df098062cb71?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'ac-4', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Telor Ceplok', price: 7000, description: 'Telor ceplok mata sapi setengah matang / matang sempurna.', image: 'https://images.unsplash.com/photo-1508892336360-cf002061266e?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'ac-5', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Chicken Popcorn', price: 28000, description: 'Potongan ayam renyah bitesize dengan bumbu gurih rempah.', image: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'ac-6', category: 'ala_carte', categoryLabel: 'Ala Carte', name: 'Chicken Katsu', price: 25000, badge: 'BEST SELLER', description: 'Fillet dada ayam tebal berselimut tepung roti renyah keemasan.', image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&auto=format&fit=crop&q=80', isSpicy: false },
 
           // ANEKA MIE
-          { id: 'mie-1', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Bowl Nyemek Bangla', price: 23000, badge: 'VIRAL', description: 'Mie kuah nyemek kental rempah rempah khas bangla bertabur telur dan daun bawang.', image: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?w=600&auto=format&fit=crop&q=80' },
-          { id: 'mie-2', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Bowl Goreng Katsu Manis Gurih', price: 28000, description: 'Mie goreng lezat berpadu Chicken Katsu renyah dan saus teriyaki gurih.', image: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600&auto=format&fit=crop&q=80' },
-          { id: 'mie-3', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Bowl Goreng Katsu Geprek', price: 28000, badge: 'PEDAS', badgeColor: 'bg-red-600 text-white', description: 'Mie goreng gurih disajikan dengan Chicken Katsu berbalur sambal bawang ulek segar.', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&auto=format&fit=crop&q=80' },
-          { id: 'mie-4', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Goreng Bowl Telur', price: 23000, description: 'Mie goreng bumbu kecap manis gurih dengan topping telur ceplok/dadar.', image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=600&auto=format&fit=crop&q=80' },
+          { id: 'mie-1', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Bowl Nyemek Bangla', price: 23000, badge: 'VIRAL', description: 'Mie kuah nyemek kental rempah rempah khas bangla bertabur telur dan daun bawang.', image: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'mie-2', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Bowl Goreng Katsu Manis Gurih', price: 28000, description: 'Mie goreng lezat berpadu Chicken Katsu renyah dan saus teriyaki gurih.', image: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'mie-3', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Bowl Goreng Katsu Geprek', price: 28000, badge: 'PEDAS', badgeColor: 'bg-red-600 text-white', description: 'Mie goreng gurih disajikan dengan Chicken Katsu berbalur sambal bawang ulek segar.', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&auto=format&fit=crop&q=80', isSpicy: true },
+          { id: 'mie-4', category: 'mie', categoryLabel: 'Aneka Mie', name: 'Mie Goreng Bowl Telur', price: 23000, description: 'Mie goreng bumbu kecap manis gurih dengan topping telur ceplok/dadar.', image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=600&auto=format&fit=crop&q=80', isSpicy: false },
 
           // CEMILAN / SIDE DISH
-          { id: 'sd-1', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Udang Keju Lumer', price: 28000, badge: 'VIRAL', description: 'Olahan udang juicy berisi keju mozarella lumer di lidah, disajikan dengan saus cocolan.', image: 'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=600&auto=format&fit=crop&q=80' },
-          { id: 'sd-2', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Spicy Isi 5', price: 45000, description: 'Sayap ayam krispi berbalut saus pedas manis korea gurih isi 5 pcs.', image: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&auto=format&fit=crop&q=80' },
-          { id: 'sd-3', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Spicy Isi 10', price: 78000, badge: 'HEMAT', description: 'Porsi puas 10 sayap ayam saus spicy korea nikmat disantap bersama teman.', image: 'https://images.unsplash.com/photo-1527477396000-e27163b481c2?w=600&auto=format&fit=crop&q=80' },
-          { id: 'sd-4', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Manis Gurih Isi 5', price: 45000, description: 'Sayap ayam bumbu honey soy garlic manis gurih tanpa rasa pedas isi 5 pcs.', image: 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=600&auto=format&fit=crop&q=80' },
-          { id: 'sd-5', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Manis Gurih Isi 10', price: 78000, description: 'Paket besar 10 sayap ayam bumbu honey garlic gurih renyah.', image: 'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&auto=format&fit=crop&q=80' },
-          { id: 'sd-6', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'French Fries Crispy', price: 20000, description: 'Kentang goreng renyah bumbu sea salt gurih dengan saus tomat & sambal.', image: 'https://images.unsplash.com/photo-1576107232684-1279f3908594?w=600&auto=format&fit=crop&q=80' },
-          { id: 'sd-7', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Sosis Solo', price: 25000, description: 'Sosis solo kulit dadar lembut isi daging ayam suwir gurih rempah isi 4 pcs.', image: 'https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=600&auto=format&fit=crop&q=80' },
-          { id: 'sd-8', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Churros Saus Coklat', price: 28000, description: 'Churros renyah bertabur cinnamon sugar dengan dipping saus dark chocolate tebal.', image: 'https://images.unsplash.com/photo-1624300629298-e9de39c13be5?w=600&auto=format&fit=crop&q=80' },
+          { id: 'sd-1', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Udang Keju Lumer', price: 28000, badge: 'VIRAL', description: 'Olahan udang juicy berisi keju mozarella lumer di lidah, disajikan dengan saus cocolan.', image: 'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'sd-2', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Spicy Isi 5', price: 45000, description: 'Sayap ayam krispi berbalut saus pedas manis korea gurih isi 5 pcs.', image: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&auto=format&fit=crop&q=80', isSpicy: true },
+          { id: 'sd-3', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Spicy Isi 10', price: 78000, badge: 'HEMAT', description: 'Porsi puas 10 sayap ayam saus spicy korea nikmat disantap bersama teman.', image: 'https://images.unsplash.com/photo-1527477396000-e27163b481c2?w=600&auto=format&fit=crop&q=80', isSpicy: true },
+          { id: 'sd-4', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Manis Gurih Isi 5', price: 45000, description: 'Sayap ayam bumbu honey soy garlic manis gurih tanpa rasa pedas isi 5 pcs.', image: 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'sd-5', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Chicken Wings Manis Gurih Isi 10', price: 78000, description: 'Paket besar 10 sayap ayam bumbu honey garlic gurih renyah.', image: 'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'sd-6', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'French Fries Crispy', price: 20000, description: 'Kentang goreng renyah bumbu sea salt gurih dengan saus tomat & sambal.', image: 'https://images.unsplash.com/photo-1576107232684-1279f3908594?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'sd-7', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Sosis Solo', price: 25000, description: 'Sosis solo kulit dadar lembut isi daging ayam suwir gurih rempah isi 4 pcs.', image: 'https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'sd-8', category: 'cemilan', categoryLabel: 'Cemilan / Side Dish', name: 'Churros Saus Coklat', price: 28000, description: 'Churros renyah bertabur cinnamon sugar dengan dipping saus dark chocolate tebal.', image: 'https://images.unsplash.com/photo-1624300629298-e9de39c13be5?w=600&auto=format&fit=crop&q=80', isSpicy: false },
 
           // MAKANAN (BENTO & RICE BOWL)
-          { id: 'rb-1', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Nasi Chicken Egg Roll Wings', price: 39000, badge: 'KOMPLIT', description: 'Nasi hangat pulen + Chicken Egg Roll empuk + Chicken Wings bumbu + salad mayonaise.', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80' },
-          { id: 'rb-2', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Nasi Chicken Egg Roll Bento', price: 38000, description: 'Bento box nasi, Chicken Egg Roll potongan melimpah, salad segar, saus sambal.', image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&auto=format&fit=crop&q=80' },
-          { id: 'rb-3', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Katsu Mayo', price: 28000, description: 'Nasi putih pulen, katsu renyah, saus japanese mayo & salad bento renyah.', image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&auto=format&fit=crop&q=80' },
-          { id: 'rb-4', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Katsu Geprek', price: 28000, badge: 'PEDAS', badgeColor: 'bg-red-600 text-white', description: 'Nasi hangat, katsu gurih digeprek dengan sambal bawang pedas nampol & lalap timun.', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&auto=format&fit=crop&q=80' },
-          { id: 'rb-5', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Popcorn Spicy', price: 28000, description: 'Rice bowl ayam popcorn crunchy berselimut saus pedas manis ala korea.', image: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600&auto=format&fit=crop&q=80' },
-          { id: 'rb-6', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Popcorn Salted Egg', price: 38000, badge: 'SPESIAL', description: 'Nasi hangat berpadu chicken popcorn dengan lumuran saus telur asin asli & daun kari wangi.', image: 'https://images.unsplash.com/photo-1555126634-323283e090fa?w=600&auto=format&fit=crop&q=80' },
+          { id: 'rb-1', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Nasi Chicken Egg Roll Wings', price: 39000, badge: 'KOMPLIT', description: 'Nasi hangat pulen + Chicken Egg Roll empuk + Chicken Wings bumbu + salad mayonaise.', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'rb-2', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Nasi Chicken Egg Roll Bento', price: 38000, description: 'Bento box nasi, Chicken Egg Roll potongan melimpah, salad segar, saus sambal.', image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'rb-3', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Katsu Mayo', price: 28000, description: 'Nasi putih pulen, katsu renyah, saus japanese mayo & salad bento renyah.', image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'rb-4', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Katsu Geprek', price: 28000, badge: 'PEDAS', badgeColor: 'bg-red-600 text-white', description: 'Nasi hangat, katsu gurih digeprek dengan sambal bawang pedas nampol & lalap timun.', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&auto=format&fit=crop&q=80', isSpicy: true },
+          { id: 'rb-5', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Popcorn Spicy', price: 28000, description: 'Rice bowl ayam popcorn crunchy berselimut saus pedas manis ala korea.', image: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600&auto=format&fit=crop&q=80', isSpicy: true },
+          { id: 'rb-6', category: 'rice_bowl', categoryLabel: 'Bento & Rice Bowl', name: 'Rice Bowl Chicken Popcorn Salted Egg', price: 38000, badge: 'SPESIAL', description: 'Nasi hangat berpadu chicken popcorn dengan lumuran saus telur asin asli & daun kari wangi.', image: 'https://images.unsplash.com/photo-1555126634-323283e090fa?w=600&auto=format&fit=crop&q=80', isSpicy: false },
 
           // VIRAL & DESSERT
-          { id: 'vr-1', category: 'viral', categoryLabel: 'Viral & Dessert', name: 'Seblak Prasmanan Komplit', price: 22000, badge: 'VIRAL', description: 'Seblak kuah kencur pedas membara dengan topping dumpling keju, sosis, bakso, cuanki, mie & telur.', image: 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?w=600&auto=format&fit=crop&q=80' },
-          { id: 'vr-2', category: 'viral', categoryLabel: 'Viral & Dessert', name: 'Dimsum Mentai Mozarella (4 pcs)', price: 20000, description: 'Dimsum ayam udang lembut dengan saus mentai gurih dibakar torch sampai wangi.', image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&auto=format&fit=crop&q=80' },
-          { id: 'vr-3', category: 'viral', categoryLabel: 'Viral & Dessert', name: 'Dessert Box Tiramisu Choco Melt', price: 25000, description: 'Lapisan sponge cake lembut berpadu krim mascarpone kopi dan lumuran dark chocolate.', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' }
+          { id: 'vr-1', category: 'viral', categoryLabel: 'Viral & Dessert', name: 'Seblak Prasmanan Komplit', price: 22000, badge: 'VIRAL', description: 'Seblak kuah kencur pedas membara dengan topping dumpling keju, sosis, bakso, cuanki, mie & telur.', image: 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?w=600&auto=format&fit=crop&q=80', isSpicy: true },
+          { id: 'vr-2', category: 'viral', categoryLabel: 'Viral & Dessert', name: 'Dimsum Mentai Mozarella (4 pcs)', price: 20000, description: 'Dimsum ayam udang lembut dengan saus mentai gurih dibakar torch sampai wangi.', image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&auto=format&fit=crop&q=80', isSpicy: false },
+          { id: 'vr-3', category: 'viral', categoryLabel: 'Viral & Dessert', name: 'Dessert Box Tiramisu Choco Melt', price: 25000, description: 'Lapisan sponge cake lembut berpadu krim mascarpone kopi dan lumuran dark chocolate.', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80', isSpicy: false }
         ],
 
         // DAFTAR TARIF 7 KURIR BERDAMPINGAN DARI BITESHIP PROXY
@@ -4092,6 +4659,19 @@ git push -u origin main</pre>
             console.warn("Error loading saved menu:", e);
           }
 
+          // 2b. Muat Kategori Menu dari LocalStorage jika ada editan admin
+          try {
+            const savedCats = localStorage.getItem("dapur_menu_categories");
+            if (savedCats) {
+              const parsedCats = JSON.parse(savedCats);
+              if (Array.isArray(parsedCats) && parsedCats.length > 0) {
+                this.menuCategories = parsedCats;
+              }
+            }
+          } catch (e) {
+            console.warn("Error loading saved categories:", e);
+          }
+
           // 3. Realtime Listener dari Firebase jika aktif
           const syncFirebaseListeners = () => {
             try {
@@ -4109,6 +4689,13 @@ git push -u origin main</pre>
                 window.FirebaseBridge.listenMenu((liveMenu) => {
                   if (liveMenu && Array.isArray(liveMenu) && liveMenu.length > 0) {
                     this.menuItems = liveMenu;
+                  }
+                });
+              }
+              if (window.FirebaseBridge && window.FirebaseBridge.listenCategories) {
+                window.FirebaseBridge.listenCategories((liveCats) => {
+                  if (liveCats && Array.isArray(liveCats) && liveCats.length > 0) {
+                    this.menuCategories = liveCats;
                   }
                 });
               }
@@ -4329,14 +4916,20 @@ git push -u origin main</pre>
           }
         },
 
-        // HTML5 Geolocation API untuk mendeteksi lokasi pelanggan otomatis
+        // HTML5 Geolocation API untuk mendeteksi lokasi pelanggan otomatis dengan Dialog Izin Bahasa Indonesia
         detectUserLocation() {
+          // Buka modal dialog izin akses lokasi dalam Bahasa Indonesia
+          this.isLocationModalOpen = true;
+        },
+
+        confirmLocationPermission() {
+          this.isLocationModalOpen = false;
           if (!navigator.geolocation) {
-            alert("Geolocation tidak didukung pada browser Anda.");
+            alert("Fitur deteksi lokasi tidak didukung pada browser Anda. Silahkan ketik alamat secara manual.");
             return;
           }
 
-          this.customerAddress = "Mencari lokasi...";
+          this.customerAddress = "Mencari lokasi GPS Anda...";
 
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
@@ -4361,10 +4954,92 @@ git push -u origin main</pre>
             (err) => {
               console.warn("Geolocation denied or error:", err);
               this.customerAddress = "";
-              alert("Gagal mendapatkan lokasi. Pastikan izin lokasi (GPS) aktif di browser Anda.");
+              alert("Izin akses lokasi tidak diberikan atau GPS belum aktif di perangkat Anda. Silakan ketik alamat pengiriman secara manual.");
             },
-            { timeout: 8000, enableHighAccuracy: true }
+            { timeout: 10000, enableHighAccuracy: true }
           );
+        },
+
+        rejectLocationPermission() {
+          this.isLocationModalOpen = false;
+          if (this.customerAddress === "Mencari lokasi...") {
+            this.customerAddress = "";
+          }
+        },
+
+        // HELPER UNTUK MENGUNGGAH GAMBAR/FOTO DARI PERANGKAT (DEVICE UPLOAD)
+        handleFileUpload(event, targetField) {
+          const file = event.target.files && event.target.files[0];
+          if (!file) return;
+
+          if (!file.type.startsWith('image/')) {
+            alert('File yang diunggah harus berupa gambar (JPG, PNG, WEBP)!');
+            event.target.value = '';
+            return;
+          }
+
+          if (file.size > 5 * 1024 * 1024) {
+            alert('Ukuran file maksimal 5MB. Silakan pilih gambar yang lebih kecil.');
+            event.target.value = '';
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              // Otomatis kompresi gambar via HTML5 Canvas agar ringan dan cepat tersimpan
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+
+              let width = img.width;
+              let height = img.height;
+              const maxDim = 1200;
+
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+
+              // Konversi ke base64 JPEG terkompresi
+              const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+
+              if (targetField === 'logoImage') {
+                this.siteConfig.logoImage = compressedBase64;
+              } else if (targetField === 'heroImage') {
+                this.siteConfig.heroImage = compressedBase64;
+              } else if (targetField === 'pageBgImage') {
+                this.siteConfig.pageBgImage = compressedBase64;
+              } else if (targetField === 'qrisImage') {
+                if (!this.siteConfig.paymentConfig) this.siteConfig.paymentConfig = {};
+                this.siteConfig.paymentConfig.qrisImage = compressedBase64;
+              } else if (targetField === 'menuImage') {
+                this.menuForm.image = compressedBase64;
+              } else if (targetField === 'categoryIcon') {
+                this.categoryForm.icon = compressedBase64;
+                this.categoryForm.iconType = 'image';
+                this.categoryForm.imageUrl = compressedBase64;
+              }
+
+              this.showToast('Foto berhasil diunggah dari perangkat!');
+              event.target.value = '';
+            };
+            img.onerror = () => {
+              alert('Gagal memproses file gambar.');
+              event.target.value = '';
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
         },
 
         // PROSES PEMBAYARAN MULTI METODE (QRIS, MIDTRANS SNAP, TRANSFER BANK)
@@ -4986,7 +5661,8 @@ git push -u origin main</pre>
             badge: '',
             badgeColor: 'bg-brand-600 text-white',
             image: '',
-            description: ''
+            description: '',
+            isSpicy: false
           };
           this.isMenuFormOpen = true;
         },
@@ -5003,7 +5679,8 @@ git push -u origin main</pre>
             badge: item.badge || '',
             badgeColor: item.badgeColor || 'bg-brand-600 text-white',
             image: item.image || '',
-            description: item.description || ''
+            description: item.description || '',
+            isSpicy: Boolean(item.isSpicy)
           };
           this.isMenuFormOpen = true;
         },
@@ -5015,17 +5692,28 @@ git push -u origin main</pre>
           }
         },
 
+        async toggleMenuItemSpicy(item) {
+          item.isSpicy = !Boolean(item.isSpicy);
+          await window.FirebaseBridge.saveMenu(this.menuItems);
+          this.showToast(item.isSpicy ? `Logo cabe diaktifkan untuk "${item.name}"!` : `Logo cabe dinonaktifkan untuk "${item.name}"!`);
+        },
+
         async saveMenuItem() {
           this.onMenuCategoryChange();
+
+          const formPayload = {
+            ...this.menuForm,
+            isSpicy: Boolean(this.menuForm.isSpicy)
+          };
 
           if (this.editingMenuItemId) {
             const idx = this.menuItems.findIndex(m => m.id === this.editingMenuItemId);
             if (idx !== -1) {
-              this.menuItems[idx] = { ...this.menuForm };
+              this.menuItems[idx] = formPayload;
             }
           } else {
             const newItem = {
-              ...this.menuForm,
+              ...formPayload,
               id: 'm-' + Date.now()
             };
             this.menuItems.unshift(newItem);
@@ -5042,6 +5730,140 @@ git push -u origin main</pre>
             this.menuItems = this.menuItems.filter(m => m.id !== id);
             await window.FirebaseBridge.saveMenu(this.menuItems);
             this.showToast('Menu berhasil dihapus!');
+          }
+        },
+
+        // MANAJEMEN KATEGORI MENU (TAMBAH, EDIT, UPLOAD/URL SIMBOL, HAPUS, URUTAN)
+        openAddCategoryModal() {
+          this.editingCategoryId = null;
+          this.categoryForm = {
+            id: '',
+            name: '',
+            icon: 'fa-bowl-rice',
+            iconType: 'fa',
+            imageUrl: ''
+          };
+          this.isCategoryModalOpen = true;
+        },
+
+        openEditCategoryModal(cat) {
+          this.editingCategoryId = cat.id;
+          const isImg = cat.icon && (cat.icon.startsWith('http') || cat.icon.startsWith('data:image'));
+          this.categoryForm = {
+            id: cat.id,
+            name: cat.name,
+            icon: cat.icon || 'fa-tag',
+            iconType: isImg ? 'image' : 'fa',
+            imageUrl: isImg ? cat.icon : ''
+          };
+          this.isCategoryModalOpen = true;
+        },
+
+        async saveCategory() {
+          const name = (this.categoryForm.name || '').trim();
+          if (!name) {
+            alert('Nama kategori wajib diisi!');
+            return;
+          }
+
+          let icon = (this.categoryForm.icon || '').trim();
+          if (!icon) {
+            icon = this.categoryForm.iconType === 'image' && this.categoryForm.imageUrl ? this.categoryForm.imageUrl : 'fa-tag';
+          }
+
+          if (this.editingCategoryId) {
+            const idx = this.menuCategories.findIndex(c => c.id === this.editingCategoryId);
+            if (idx !== -1) {
+              const oldId = this.menuCategories[idx].id;
+              let newId = (this.categoryForm.id || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+              if (!newId || (oldId === 'all')) newId = oldId;
+
+              this.menuCategories[idx].name = name;
+              this.menuCategories[idx].icon = icon;
+              this.menuCategories[idx].id = newId;
+
+              // Perbarui label kategori pada menu terkait
+              let menuUpdated = false;
+              this.menuItems.forEach(m => {
+                if (m.category === oldId) {
+                  m.category = newId;
+                  m.categoryLabel = name;
+                  menuUpdated = true;
+                }
+              });
+              if (menuUpdated) {
+                await window.FirebaseBridge.saveMenu(this.menuItems);
+              }
+            }
+          } else {
+            // Generate id unik
+            let genId = (this.categoryForm.id || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            if (!genId) {
+              genId = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+            }
+            if (!genId) genId = 'cat_' + Date.now();
+
+            if (this.menuCategories.some(c => c.id === genId)) {
+              genId = genId + '_' + Date.now();
+            }
+
+            this.menuCategories.push({
+              id: genId,
+              name: name,
+              icon: icon
+            });
+          }
+
+          await this.saveCategoriesData();
+          this.isCategoryModalOpen = false;
+          this.showToast(this.editingCategoryId ? 'Kategori berhasil diperbarui!' : 'Kategori baru berhasil ditambahkan!');
+        },
+
+        async deleteCategory(catId) {
+          if (catId === 'all') {
+            alert('Kategori "Semua Menu" adalah kategori sistem dan tidak dapat dihapus.');
+            return;
+          }
+
+          const count = this.menuItems.filter(m => m.category === catId).length;
+          let confirmMsg = 'Yakin ingin menghapus kategori ini?';
+          if (count > 0) {
+            confirmMsg = `Terdapat ${count} menu dalam kategori ini. Jika dihapus, menu tersebut akan dipindahkan ke kategori "Semua Menu". Lanjutkan hapus kategori?`;
+          }
+
+          if (confirm(confirmMsg)) {
+            this.menuCategories = this.menuCategories.filter(c => c.id !== catId);
+            if (count > 0) {
+              this.menuItems.forEach(m => {
+                if (m.category === catId) {
+                  m.category = 'all';
+                  m.categoryLabel = 'Semua Menu';
+                }
+              });
+              await window.FirebaseBridge.saveMenu(this.menuItems);
+            }
+            if (this.selectedCategory === catId) {
+              this.selectedCategory = 'all';
+            }
+            await this.saveCategoriesData();
+            this.showToast('Kategori berhasil dihapus!');
+          }
+        },
+
+        async moveCategory(index, direction) {
+          const targetIndex = index + direction;
+          if (targetIndex < 1 || targetIndex >= this.menuCategories.length) return; // 'all' dipertahankan di urutan 0
+          const item = this.menuCategories.splice(index, 1)[0];
+          this.menuCategories.splice(targetIndex, 0, item);
+          await this.saveCategoriesData();
+          this.showToast('Urutan kategori berhasil dipindahkan!');
+        },
+
+        async saveCategoriesData() {
+          if (window.FirebaseBridge && window.FirebaseBridge.saveCategories) {
+            await window.FirebaseBridge.saveCategories(this.menuCategories);
+          } else {
+            localStorage.setItem("dapur_menu_categories", JSON.stringify(this.menuCategories));
           }
         },
 
