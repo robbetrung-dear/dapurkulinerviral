@@ -8,13 +8,15 @@
   <!-- Global safety shield: handle cross-origin Script error and prevent uncaught runtime stops -->
   <script>
     window.addEventListener('error', function(event) {
-      if (event.message === 'Script error.' || (event.filename && !event.filename.includes(window.location.host))) {
-        console.warn('Cross-origin/external script notice caught:', event.message || event);
-        if (event.preventDefault) event.preventDefault();
-        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-        return true;
-      }
-    }, true);
+  console.error('🔴 REAL ERROR:', event.message, event.filename, event.lineno, event.error);
+  if (event.preventDefault) event.preventDefault();
+  if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+  return true;
+}, true);
+window.addEventListener('unhandledrejection', function(event) {
+  console.error('🔴 UNHANDLED REJECTION:', event.reason);
+  if (event.preventDefault) event.preventDefault();
+});
     window.addEventListener('unhandledrejection', function(event) {
       console.warn('Unhandled promise rejection captured:', event.reason);
       if (event.preventDefault) event.preventDefault();
