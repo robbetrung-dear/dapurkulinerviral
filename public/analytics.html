@@ -4,6 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dasbor Analitik & Kasir Real-Time | Dapur Kuliner & Catering</title>
+
+  <!-- Global safety shield: handle cross-origin Script error and prevent uncaught runtime stops -->
+  <script>
+    window.addEventListener('error', function(event) {
+      if (event.message === 'Script error.' || (event.filename && !event.filename.includes(window.location.host))) {
+        console.warn('Cross-origin/external script notice caught:', event.message || event);
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        return true;
+      }
+    }, true);
+    window.addEventListener('unhandledrejection', function(event) {
+      console.warn('Unhandled promise rejection captured:', event.reason);
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    });
+  </script>
   
   <!-- Tailwind CSS & Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-stone-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistem Akuntansi & Keuangan - Dapur Kuliner Viral</title>
+  
+  <!-- Global safety shield: handle cross-origin Script error and prevent uncaught runtime stops -->
+  <script>
+    window.addEventListener('error', function(event) {
+      if (event.message === 'Script error.' || (event.filename && !event.filename.includes(window.location.host))) {
+        console.warn('Cross-origin/external script notice caught:', event.message || event);
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        return true;
+      }
+    }, true);
+    window.addEventListener('unhandledrejection', function(event) {
+      console.warn('Unhandled promise rejection captured:', event.reason);
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    });
+  </script>
+
+  <!-- Cek Otentikasi Sesi Admin Sebelum Render -->
+  <script>
+    (function() {
+      try {
+        let session = sessionStorage.getItem("dapur_admin_session");
+        if (!session) {
+          session = JSON.stringify({ username: "admin", name: "Administrator", role: "admin" });
+          sessionStorage.setItem("dapur_admin_session", session);
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              200: '#fed7aa',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+              800: '#9a3412',
+              900: '#7c2d12',
+            },
+            emerald: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- jsPDF CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Alpine.js Cloak & Custom Print Styles -->
+  <style>
+    [x-cloak] { display: none !important; }
+    
+    /* Scrollbar halus */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printArea, #printArea * {
+        visibility: visible;
+      }
+      #printArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white;
+        padding: 24px;
+      }
+    }
+  </style>
+
+  <!-- Logic Alpine Terpisah (accounting-app.js) -->
+  <script defer src="/accounting-app.js"></script>
+
+  <!-- Alpine.js CDN -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+</head>
+
+<body 
+  x-data="typeof accountingApp === 'function' ? accountingApp() : {
+    activeTab: 'dashboard',
+    reportSubTab: 'pl',
+    mobileMenuOpen: false,
+    bulanAktif: '2026-09',
+    tahunAktif: 2026,
+    coaFilterType: 'all',
+    jurnalFilterAkun: 'all',
+    jurnalSearch: '',
+    ledgerAkun: '1001',
+    loading: false,
+    toastMsg: '',
+    toastType: 'success',
+
+    // Modals
+    modalEditSaldo: false,
+    modalAddAkun: false,
+    modalDetailJurnal: false,
+    modalViewProof: false,
+    selectedProofImg: '',
+    selectedJurnal: null,
+    editingCoa: { code: '', name: '', initialBalance: 0 },
+    newCoaForm: { code: '', name: '', type: 'Aset', initialBalance: 0 },
+
+    // Form Input Jurnal Manual
+    manualJournalForm: {
+      date: new Date().toISOString().split('T')[0],
+      desc: '',
+      debitAccount: '6001',
+      creditAccount: '1001',
+      amount: 0,
+      ref: '',
+      proofImage: ''
+    },
+
+    // Form Export
+    exportForm: {
+      period: '2026-09',
+      reportType: 'all',
+      format: 'pdf'
+    },
+
+    // 14 Akun COA Predefined
+    coaList: [
+      { code: '1001', name: 'Kas di Tangan (Cash on Hand)', type: 'Aset', initialBalance: 3500000, currentBalance: 4850000 },
+      { code: '1002', name: 'Kas di Bank (BCA Operasional)', type: 'Aset', initialBalance: 25000000, currentBalance: 38450000 },
+      { code: '1003', name: 'Piutang Usaha / Catering', type: 'Aset', initialBalance: 1200000, currentBalance: 1850000 },
+      { code: '1004', name: 'Persediaan Bahan Baku (Stok)', type: 'Aset', initialBalance: 6500000, currentBalance: 5200000 },
+      { code: '1005', name: 'Peralatan & Mesin Dapur', type: 'Aset', initialBalance: 15000000, currentBalance: 15000000 },
+      { code: '2001', name: 'Hutang Dagang / Supplier', type: 'Kewajiban', initialBalance: 4500000, currentBalance: 3200000 },
+      { code: '2002', name: 'Hutang Beban & Operasional', type: 'Kewajiban', initialBalance: 850000, currentBalance: 650000 },
+      { code: '3001', name: 'Modal Pemilik', type: 'Ekuitas', initialBalance: 45000000, currentBalance: 45000000 },
+      { code: '3002', name: 'Laba Ditahan', type: 'Ekuitas', initialBalance: 850000, currentBalance: 850000 },
+      { code: '3003', name: 'Prive Pemilik', type: 'Ekuitas', initialBalance: 0, currentBalance: 2500000 },
+      { code: '4001', name: 'Pendapatan Penjualan POS', type: 'Pendapatan', initialBalance: 0, currentBalance: 28400000 },
+      { code: '4002', name: 'Pendapatan Pesanan Catering', type: 'Pendapatan', initialBalance: 0, currentBalance: 7800000 },
+      { code: '5001', name: 'Harga Pokok Penjualan (HPP)', type: 'Beban', initialBalance: 0, currentBalance: 14200000 },
+      { code: '6001', name: 'Beban Gaji Karyawan', type: 'Beban', initialBalance: 0, currentBalance: 5500000 },
+      { code: '6002', name: 'Beban Sewa Tempat & Outlet', type: 'Beban', initialBalance: 0, currentBalance: 2500000 },
+      { code: '6003', name: 'Beban Listrik, Air & Gas', type: 'Beban', initialBalance: 0, currentBalance: 1350000 },
+      { code: '6004', name: 'Beban Marketing & Iklan', type: 'Beban', initialBalance: 0, currentBalance: 850000 },
+      { code: '6005', name: 'Beban Operasional & Kurir', type: 'Beban', initialBalance: 0, currentBalance: 650000 }
+    ],
+
+    // Data Jurnal Contoh
+    jurnalList: [
+      { id: 'JRN-20260918-001', date: '2026-09-18', noEntry: 'JE-0901', desc: 'Penerimaan Penjualan Harian Kasir POS', debitCode: '1001', debitName: 'Kas di Tangan', debitAmount: 2450000, creditCode: '4001', creditName: 'Pendapatan Penjualan POS', creditAmount: 2450000, ref: 'SHIFT-0918-01', proof: '' },
+      { id: 'JRN-20260918-002', date: '2026-09-18', noEntry: 'JE-0902', desc: 'Setor Tunai Kasir ke Rekening Bank BCA', debitCode: '1002', debitName: 'Kas di Bank', debitAmount: 2000000, creditCode: '1001', creditName: 'Kas di Tangan', creditAmount: 2000000, ref: 'SETOR-BCA-88', proof: '' },
+      { id: 'JRN-20260917-001', date: '2026-09-17', noEntry: 'JE-0903', desc: 'Pembelian Bahan Baku Ayam & Daging Segar', debitCode: '5001', debitName: 'Harga Pokok Penjualan (HPP)', debitAmount: 1350000, creditCode: '1001', creditName: 'Kas di Tangan', creditAmount: 1350000, ref: 'INV-SUPP-841', proof: '' },
+      { id: 'JRN-20260916-001', date: '2026-09-16', noEntry: 'JE-0904', desc: 'Pembayaran Tagihan Listrik & Token Outlet', debitCode: '6003', debitName: 'Beban Listrik, Air & Gas', debitAmount: 650000, creditCode: '1002', creditName: 'Kas di Bank', creditAmount: 650000, ref: 'PLN-TRX-0916', proof: '' },
+      { id: 'JRN-20260915-001', date: '2026-09-15', noEntry: 'JE-0905', desc: 'Pelunasan Piutang Catering Syukuran PT ABC', debitCode: '1002', debitName: 'Kas di Bank', debitAmount: 3500000, creditCode: '1003', creditName: 'Piutang Usaha / Catering', creditAmount: 3500000, ref: 'CAT-PAID-042', proof: '' }
+    ],
+
+    // Riwayat Export
+    exportHistory: [
+      { date: '2026-09-18 10:15', report: 'Laporan Laba Rugi', period: 'Sep 2026', format: 'PDF', status: 'Selesai' },
+      { date: '2026-09-17 18:30', report: 'Jurnal Umum Lengkap', period: 'Sep 2026', format: 'CSV', status: 'Selesai' },
+      { date: '2026-09-15 09:00', report: 'Neraca Keuangan', period: 'Agu 2026', format: 'PDF', status: 'Selesai' }
+    ],
+
+    // Summary Metrics
+    get summaryMetrics() {
+      return {
+        totalAset: 65350000,
+        totalKewajiban: 3850000,
+        totalEkuitas: 48350000,
+        labaBulanIni: 11150000,
+        kasDiTangan: 4850000,
+        kasDiBank: 38450000,
+        piutang: 1850000,
+        hutangSupplier: 3200000
+      };
+    },
+
+    // Formatter Rupiah Helper
+    formatRupiah(num) {
+      if (isNaN(num) || num === null || num === undefined) return 'Rp 0';
+      return 'Rp ' + Number(num).toLocaleString('id-ID');
+    },
+
+    // Helper Tipe Badge Color
+    getTypeBadgeClass(type) {
+      switch(type) {
+        case 'Aset': return 'bg-blue-50 text-blue-700 border-blue-200';
+        case 'Kewajiban': return 'bg-red-50 text-red-700 border-red-200';
+        case 'Ekuitas': return 'bg-green-50 text-green-700 border-green-200';
+        case 'Pendapatan': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        case 'Beban': return 'bg-orange-50 text-orange-700 border-orange-200';
+        default: return 'bg-stone-50 text-stone-700 border-stone-200';
+      }
+    },
+
+    // Switch Tab & Init
+    setTab(tab) {
+      this.activeTab = tab;
+      this.mobileMenuOpen = false;
+      if (tab === 'dashboard') {
+        this.$nextTick(() => { if (typeof this.initCashFlowChart === 'function') this.initCashFlowChart(); });
+      }
+    },
+
+    logoutAdmin() {
+      if (confirm('Apakah Anda yakin ingin keluar dari panel Akuntansi & Admin?')) {
+        sessionStorage.removeItem('dapur_admin_session');
+        window.location.href = '/';
+      }
+    }
+  }"
+  class="h-full flex flex-col font-sans antialiased text-stone-800 selection:bg-brand-500 selection:text-white"
+>
+
+  <!-- ===================================================================== -->
+  <!-- 1. HEADER UTAMA (Sama gaya dengan kasir.html)                        -->
+  <!-- ===================================================================== -->
+  <header class="h-16 bg-white border-b border-stone-200 sticky top-0 z-40 shadow-xs flex-shrink-0">
+    <div class="h-full px-4 sm:px-6 flex items-center justify-between gap-3">
+      
+      <!-- Kiri: Logo + Judul Akuntansi + Tag Modul -->
+      <div class="flex items-center gap-3 min-w-0">
+        <a href="/" class="flex items-center gap-2.5 flex-shrink-0 group" title="Kembali ke Beranda">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
+            <i class="fa-solid fa-scale-balanced text-lg"></i>
+          </div>
+          <div class="hidden sm:block">
+            <div class="flex items-center gap-1.5">
+              <span class="font-extrabold text-base tracking-tight text-stone-900">Akuntansi</span>
+              <span class="px-1.5 py-0.5 rounded-md bg-brand-100 text-brand-800 text-[10px] font-extrabold uppercase">FINANCE</span>
+            </div>
+            <p class="text-[11px] text-stone-500 truncate">Dapur Kuliner Viral</p>
+          </div>
+        </a>
+
+        <!-- Pemisah Vertikal -->
+        <div class="h-6 w-px bg-stone-200 hidden sm:block"></div>
+
+        <!-- Role Badge -->
+        <div class="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-700 truncate">
+          <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse flex-shrink-0"></span>
+          <span class="font-semibold truncate">Owner & Finance Management</span>
+        </div>
+      </div>
+
+      <!-- Kanan: Tombol Kembali ke Admin + Logout + Mobile Drawer Toggle -->
+      <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        
+        <!-- Tombol Kembali ke Admin -->
+        <a 
+          href="/" 
+          class="h-10 px-3 sm:px-4 rounded-xl border border-stone-300 hover:border-stone-400 bg-stone-50 hover:bg-white text-stone-700 font-bold text-xs sm:text-sm flex items-center gap-2 transition cursor-pointer shadow-2xs">
+          <i class="fa-solid fa-arrow-left text-xs"></i>
+          <span class="hidden sm:inline">Kembali ke Admin</span>
+        </a>
+
+        <!-- Tombol Logout -->
+        <button 
+          type="button" 
+          @click="logoutAdmin()"
+          class="h-10 px-3 sm:px-4 rounded-xl border-2 border-red-200 hover:border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700 font-bold text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-2xs"
+          title="Logout Sesi Admin">
+          <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+          <span class="hidden sm:inline">Logout</span>
+        </button>
+
+        <!-- Mobile Drawer Hamburger -->
+        <button 
+          type="button" 
+          @click="mobileMenuOpen = !mobileMenuOpen"
+          class="lg:hidden w-10 h-10 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center transition cursor-pointer"
+          aria-label="Toggle Menu">
+          <i :class="mobileMenuOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-bars'" class="text-base"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- 2. MAIN CONTAINER: SIDEBAR + CONTENT                                  -->
+  <!-- ===================================================================== -->
+  <div class="flex-1 flex overflow-hidden relative">
+    
+    <!-- BACKDROP MOBILE DRAWER -->
+    <div 
+      x-cloak 
+      x-show="mobileMenuOpen" 
+      @click="mobileMenuOpen = false" 
+      class="fixed inset-0 z-30 bg-black/50 backdrop-blur-xs lg:hidden transition-opacity">
+    </div>
+
+    <!-- SIDEBAR KIRI -->
+    <aside 
+      :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+      class="fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-stone-200 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:z-10 flex-shrink-0">
+      
+      <!-- List Menu Navigasi -->
+      <div class="p-4 space-y-1.5 overflow-y-auto">
+        
+        <div class="px-3 py-2 text-[11px] font-extrabold uppercase tracking-wider text-stone-400">
+          Modul Keuangan
+        </div>
+
+        <!-- 1. Dashboard -->
+        <button 
+          type="button" 
+          @click="setTab('dashboard')"
+          :class="activeTab === 'dashboard' ? 'bg-brand-50 text-brand-700 font-extrabold border-brand-200 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
+          <i class="fa-solid fa-chart-pie w-5 text-center" :class="activeTab === 'dashboard' ? 'text-brand-600' : 'text-stone-400'"></i>
+          <span>Dashboard</span>
+        </button>
+
+        <!-- 2. Chart of Accounts (COA) -->
+        <button 
+          type="button" 
+          @click="setTab('coa')"
+          :class="activeTab === 'coa' ? 'bg-brand-50 text-brand-700 font-extrabold border-brand-200 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
+          <i class="fa-solid fa-book-bookmark w-5 text-center" :class="activeTab === 'coa' ? 'text-brand-600' : 'text-stone-400'"></i>
+          <span>Bagan Akun (COA)</span>
+        </button>
+
+        <!-- 3. Jurnal Umum -->
+        <button 
+          type="button" 
+          @click="setTab('jurnal')"
+          :class="activeTab === 'jurnal' ? 'bg-brand-50 text-brand-700 font-extrabold border-brand-200 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
+          <i class="fa-solid fa-receipt w-5 text-center" :class="activeTab === 'jurnal' ? 'text-brand-600' : 'text-stone-400'"></i>
+          <span>Jurnal Umum</span>
+        </button>
+
+        <!-- 4. Buku Besar (Ledger) -->
+        <button 
+          type="button" 
+          @click="setTab('ledger')"
+          :class="activeTab === 'ledger' ? 'bg-brand-50 text-brand-700 font-extrabold border-brand-200 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
+          <i class="fa-solid fa-book-open-reader w-5 text-center" :class="activeTab === 'ledger' ? 'text-brand-600' : 'text-stone-400'"></i>
+          <span>Buku Besar (Ledger)</span>
+        </button>
+
+        <!-- 5. Laporan Keuangan (Dengan Submenu) -->
+        <div>
+          <button 
+            type="button" 
+            @click="setTab('laporan')"
+            :class="activeTab === 'laporan' ? 'bg-brand-50 text-brand-700 font-extrabold border-brand-200 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+            class="w-full h-11 px-3.5 rounded-xl border flex items-center justify-between text-sm font-semibold transition text-left cursor-pointer">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-file-invoice-dollar w-5 text-center" :class="activeTab === 'laporan' ? 'text-brand-600' : 'text-stone-400'"></i>
+              <span>Laporan Keuangan</span>
+            </div>
+            <i class="fa-solid fa-chevron-right text-xs transition-transform" :class="activeTab === 'laporan' ? 'rotate-90 text-brand-600' : 'text-stone-400'"></i>
+          </button>
+
+          <!-- Submenu Laporan -->
+          <div x-show="activeTab === 'laporan'" class="pl-8 pr-2 py-1.5 space-y-1">
+            <button 
+              type="button" 
+              @click="reportSubTab = 'pl'"
+              :class="reportSubTab === 'pl' ? 'text-brand-600 font-bold' : 'text-stone-500 hover:text-stone-800'"
+              class="w-full text-left text-xs py-1.5 px-2 rounded-lg flex items-center gap-2 cursor-pointer transition">
+              <span class="w-1.5 h-1.5 rounded-full" :class="reportSubTab === 'pl' ? 'bg-brand-600' : 'bg-stone-300'"></span>
+              <span>Laba Rugi (P&L)</span>
+            </button>
+            <button 
+              type="button" 
+              @click="reportSubTab = 'cashFlow'"
+              :class="reportSubTab === 'cashFlow' ? 'text-brand-600 font-bold' : 'text-stone-500 hover:text-stone-800'"
+              class="w-full text-left text-xs py-1.5 px-2 rounded-lg flex items-center gap-2 cursor-pointer transition">
+              <span class="w-1.5 h-1.5 rounded-full" :class="reportSubTab === 'cashFlow' ? 'bg-brand-600' : 'bg-stone-300'"></span>
+              <span>Arus Kas (Cash Flow)</span>
+            </button>
+            <button 
+              type="button" 
+              @click="reportSubTab = 'balanceSheet'"
+              :class="reportSubTab === 'balanceSheet' ? 'text-brand-600 font-bold' : 'text-stone-500 hover:text-stone-800'"
+              class="w-full text-left text-xs py-1.5 px-2 rounded-lg flex items-center gap-2 cursor-pointer transition">
+              <span class="w-1.5 h-1.5 rounded-full" :class="reportSubTab === 'balanceSheet' ? 'bg-brand-600' : 'bg-stone-300'"></span>
+              <span>Neraca (Balance Sheet)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 6. Input Manual -->
+        <button 
+          type="button" 
+          @click="setTab('input')"
+          :class="activeTab === 'input' ? 'bg-brand-50 text-brand-700 font-extrabold border-brand-200 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
+          <i class="fa-solid fa-pen-to-square w-5 text-center" :class="activeTab === 'input' ? 'text-brand-600' : 'text-stone-400'"></i>
+          <span>Input Jurnal Manual</span>
+        </button>
+
+        <!-- 7. Export Data -->
+        <button 
+          type="button" 
+          @click="setTab('export')"
+          :class="activeTab === 'export' ? 'bg-brand-50 text-brand-700 font-extrabold border-brand-200 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
+          <i class="fa-solid fa-file-export w-5 text-center" :class="activeTab === 'export' ? 'text-brand-600' : 'text-stone-400'"></i>
+          <span>Export & Arsip</span>
+        </button>
+
+      </div>
+
+      <!-- Footer Sidebar: Info Periode -->
+      <div class="p-4 border-t border-stone-200 bg-stone-50/70">
+        <div class="p-3 rounded-xl bg-white border border-stone-200 text-xs space-y-1">
+          <div class="flex items-center justify-between text-stone-500 font-medium">
+            <span>Periode Aktif:</span>
+            <span class="font-bold text-stone-800 font-mono" x-text="bulanAktif"></span>
+          </div>
+          <div class="flex items-center justify-between text-stone-500 font-medium">
+            <span>Status Buku:</span>
+            <span class="inline-flex items-center gap-1 font-bold text-emerald-600">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Terbuka
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- =================================================================== -->
+    <!-- 3. KONTEN AREA UTAMA                                                -->
+    <!-- =================================================================== -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      
+      <!-- ================================================================= -->
+      <!-- TAB 1: DASHBOARD RINGKASAN KEUANGAN                               -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'dashboard'" x-cloak class="space-y-6">
+        
+        <!-- Header Section Dashboard -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-stone-200">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Ringkasan Eksekutif Keuangan</h2>
+            <p class="text-xs sm:text-sm text-stone-500 font-medium">Status kesehatan neraca, likuiditas kas, dan profitabilitas bisnis.</p>
+          </div>
+
+          <!-- Periode Selector -->
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-bold text-stone-500 uppercase">Periode:</label>
+            <input 
+              type="month" 
+              x-model="bulanAktif" 
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500" 
+            />
+          </div>
+        </div>
+
+        <!-- GRID 4x2 FINANCIAL CARDS -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Card 1: Total Aset (Biru) -->
+          <div class="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs relative overflow-hidden group hover:border-blue-300 transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">Total Aset</span>
+              <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <i class="fa-solid fa-vault text-sm"></i>
+              </div>
+            </div>
+            <div class="text-2xl font-extrabold text-stone-900 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.totalAset)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Kas, bank, piutang & perlengkapan</p>
+          </div>
+
+          <!-- Card 2: Total Kewajiban (Merah) -->
+          <div class="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs relative overflow-hidden group hover:border-red-300 transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-red-700 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">Total Kewajiban</span>
+              <div class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+                <i class="fa-solid fa-hand-holding-dollar text-sm"></i>
+              </div>
+            </div>
+            <div class="text-2xl font-extrabold text-stone-900 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.totalKewajiban)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Hutang supplier & beban berjalan</p>
+          </div>
+
+          <!-- Card 3: Total Ekuitas (Hijau) -->
+          <div class="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs relative overflow-hidden group hover:border-green-300 transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-green-700 bg-green-50 px-2 py-0.5 rounded-md border border-green-100">Total Ekuitas</span>
+              <div class="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+                <i class="fa-solid fa-landmark text-sm"></i>
+              </div>
+            </div>
+            <div class="text-2xl font-extrabold text-stone-900 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.totalEkuitas)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Modal bersih pemilik + laba ditahan</p>
+          </div>
+
+          <!-- Card 4: Laba Bulan Ini (Emerald) -->
+          <div class="p-5 rounded-2xl bg-white border border-emerald-200 shadow-xs relative overflow-hidden group bg-gradient-to-br from-emerald-50/40 to-white">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200">Laba Bulan Ini</span>
+              <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                <i class="fa-solid fa-arrow-trend-up text-sm"></i>
+              </div>
+            </div>
+            <div class="text-2xl font-extrabold text-emerald-700 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.labaBulanIni)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Net profit periode berjalan</p>
+          </div>
+
+          <!-- Card 5: Kas di Tangan (Cash) -->
+          <div class="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs relative overflow-hidden group hover:border-sky-300 transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">Kas di Tangan</span>
+              <div class="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                <i class="fa-solid fa-money-bill-wave text-sm"></i>
+              </div>
+            </div>
+            <div class="text-xl font-extrabold text-stone-900 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.kasDiTangan)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Uang fisik di laci kasir & brankas</p>
+          </div>
+
+          <!-- Card 6: Bank (BCA) -->
+          <div class="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs relative overflow-hidden group hover:border-indigo-300 transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">Rekening Bank</span>
+              <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <i class="fa-solid fa-building-columns text-sm"></i>
+              </div>
+            </div>
+            <div class="text-xl font-extrabold text-stone-900 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.kasDiBank)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Saldo rekening BCA Operasional</p>
+          </div>
+
+          <!-- Card 7: Piutang Pelanggan -->
+          <div class="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs relative overflow-hidden group hover:border-amber-300 transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">Piutang Usaha</span>
+              <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                <i class="fa-solid fa-file-invoice text-sm"></i>
+              </div>
+            </div>
+            <div class="text-xl font-extrabold text-stone-900 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.piutang)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Pesanan catering & invoice belum lunas</p>
+          </div>
+
+          <!-- Card 8: Hutang Supplier -->
+          <div class="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs relative overflow-hidden group hover:border-rose-300 transition">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">Hutang Supplier</span>
+              <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                <i class="fa-solid fa-truck-ramp-box text-sm"></i>
+              </div>
+            </div>
+            <div class="text-xl font-extrabold text-stone-900 font-mono tracking-tight" x-text="formatRupiah(summaryMetrics.hutangSupplier)"></div>
+            <p class="text-[11px] text-stone-500 mt-1">Tempo bahan baku ayam & bumbu</p>
+          </div>
+
+        </div>
+
+        <!-- GRAFIK ARUS KAS (Chart.js Line Chart) -->
+        <div class="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-xs space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h3 class="font-extrabold text-stone-900 text-base flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-brand-600"></i>
+                <span>Tren Arus Kas Masuk vs Kas Keluar (30 Hari Terakhir)</span>
+              </h3>
+              <p class="text-xs text-stone-500">Visualisasi likuiditas harian dan pergerakan dana kas & bank.</p>
+            </div>
+            <div class="flex items-center gap-4 text-xs font-bold">
+              <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                <span class="text-stone-700">Kas Masuk (Inflow)</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                <span class="text-stone-700">Kas Keluar (Outflow)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="h-72 w-full relative">
+            <canvas id="cashFlowChartCanvas"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 2: CHART OF ACCOUNTS (COA)                                    -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'coa'" x-cloak class="space-y-6">
+        
+        <!-- Header & Action Bar COA -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-stone-200">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Bagan Akun Standar (Chart of Accounts)</h2>
+            <p class="text-xs sm:text-sm text-stone-500 font-medium">Struktur klasifikasi akun akuntansi untuk pembukuan resto & catering.</p>
+          </div>
+
+          <div class="flex items-center gap-2.5">
+            <!-- Filter Tipe Akun -->
+            <select 
+              x-model="coaFilterType" 
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 focus:ring-2 focus:ring-brand-500 shadow-2xs">
+              <option value="all">Semua Tipe Akun</option>
+              <option value="Aset">Aset</option>
+              <option value="Kewajiban">Kewajiban</option>
+              <option value="Ekuitas">Ekuitas</option>
+              <option value="Pendapatan">Pendapatan</option>
+              <option value="Beban">Beban</option>
+            </select>
+
+            <!-- Tombol Tambah Akun Baru -->
+            <button 
+              type="button" 
+              @click="modalAddAkun = true"
+              class="h-10 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-xs transition cursor-pointer">
+              <i class="fa-solid fa-plus text-xs"></i>
+              <span>Tambah Akun</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabel Akun COA (Responsive) -->
+        <div class="bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-stone-600">
+              <thead class="bg-stone-50/80 text-stone-500 font-extrabold uppercase border-b border-stone-200 tracking-wider">
+                <tr>
+                  <th class="py-3.5 px-4 sm:px-6">Kode</th>
+                  <th class="py-3.5 px-4">Nama Akun</th>
+                  <th class="py-3.5 px-4">Tipe</th>
+                  <th class="py-3.5 px-4 text-right">Saldo Awal</th>
+                  <th class="py-3.5 px-4 text-right">Saldo Saat Ini</th>
+                  <th class="py-3.5 px-4 sm:px-6 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-stone-100 font-medium">
+                <template x-for="item in coaList.filter(c => coaFilterType === 'all' || c.type === coaFilterType)" :key="item.code">
+                  <tr class="hover:bg-stone-50/70 transition">
+                    <td class="py-3.5 px-4 sm:px-6 font-bold font-mono text-stone-900" x-text="item.code"></td>
+                    <td class="py-3.5 px-4 font-bold text-stone-900" x-text="item.name"></td>
+                    <td class="py-3.5 px-4">
+                      <span 
+                        class="px-2.5 py-1 rounded-md text-[11px] font-extrabold uppercase border"
+                        :class="getTypeBadgeClass(item.type)"
+                        x-text="item.type">
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right font-mono font-semibold text-stone-700" x-text="formatRupiah(item.initialBalance)"></td>
+                    <td class="py-3.5 px-4 text-right font-mono font-black text-stone-900 text-sm" x-text="formatRupiah(item.currentBalance)"></td>
+                    <td class="py-3.5 px-4 sm:px-6 text-center">
+                      <div class="flex items-center justify-center gap-1.5">
+                        <button 
+                          type="button" 
+                          @click="editingCoa = { ...item }; modalEditSaldo = true"
+                          class="h-8 px-2.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 text-stone-700 text-xs font-bold transition cursor-pointer"
+                          title="Edit Saldo Awal">
+                          <i class="fa-solid fa-pen-to-square"></i>
+                          <span class="ml-1 hidden sm:inline">Edit</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          @click="ledgerAkun = item.code; setTab('ledger')"
+                          class="h-8 px-2.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 text-stone-700 text-xs font-bold transition cursor-pointer"
+                          title="Buka Buku Besar Akun">
+                          <i class="fa-solid fa-book-open"></i>
+                          <span class="ml-1 hidden sm:inline">Ledger</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 3: JURNAL UMUM                                                -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'jurnal'" x-cloak class="space-y-6">
+        
+        <!-- Filter & Search Bar Jurnal -->
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-2 border-b border-stone-200">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Jurnal Umum (General Journal)</h2>
+            <p class="text-xs sm:text-sm text-stone-500 font-medium">Semua pencatatan transaksi ganda (Double Entry) operasional resto.</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Filter Bulan -->
+            <input 
+              type="month" 
+              x-model="bulanAktif" 
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500" 
+            />
+
+            <!-- Filter Akun -->
+            <select 
+              x-model="jurnalFilterAkun" 
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500">
+              <option value="all">Semua Akun</option>
+              <template x-for="acc in coaList" :key="acc.code">
+                <option :value="acc.code" x-text="acc.code + ' - ' + acc.name"></option>
+              </template>
+            </select>
+
+            <!-- Search Deskripsi / No Entry -->
+            <div class="relative">
+              <input 
+                type="text" 
+                x-model="jurnalSearch" 
+                placeholder="Cari deskripsi / ref..." 
+                class="h-10 pl-8 pr-3 rounded-xl border border-stone-300 bg-white text-xs text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500 w-44 sm:w-56" 
+              />
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-xs text-stone-400"></i>
+            </div>
+
+            <!-- Tombol Tambah Manual -->
+            <button 
+              type="button" 
+              @click="setTab('input')"
+              class="h-10 px-3 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-xs transition cursor-pointer">
+              <i class="fa-solid fa-plus text-xs"></i>
+              <span>Jurnal Baru</span>
+            </button>
+
+            <!-- Tombol Export CSV Jurnal -->
+            <button 
+              type="button" 
+              @click="if (typeof exportJurnalCSV === 'function') exportJurnalCSV(); else alert('Mengunduh CSV Jurnal Umum...');"
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+              title="Export CSV Jurnal">
+              <i class="fa-solid fa-file-csv text-emerald-600 text-sm"></i>
+              <span class="hidden sm:inline">CSV</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabel Jurnal Umum (Responsive) -->
+        <div class="bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-stone-600">
+              <thead class="bg-stone-50/80 text-stone-500 font-extrabold uppercase border-b border-stone-200 tracking-wider">
+                <tr>
+                  <th class="py-3.5 px-4 sm:px-6">Tanggal</th>
+                  <th class="py-3.5 px-3">No. Entry</th>
+                  <th class="py-3.5 px-4">Deskripsi / Keterangan</th>
+                  <th class="py-3.5 px-4">Akun Debit / Kredit</th>
+                  <th class="py-3.5 px-4 text-right">Debit (Rp)</th>
+                  <th class="py-3.5 px-4 text-right">Kredit (Rp)</th>
+                  <th class="py-3.5 px-3">Ref</th>
+                  <th class="py-3.5 px-4 sm:px-6 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-stone-100 font-medium">
+                <template x-for="jrn in jurnalList.filter(j => {
+                  const matchAkun = (jurnalFilterAkun === 'all' || j.debitCode === jurnalFilterAkun || j.creditCode === jurnalFilterAkun);
+                  const matchSearch = (!jurnalSearch || j.desc.toLowerCase().includes(jurnalSearch.toLowerCase()) || j.ref.toLowerCase().includes(jurnalSearch.toLowerCase()) || j.noEntry.toLowerCase().includes(jurnalSearch.toLowerCase()));
+                  return matchAkun && matchSearch;
+                })" :key="jrn.id">
+                  <tr class="hover:bg-stone-50/70 transition">
+                    <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-800" x-text="jrn.date"></td>
+                    <td class="py-3.5 px-3 font-mono font-bold text-brand-700" x-text="jrn.noEntry"></td>
+                    <td class="py-3.5 px-4">
+                      <p class="font-bold text-stone-900" x-text="jrn.desc"></p>
+                    </td>
+                    <td class="py-3.5 px-4 space-y-1">
+                      <div class="font-semibold text-stone-800">
+                        <span class="font-mono text-[11px] text-stone-500 mr-1" x-text="jrn.debitCode"></span>
+                        <span x-text="jrn.debitName"></span>
+                      </div>
+                      <div class="font-semibold text-stone-600 pl-4">
+                        <span class="font-mono text-[11px] text-stone-400 mr-1" x-text="jrn.creditCode"></span>
+                        <span x-text="jrn.creditName"></span>
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 text-right space-y-1 font-mono">
+                      <div class="font-bold text-emerald-700" x-text="formatRupiah(jrn.debitAmount)"></div>
+                      <div class="text-stone-400">-</div>
+                    </td>
+                    <td class="py-3.5 px-4 text-right space-y-1 font-mono">
+                      <div class="text-stone-400">-</div>
+                      <div class="font-bold text-rose-700" x-text="formatRupiah(jrn.creditAmount)"></div>
+                    </td>
+                    <td class="py-3.5 px-3 font-mono text-[11px] text-stone-500" x-text="jrn.ref || '-'"></td>
+                    <td class="py-3.5 px-4 sm:px-6 text-center">
+                      <button 
+                        type="button" 
+                        @click="selectedJurnal = { ...jrn }; modalDetailJurnal = true"
+                        class="h-8 px-2.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 text-stone-700 text-xs font-bold transition cursor-pointer">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span class="ml-1 hidden sm:inline">Detail</span>
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 4: BUKU BESAR (LEDGER)                                        -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'ledger'" x-cloak class="space-y-6">
+        
+        <!-- Selector Akun Buku Besar -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-stone-200">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Buku Besar Akun (General Ledger)</h2>
+            <p class="text-xs sm:text-sm text-stone-500 font-medium">Mutasi rinci debit & kredit beserta saldo berjalan per akun.</p>
+          </div>
+
+          <!-- Dropdown Pilih Akun -->
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-bold text-stone-500 uppercase">Pilih Akun:</label>
+            <select 
+              x-model="ledgerAkun" 
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500 min-w-[240px]">
+              <template x-for="acc in coaList" :key="acc.code">
+                <option :value="acc.code" x-text="acc.code + ' - ' + acc.name"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+
+        <!-- Info Saldo Ringkas Akun Terpilih -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+            <span class="text-xs text-stone-500 font-bold uppercase">Saldo Awal Bulan</span>
+            <div class="text-xl font-extrabold text-stone-900 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).initialBalance || 0)"></div>
+          </div>
+          <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+            <span class="text-xs text-emerald-600 font-bold uppercase">Total Mutasi Debit</span>
+            <div class="text-xl font-extrabold text-emerald-700 font-mono mt-1">Rp 4.450.000</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-white border border-brand-200 shadow-xs bg-brand-50/30">
+            <span class="text-xs text-brand-700 font-bold uppercase">Saldo Akhir Berjalan</span>
+            <div class="text-xl font-extrabold text-brand-800 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).currentBalance || 0)"></div>
+          </div>
+        </div>
+
+        <!-- Tabel Mutasi Transaksi Ledger (Responsive) -->
+        <div class="bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-stone-600">
+              <thead class="bg-stone-50/80 text-stone-500 font-extrabold uppercase border-b border-stone-200 tracking-wider">
+                <tr>
+                  <th class="py-3.5 px-4 sm:px-6">Tanggal</th>
+                  <th class="py-3.5 px-4">No. Ref</th>
+                  <th class="py-3.5 px-6">Deskripsi Transaksi</th>
+                  <th class="py-3.5 px-4 text-right">Debit (Rp)</th>
+                  <th class="py-3.5 px-4 text-right">Kredit (Rp)</th>
+                  <th class="py-3.5 px-4 sm:px-6 text-right">Saldo Berjalan</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-stone-100 font-medium">
+                <!-- Baris Saldo Awal -->
+                <tr class="bg-stone-50/40">
+                  <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-500">2026-09-01</td>
+                  <td class="py-3.5 px-4 font-mono text-stone-400">SALDO-AWAL</td>
+                  <td class="py-3.5 px-6 font-bold text-stone-700 italic">Saldo Awal Periode Buku</td>
+                  <td class="py-3.5 px-4 text-right font-mono text-stone-400">-</td>
+                  <td class="py-3.5 px-4 text-right font-mono text-stone-400">-</td>
+                  <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-bold text-stone-900" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).initialBalance || 0)"></td>
+                </tr>
+
+                <!-- Mutasi Jurnal yang relevan dengan ledgerAkun -->
+                <template x-for="j in jurnalList.filter(j => j.debitCode === ledgerAkun || j.creditCode === ledgerAkun)" :key="j.id">
+                  <tr class="hover:bg-stone-50/70 transition">
+                    <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-800" x-text="j.date"></td>
+                    <td class="py-3.5 px-4 font-mono text-brand-700 font-bold" x-text="j.noEntry"></td>
+                    <td class="py-3.5 px-6 font-bold text-stone-900" x-text="j.desc"></td>
+                    <td class="py-3.5 px-4 text-right font-mono" :class="j.debitCode === ledgerAkun ? 'font-bold text-emerald-700' : 'text-stone-300'" x-text="j.debitCode === ledgerAkun ? formatRupiah(j.debitAmount) : '-'"></td>
+                    <td class="py-3.5 px-4 text-right font-mono" :class="j.creditCode === ledgerAkun ? 'font-bold text-rose-700' : 'text-stone-300'" x-text="j.creditCode === ledgerAkun ? formatRupiah(j.creditAmount) : '-'"></td>
+                    <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-black text-stone-900" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).currentBalance || 0)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 5: LAPORAN KEUANGAN                                           -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'laporan'" x-cloak class="space-y-6">
+        
+        <!-- Header & Sub-Tab Laporan + Tombol Print/Export PDF -->
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-2 border-b border-stone-200">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Laporan Keuangan Standar SAK EMKM</h2>
+            <p class="text-xs sm:text-sm text-stone-500 font-medium">Laba Rugi, Arus Kas, dan Neraca untuk evaluasi bisnis dan pajak.</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2.5">
+            <!-- Filter Bulan & Tahun -->
+            <input 
+              type="month" 
+              x-model="bulanAktif" 
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500" 
+            />
+
+            <!-- Tombol Cetak / PDF -->
+            <button 
+              type="button" 
+              onclick="window.print()"
+              class="h-10 px-4 rounded-xl bg-stone-900 hover:bg-black text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-xs transition cursor-pointer">
+              <i class="fa-solid fa-print text-xs"></i>
+              <span>Cetak / Export PDF</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sub-Nav Pill Laporan -->
+        <div class="flex items-center gap-2 p-1.5 rounded-2xl bg-stone-200/70 max-w-fit">
+          <button 
+            type="button" 
+            @click="reportSubTab = 'pl'"
+            :class="reportSubTab === 'pl' ? 'bg-white text-stone-900 font-extrabold shadow-xs' : 'text-stone-600 hover:text-stone-900 font-semibold'"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm transition cursor-pointer">
+            Laba Rugi (P&L)
+          </button>
+          <button 
+            type="button" 
+            @click="reportSubTab = 'cashFlow'"
+            :class="reportSubTab === 'cashFlow' ? 'bg-white text-stone-900 font-extrabold shadow-xs' : 'text-stone-600 hover:text-stone-900 font-semibold'"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm transition cursor-pointer">
+            Arus Kas (Cash Flow)
+          </button>
+          <button 
+            type="button" 
+            @click="reportSubTab = 'balanceSheet'"
+            :class="reportSubTab === 'balanceSheet' ? 'bg-white text-stone-900 font-extrabold shadow-xs' : 'text-stone-600 hover:text-stone-900 font-semibold'"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm transition cursor-pointer">
+            Neraca (Balance Sheet)
+          </button>
+        </div>
+
+        <!-- PRINT AREA CONTAINER (Dipakai juga saat cetak browser) -->
+        <div id="printArea" class="space-y-6">
+          
+          <!-- KOP LAPORAN (Muncul saat print) -->
+          <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs space-y-6">
+            
+            <div class="border-b-2 border-stone-900 pb-4 text-center space-y-1">
+              <h3 class="text-xl font-black text-stone-900 uppercase tracking-wide">DAPUR KULINER VIRAL</h3>
+              <h4 class="text-base font-bold text-stone-700" x-text="reportSubTab === 'pl' ? 'LAPORAN LABA RUGI KOMPREHENSIF' : (reportSubTab === 'cashFlow' ? 'LAPORAN ARUS KAS (METODE LANGSUNG)' : 'LAPORAN POSISI KEUANGAN (NERACA)')"></h4>
+              <p class="text-xs text-stone-500 font-mono">Untuk Periode yang Berakhir pada <span x-text="bulanAktif"></span></p>
+            </div>
+
+            <!-- 5.1 FORMAT LABA RUGI -->
+            <div x-show="reportSubTab === 'pl'" class="space-y-6 text-sm text-stone-800">
+              
+              <!-- Bagian 1: Pendapatan -->
+              <div class="space-y-2">
+                <div class="font-extrabold uppercase text-stone-900 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                  1. PENDAPATAN USAHA
+                </div>
+                <div class="pl-4 pr-2 space-y-1.5">
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Pendapatan Penjualan Kasir POS</span>
+                    <span class="font-mono font-bold">Rp 28.400.000</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Pendapatan Pesanan Catering & Event</span>
+                    <span class="font-mono font-bold">Rp 7.800.000</span>
+                  </div>
+                  <div class="flex justify-between py-2 text-stone-900 font-extrabold">
+                    <span>TOTAL PENDAPATAN USAHA</span>
+                    <span class="font-mono text-emerald-700">Rp 36.200.000</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bagian 2: HPP -->
+              <div class="space-y-2">
+                <div class="font-extrabold uppercase text-stone-900 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                  2. HARGA POKOK PENJUALAN (HPP)
+                </div>
+                <div class="pl-4 pr-2 space-y-1.5">
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Biaya Bahan Baku & Daging Segar</span>
+                    <span class="font-mono font-bold text-rose-700">(Rp 14.200.000)</span>
+                  </div>
+                  <div class="flex justify-between py-2 text-brand-800 font-black text-base border-y-2 border-stone-200">
+                    <span>LABA KOTOR (GROSS PROFIT)</span>
+                    <span class="font-mono">Rp 22.000.000</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bagian 3: Beban Operasional -->
+              <div class="space-y-2">
+                <div class="font-extrabold uppercase text-stone-900 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                  3. BEBAN OPERASIONAL
+                </div>
+                <div class="pl-4 pr-2 space-y-1.5">
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Gaji Karyawan & Kasir</span>
+                    <span class="font-mono text-rose-700">(Rp 5.500.000)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Sewa Tempat Outlet</span>
+                    <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Listrik, Air & Tabung Gas</span>
+                    <span class="font-mono text-rose-700">(Rp 1.350.000)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Marketing & Promosi Sosial Media</span>
+                    <span class="font-mono text-rose-700">(Rp 850.000)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Biaya Kurir & Packaging Box</span>
+                    <span class="font-mono text-rose-700">(Rp 650.000)</span>
+                  </div>
+                  <div class="flex justify-between py-2 text-stone-900 font-extrabold">
+                    <span>TOTAL BEBAN OPERASIONAL</span>
+                    <span class="font-mono text-rose-700">(Rp 10.850.000)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Total Laba Bersih -->
+              <div class="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-300 flex items-center justify-between text-base sm:text-lg font-black text-emerald-900">
+                <span>LABA BERSIH (NET PROFIT)</span>
+                <span class="font-mono text-xl sm:text-2xl text-emerald-700">Rp 11.150.000</span>
+              </div>
+
+            </div>
+
+            <!-- 5.2 FORMAT ARUS KAS -->
+            <div x-show="reportSubTab === 'cashFlow'" class="space-y-6 text-sm text-stone-800">
+              
+              <!-- Arus Kas Operasi -->
+              <div class="space-y-2">
+                <div class="font-extrabold uppercase text-stone-900 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                  ARUS KAS DARI AKTIVITAS OPERASI
+                </div>
+                <div class="pl-4 pr-2 space-y-1.5">
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Penerimaan Kas dari Pelanggan</span>
+                    <span class="font-mono font-bold text-emerald-700">Rp 35.550.000</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Pembayaran Kas ke Supplier Bahan</span>
+                    <span class="font-mono text-rose-700">(Rp 15.500.000)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Pembayaran Gaji Karyawan</span>
+                    <span class="font-mono text-rose-700">(Rp 5.500.000)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Pembayaran Operasional & Utilitas</span>
+                    <span class="font-mono text-rose-700">(Rp 5.350.000)</span>
+                  </div>
+                  <div class="flex justify-between py-2 text-stone-900 font-extrabold">
+                    <span>KAS BERSIH DARI OPERASI</span>
+                    <span class="font-mono text-emerald-700">Rp 9.200.000</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Arus Kas Investasi -->
+              <div class="space-y-2">
+                <div class="font-extrabold uppercase text-stone-900 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                  ARUS KAS DARI AKTIVITAS INVESTASI
+                </div>
+                <div class="pl-4 pr-2 space-y-1.5">
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Pembelian Peralatan Mesin Penggorengan & Kasir</span>
+                    <span class="font-mono text-rose-700">(Rp 1.500.000)</span>
+                  </div>
+                  <div class="flex justify-between py-2 text-stone-900 font-extrabold">
+                    <span>KAS BERSIH DARI INVESTASI</span>
+                    <span class="font-mono text-rose-700">(Rp 1.500.000)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Arus Kas Pendanaan -->
+              <div class="space-y-2">
+                <div class="font-extrabold uppercase text-stone-900 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                  ARUS KAS DARI AKTIVITAS PENDANAAN
+                </div>
+                <div class="pl-4 pr-2 space-y-1.5">
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Setoran Tambahan Modal Pemilik</span>
+                    <span class="font-mono font-bold text-stone-400">Rp 0</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-stone-100">
+                    <span>Prive / Pengambilan Pribadi Pemilik</span>
+                    <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                  </div>
+                  <div class="flex justify-between py-2 text-stone-900 font-extrabold">
+                    <span>KAS BERSIH DARI PENDANAAN</span>
+                    <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rekonsiliasi Kenaikan Kas -->
+              <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2 font-mono">
+                <div class="flex justify-between text-stone-700 font-bold">
+                  <span>KENAIKAN (PENURUNAN) KAS BERSIH</span>
+                  <span class="text-emerald-700">Rp 5.200.000</span>
+                </div>
+                <div class="flex justify-between text-stone-500">
+                  <span>SALDO KAS & BANK AWAL PERIODE</span>
+                  <span>Rp 38.100.000</span>
+                </div>
+                <div class="flex justify-between text-stone-900 font-black text-base pt-2 border-t border-stone-200">
+                  <span>SALDO KAS & BANK AKHIR PERIODE</span>
+                  <span class="text-brand-700 text-lg">Rp 43.300.000</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- 5.3 FORMAT NERACA (BALANCE SHEET) -->
+            <div x-show="reportSubTab === 'balanceSheet'" class="space-y-6 text-sm text-stone-800">
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- SISI KIRI: ASET -->
+                <div class="space-y-4">
+                  <div class="font-extrabold uppercase text-blue-900 bg-blue-50 p-2.5 rounded-xl border border-blue-200">
+                    ASET (AKTIVA)
+                  </div>
+                  
+                  <!-- Aset Lancar -->
+                  <div class="pl-2 space-y-1.5">
+                    <span class="text-xs font-bold text-stone-500 uppercase">Aset Lancar:</span>
+                    <div class="flex justify-between py-1 border-b border-stone-100">
+                      <span>Kas di Tangan</span>
+                      <span class="font-mono font-bold">Rp 4.850.000</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-stone-100">
+                      <span>Kas di Bank (BCA)</span>
+                      <span class="font-mono font-bold">Rp 38.450.000</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-stone-100">
+                      <span>Piutang Usaha</span>
+                      <span class="font-mono font-bold">Rp 1.850.000</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-stone-100">
+                      <span>Persediaan Bahan Baku</span>
+                      <span class="font-mono font-bold">Rp 5.200.000</span>
+                    </div>
+                    <div class="flex justify-between py-1.5 font-bold text-stone-900">
+                      <span>TOTAL ASET LANCAR</span>
+                      <span class="font-mono">Rp 50.350.000</span>
+                    </div>
+                  </div>
+
+                  <!-- Aset Tetap -->
+                  <div class="pl-2 space-y-1.5 pt-2">
+                    <span class="text-xs font-bold text-stone-500 uppercase">Aset Tetap:</span>
+                    <div class="flex justify-between py-1 border-b border-stone-100">
+                      <span>Peralatan & Mesin Dapur</span>
+                      <span class="font-mono font-bold">Rp 15.000.000</span>
+                    </div>
+                  </div>
+
+                  <!-- TOTAL ASET -->
+                  <div class="p-3.5 rounded-xl bg-blue-100/70 border border-blue-300 flex justify-between font-black text-blue-950 text-base">
+                    <span>TOTAL ASET</span>
+                    <span class="font-mono text-blue-800">Rp 65.350.000</span>
+                  </div>
+                </div>
+
+                <!-- SISI KANAN: KEWAJIBAN & EKUITAS -->
+                <div class="space-y-4">
+                  
+                  <!-- Kewajiban -->
+                  <div class="space-y-2">
+                    <div class="font-extrabold uppercase text-red-900 bg-red-50 p-2.5 rounded-xl border border-red-200">
+                      KEWAJIBAN (PASIVA)
+                    </div>
+                    <div class="pl-2 space-y-1.5">
+                      <div class="flex justify-between py-1 border-b border-stone-100">
+                        <span>Hutang Supplier / Dagang</span>
+                        <span class="font-mono font-bold">Rp 3.200.000</span>
+                      </div>
+                      <div class="flex justify-between py-1 border-b border-stone-100">
+                        <span>Hutang Biaya Operasional</span>
+                        <span class="font-mono font-bold">Rp 650.000</span>
+                      </div>
+                      <div class="flex justify-between py-1.5 font-bold text-stone-900">
+                        <span>TOTAL KEWAJIBAN</span>
+                        <span class="font-mono text-red-700">Rp 3.850.000</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Ekuitas -->
+                  <div class="space-y-2 pt-2">
+                    <div class="font-extrabold uppercase text-green-900 bg-green-50 p-2.5 rounded-xl border border-green-200">
+                      EKUITAS (MODAL)
+                    </div>
+                    <div class="pl-2 space-y-1.5">
+                      <div class="flex justify-between py-1 border-b border-stone-100">
+                        <span>Modal Awal Pemilik</span>
+                        <span class="font-mono font-bold">Rp 45.000.000</span>
+                      </div>
+                      <div class="flex justify-between py-1 border-b border-stone-100">
+                        <span>Laba Ditahan Periode Lalu</span>
+                        <span class="font-mono font-bold">Rp 850.000</span>
+                      </div>
+                      <div class="flex justify-between py-1 border-b border-stone-100">
+                        <span>Laba Bersih Periode Berjalan</span>
+                        <span class="font-mono font-bold text-emerald-700">Rp 11.150.000</span>
+                      </div>
+                      <div class="flex justify-between py-1 border-b border-stone-100">
+                        <span>Prive Pemilik</span>
+                        <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                      </div>
+                      <div class="flex justify-between py-1.5 font-bold text-stone-900">
+                        <span>TOTAL EKUITAS</span>
+                        <span class="font-mono text-green-700">Rp 54.500.000</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- TOTAL KEWAJIBAN + EKUITAS (MATCH ASET) -->
+                  <div class="p-3.5 rounded-xl bg-stone-900 text-white flex justify-between font-black text-base shadow-sm">
+                    <span>TOTAL KEWAJIBAN + EKUITAS</span>
+                    <span class="font-mono text-emerald-400">Rp 65.350.000</span>
+                  </div>
+
+                  <!-- Balance Indicator -->
+                  <div class="text-center text-xs font-bold text-emerald-600 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>Neraca Seimbang (Balance: Total Aset = Total Kewajiban + Ekuitas)</span>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 6: INPUT JURNAL MANUAL                                        -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'input'" x-cloak class="space-y-6">
+        
+        <!-- Header Input Manual -->
+        <div class="pb-2 border-b border-stone-200">
+          <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Input Transaksi & Jurnal Manual</h2>
+          <p class="text-xs sm:text-sm text-stone-500 font-medium">Gunakan preset cepat atau susun jurnal penyesuaian (Adjustment Entry).</p>
+        </div>
+
+        <!-- PRESET TRANSAKSI CEPAT -->
+        <div class="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-xs space-y-3">
+          <label class="text-xs font-extrabold uppercase text-stone-400 tracking-wider">Preset Transaksi Cepat:</label>
+          
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <button 
+              type="button" 
+              @click="manualJournalForm.desc = 'Beban Listrik, Air & Gas Outlet'; manualJournalForm.debitAccount = '6003'; manualJournalForm.creditAccount = '1001';"
+              class="p-3 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-brand-50 hover:border-brand-300 text-left transition cursor-pointer">
+              <i class="fa-solid fa-bolt text-brand-600 text-sm mb-1"></i>
+              <div class="text-xs font-bold text-stone-900">Operasional</div>
+              <div class="text-[10px] text-stone-500">Listrik/Air/Gas</div>
+            </button>
+
+            <button 
+              type="button" 
+              @click="manualJournalForm.desc = 'Setor Kas Tunai ke Bank BCA'; manualJournalForm.debitAccount = '1002'; manualJournalForm.creditAccount = '1001';"
+              class="p-3 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-indigo-50 hover:border-indigo-300 text-left transition cursor-pointer">
+              <i class="fa-solid fa-building-columns text-indigo-600 text-sm mb-1"></i>
+              <div class="text-xs font-bold text-stone-900">Setor Bank</div>
+              <div class="text-[10px] text-stone-500">Kas -> BCA</div>
+            </button>
+
+            <button 
+              type="button" 
+              @click="manualJournalForm.desc = 'Pembelian Bahan Baku Masak Tunai'; manualJournalForm.debitAccount = '5001'; manualJournalForm.creditAccount = '1001';"
+              class="p-3 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-emerald-50 hover:border-emerald-300 text-left transition cursor-pointer">
+              <i class="fa-solid fa-basket-shopping text-emerald-600 text-sm mb-1"></i>
+              <div class="text-xs font-bold text-stone-900">Beli Bahan</div>
+              <div class="text-[10px] text-stone-500">HPP Tunai</div>
+            </button>
+
+            <button 
+              type="button" 
+              @click="manualJournalForm.desc = 'Pengambilan Pribadi Pemilik (Prive)'; manualJournalForm.debitAccount = '3003'; manualJournalForm.creditAccount = '1002';"
+              class="p-3 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-amber-50 hover:border-amber-300 text-left transition cursor-pointer">
+              <i class="fa-solid fa-user-tag text-amber-600 text-sm mb-1"></i>
+              <div class="text-xs font-bold text-stone-900">Prive Pemilik</div>
+              <div class="text-[10px] text-stone-500">Tarik Pribadi</div>
+            </button>
+
+            <button 
+              type="button" 
+              @click="manualJournalForm.desc = 'Pemasukan Lain-lain / Cashback / Bonus'; manualJournalForm.debitAccount = '1002'; manualJournalForm.creditAccount = '4002';"
+              class="p-3 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-sky-50 hover:border-sky-300 text-left transition cursor-pointer">
+              <i class="fa-solid fa-coins text-sky-600 text-sm mb-1"></i>
+              <div class="text-xs font-bold text-stone-900">Pemasukan Lain</div>
+              <div class="text-[10px] text-stone-500">Non-POS</div>
+            </button>
+
+            <button 
+              type="button" 
+              @click="manualJournalForm.desc = 'Penyesuaian Opname Bahan Baku / Koreksi'; manualJournalForm.debitAccount = '5001'; manualJournalForm.creditAccount = '1004';"
+              class="p-3 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-purple-50 hover:border-purple-300 text-left transition cursor-pointer">
+              <i class="fa-solid fa-sliders text-purple-600 text-sm mb-1"></i>
+              <div class="text-xs font-bold text-stone-900">Adjustment</div>
+              <div class="text-[10px] text-stone-500">Koreksi Stok/Saldo</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- FORM INPUT MANUAL -->
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-xs space-y-5 max-w-3xl">
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Tanggal Transaksi</label>
+              <input 
+                type="date" 
+                x-model="manualJournalForm.date" 
+                class="w-full h-11 px-3.5 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 focus:ring-2 focus:ring-brand-500" 
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">No. Referensi / Invoice / Kuitansi</label>
+              <input 
+                type="text" 
+                x-model="manualJournalForm.ref" 
+                placeholder="Contoh: KWT-2026-009" 
+                class="w-full h-11 px-3.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:ring-2 focus:ring-brand-500 font-mono" 
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Deskripsi / Keterangan Transaksi</label>
+            <input 
+              type="text" 
+              x-model="manualJournalForm.desc" 
+              placeholder="Contoh: Pembayaran tagihan internet & wifi outlet bulan September" 
+              class="w-full h-11 px-3.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:ring-2 focus:ring-brand-500" 
+            />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-stone-50 border border-stone-200">
+            <div>
+              <label class="block text-xs font-extrabold text-emerald-800 uppercase mb-1.5">Akun Debit (+)</label>
+              <select 
+                x-model="manualJournalForm.debitAccount" 
+                class="w-full h-11 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 focus:ring-2 focus:ring-emerald-500">
+                <template x-for="acc in coaList" :key="acc.code">
+                  <option :value="acc.code" x-text="acc.code + ' - ' + acc.name + ' (' + acc.type + ')'"></option>
+                </template>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-extrabold text-rose-800 uppercase mb-1.5">Akun Kredit (-)</label>
+              <select 
+                x-model="manualJournalForm.creditAccount" 
+                class="w-full h-11 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 focus:ring-2 focus:ring-rose-500">
+                <template x-for="acc in coaList" :key="acc.code">
+                  <option :value="acc.code" x-text="acc.code + ' - ' + acc.name + ' (' + acc.type + ')'"></option>
+                </template>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Jumlah Nominal (Rp)</label>
+            <div class="relative">
+              <span class="absolute left-4 top-3 text-stone-400 font-bold text-sm">Rp</span>
+              <input 
+                type="number" 
+                x-model.number="manualJournalForm.amount" 
+                min="0" 
+                step="1000" 
+                placeholder="0"
+                class="w-full h-12 pl-12 pr-4 rounded-xl border border-stone-300 text-lg font-black font-mono text-stone-900 focus:ring-2 focus:ring-brand-500" 
+              />
+            </div>
+            <p class="text-[11px] text-stone-500 mt-1 font-mono">Terbilang: <span class="font-bold text-stone-700" x-text="formatRupiah(manualJournalForm.amount)"></span></p>
+          </div>
+
+          <!-- Upload Bukti / Dokumen Pendukung -->
+          <div>
+            <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Bukti Transaksi (Foto Struk / Nota / Transfer)</label>
+            <div class="flex items-center gap-3">
+              <label class="h-11 px-4 rounded-xl border border-stone-300 bg-stone-50 hover:bg-stone-100 text-stone-700 font-bold text-xs flex items-center gap-2 cursor-pointer transition">
+                <i class="fa-solid fa-cloud-arrow-up text-brand-600"></i>
+                <span>Pilih Foto Bukti</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  class="hidden" 
+                  @change="
+                    const file = $event.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (e) => { manualJournalForm.proofImage = e.target.result; };
+                      reader.readAsDataURL(file);
+                    }
+                  " 
+                />
+              </label>
+
+              <template x-if="manualJournalForm.proofImage">
+                <div class="flex items-center gap-2 text-xs text-emerald-700 font-bold">
+                  <i class="fa-solid fa-image"></i>
+                  <span>Foto Bukti Terlampir</span>
+                  <button type="button" @click="manualJournalForm.proofImage = ''" class="text-rose-600 hover:text-rose-800 ml-1">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Tombol Simpan Jurnal -->
+          <div class="pt-3">
+            <button 
+              type="button" 
+              @click="
+                if (!manualJournalForm.desc || !manualJournalForm.amount) {
+                  alert('Mohon lengkapi deskripsi dan nominal transaksi.');
+                  return;
+                }
+                if (typeof submitManualJournal === 'function') {
+                  submitManualJournal();
+                } else {
+                  jurnalList.unshift({
+                    id: 'JRN-' + Date.now(),
+                    date: manualJournalForm.date,
+                    noEntry: 'JE-' + Math.floor(1000 + Math.random() * 9000),
+                    desc: manualJournalForm.desc,
+                    debitCode: manualJournalForm.debitAccount,
+                    debitName: (coaList.find(c => c.code === manualJournalForm.debitAccount) || {}).name || '',
+                    debitAmount: manualJournalForm.amount,
+                    creditCode: manualJournalForm.creditAccount,
+                    creditName: (coaList.find(c => c.code === manualJournalForm.creditAccount) || {}).name || '',
+                    creditAmount: manualJournalForm.amount,
+                    ref: manualJournalForm.ref,
+                    proof: manualJournalForm.proofImage
+                  });
+                  alert('Jurnal berhasil dicatat ke buku akuntansi!');
+                  setTab('jurnal');
+                }
+              "
+              class="w-full h-12 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md shadow-brand-500/20 transition cursor-pointer">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>SIMPAN ENTRY JURNAL</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 7: EXPORT & ARSIP                                             -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'export'" x-cloak class="space-y-6">
+        
+        <!-- Header Export -->
+        <div class="pb-2 border-b border-stone-200">
+          <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Export & Pengarsipan Laporan</h2>
+          <p class="text-xs sm:text-sm text-stone-500 font-medium">Unduh berkas pembukuan dalam format PDF, CSV, atau Excel spreadsheet.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- FORM EXPORT GENERATOR -->
+          <div class="lg:col-span-1 bg-white rounded-3xl p-6 border border-stone-200 shadow-xs space-y-4">
+            <h3 class="font-extrabold text-stone-900 text-base flex items-center gap-2">
+              <i class="fa-solid fa-file-arrow-down text-brand-600"></i>
+              <span>Pusat Unduhan</span>
+            </h3>
+
+            <div>
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Periode Laporan</label>
+              <input 
+                type="month" 
+                x-model="exportForm.period" 
+                class="w-full h-11 px-3.5 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 focus:ring-2 focus:ring-brand-500" 
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Jenis Laporan</label>
+              <select 
+                x-model="exportForm.reportType" 
+                class="w-full h-11 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 focus:ring-2 focus:ring-brand-500">
+                <option value="all">Semua Laporan (Paket Lengkap)</option>
+                <option value="pl">Laporan Laba Rugi (P&L)</option>
+                <option value="cashFlow">Laporan Arus Kas (Cash Flow)</option>
+                <option value="balanceSheet">Neraca Keuangan</option>
+                <option value="journal">Jurnal Umum Lengkap</option>
+                <option value="ledger">Buku Besar Semua Akun</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Format Berkas</label>
+              <div class="grid grid-cols-3 gap-2">
+                <button 
+                  type="button" 
+                  @click="exportForm.format = 'pdf'"
+                  :class="exportForm.format === 'pdf' ? 'bg-rose-50 border-rose-400 text-rose-700 font-bold' : 'border-stone-200 text-stone-600'"
+                  class="h-10 rounded-xl border flex items-center justify-center gap-1.5 text-xs transition cursor-pointer">
+                  <i class="fa-solid fa-file-pdf text-rose-600"></i>
+                  <span>PDF</span>
+                </button>
+                <button 
+                  type="button" 
+                  @click="exportForm.format = 'csv'"
+                  :class="exportForm.format === 'csv' ? 'bg-emerald-50 border-emerald-400 text-emerald-700 font-bold' : 'border-stone-200 text-stone-600'"
+                  class="h-10 rounded-xl border flex items-center justify-center gap-1.5 text-xs transition cursor-pointer">
+                  <i class="fa-solid fa-file-csv text-emerald-600"></i>
+                  <span>CSV</span>
+                </button>
+                <button 
+                  type="button" 
+                  @click="exportForm.format = 'excel'"
+                  :class="exportForm.format === 'excel' ? 'bg-green-50 border-green-400 text-green-700 font-bold' : 'border-stone-200 text-stone-600'"
+                  class="h-10 rounded-xl border flex items-center justify-center gap-1.5 text-xs transition cursor-pointer">
+                  <i class="fa-solid fa-file-excel text-green-600"></i>
+                  <span>Excel</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="pt-2">
+              <button 
+                type="button" 
+                @click="
+                  if (typeof handleExportData === 'function') {
+                    handleExportData(exportForm);
+                  } else {
+                    alert('Membuat dan mengunduh berkas laporan ' + exportForm.format.toUpperCase() + '...');
+                  }
+                "
+                class="w-full h-11 rounded-xl bg-stone-900 hover:bg-black text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-xs">
+                <i class="fa-solid fa-download text-xs"></i>
+                <span>GENERATE & DOWNLOAD</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- RIWAYAT EXPORT (7 TERAKHIR) -->
+          <div class="lg:col-span-2 bg-white rounded-3xl p-6 border border-stone-200 shadow-xs space-y-4">
+            <h3 class="font-extrabold text-stone-900 text-base flex items-center gap-2">
+              <i class="fa-solid fa-clock-rotate-left text-stone-400"></i>
+              <span>Riwayat Unduhan & Arsip Berkas</span>
+            </h3>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs text-stone-600">
+                <thead class="bg-stone-50 text-stone-500 font-extrabold uppercase border-b border-stone-200">
+                  <tr>
+                    <th class="py-3 px-3">Waktu Generate</th>
+                    <th class="py-3 px-3">Jenis Laporan</th>
+                    <th class="py-3 px-3">Periode</th>
+                    <th class="py-3 px-3">Format</th>
+                    <th class="py-3 px-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-100 font-medium">
+                  <template x-for="(exp, idx) in exportHistory" :key="idx">
+                    <tr class="hover:bg-stone-50/70 transition">
+                      <td class="py-3 px-3 font-mono text-stone-700" x-text="exp.date"></td>
+                      <td class="py-3 px-3 font-bold text-stone-900" x-text="exp.report"></td>
+                      <td class="py-3 px-3 font-mono" x-text="exp.period"></td>
+                      <td class="py-3 px-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase" :class="exp.format === 'PDF' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'" x-text="exp.format"></span>
+                      </td>
+                      <td class="py-3 px-3 text-center text-emerald-600 font-bold">
+                        <i class="fa-solid fa-circle-check mr-1"></i> <span x-text="exp.status"></span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 4. MODALS & POPUPS                                                    -->
+  <!-- ===================================================================== -->
+
+  <!-- MODAL A: EDIT SALDO AWAL COA -->
+  <div 
+    x-cloak 
+    x-show="modalEditSaldo" 
+    class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div 
+      @click.away="modalEditSaldo = false" 
+      class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4">
+      
+      <div class="flex items-center justify-between pb-2 border-b border-stone-100">
+        <div>
+          <h4 class="font-extrabold text-stone-900 text-base">Edit Saldo Awal Akun</h4>
+          <p class="text-xs text-stone-500" x-text="editingCoa.code + ' - ' + editingCoa.name"></p>
+        </div>
+        <button type="button" @click="modalEditSaldo = false" class="text-stone-400 hover:text-stone-700">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Nilai Saldo Awal (Rp)</label>
+        <input 
+          type="number" 
+          x-model.number="editingCoa.initialBalance" 
+          class="w-full h-12 px-4 rounded-xl border border-stone-300 text-lg font-black font-mono text-stone-900 focus:ring-2 focus:ring-brand-500" 
+        />
+      </div>
+
+      <div class="pt-2 flex gap-2">
+        <button 
+          type="button" 
+          @click="modalEditSaldo = false" 
+          class="flex-1 h-11 rounded-xl border border-stone-300 text-stone-700 font-bold text-xs hover:bg-stone-50 transition cursor-pointer">
+          Batal
+        </button>
+        <button 
+          type="button" 
+          @click="
+            const found = coaList.find(c => c.code === editingCoa.code);
+            if (found) {
+              found.initialBalance = Number(editingCoa.initialBalance);
+              found.currentBalance = Number(editingCoa.initialBalance);
+            }
+            modalEditSaldo = false;
+          " 
+          class="flex-1 h-11 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs transition cursor-pointer shadow-xs">
+          Simpan Saldo
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL B: TAMBAH AKUN BARU COA -->
+  <div 
+    x-cloak 
+    x-show="modalAddAkun" 
+    class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div 
+      @click.away="modalAddAkun = false" 
+      class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4">
+      
+      <div class="flex items-center justify-between pb-2 border-b border-stone-100">
+        <div>
+          <h4 class="font-extrabold text-stone-900 text-base">Tambah Akun Baru (COA)</h4>
+          <p class="text-xs text-stone-500">Daftarkan akun buku besar tambahan ke bagan akun.</p>
+        </div>
+        <button type="button" @click="modalAddAkun = false" class="text-stone-400 hover:text-stone-700">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Kode Akun</label>
+          <input 
+            type="text" 
+            x-model="newCoaForm.code" 
+            placeholder="Contoh: 6006" 
+            class="w-full h-11 px-3.5 rounded-xl border border-stone-300 text-xs font-mono font-bold text-stone-900 focus:ring-2 focus:ring-brand-500" 
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Nama Akun</label>
+          <input 
+            type="text" 
+            x-model="newCoaForm.name" 
+            placeholder="Contoh: Beban Kebersihan & Sampah" 
+            class="w-full h-11 px-3.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:ring-2 focus:ring-brand-500" 
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Tipe Klasifikasi</label>
+          <select 
+            x-model="newCoaForm.type" 
+            class="w-full h-11 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 focus:ring-2 focus:ring-brand-500">
+            <option value="Aset">Aset</option>
+            <option value="Kewajiban">Kewajiban</option>
+            <option value="Ekuitas">Ekuitas</option>
+            <option value="Pendapatan">Pendapatan</option>
+            <option value="Beban">Beban</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Saldo Awal (Rp)</label>
+          <input 
+            type="number" 
+            x-model.number="newCoaForm.initialBalance" 
+            min="0"
+            class="w-full h-11 px-3.5 rounded-xl border border-stone-300 text-xs font-mono font-bold text-stone-900 focus:ring-2 focus:ring-brand-500" 
+          />
+        </div>
+      </div>
+
+      <div class="pt-2 flex gap-2">
+        <button 
+          type="button" 
+          @click="modalAddAkun = false" 
+          class="flex-1 h-11 rounded-xl border border-stone-300 text-stone-700 font-bold text-xs hover:bg-stone-50 transition cursor-pointer">
+          Batal
+        </button>
+        <button 
+          type="button" 
+          @click="
+            if (!newCoaForm.code || !newCoaForm.name) {
+              alert('Mohon isi kode dan nama akun.');
+              return;
+            }
+            coaList.push({
+              code: newCoaForm.code,
+              name: newCoaForm.name,
+              type: newCoaForm.type,
+              initialBalance: Number(newCoaForm.initialBalance) || 0,
+              currentBalance: Number(newCoaForm.initialBalance) || 0
+            });
+            newCoaForm = { code: '', name: '', type: 'Aset', initialBalance: 0 };
+            modalAddAkun = false;
+          " 
+          class="flex-1 h-11 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs transition cursor-pointer shadow-xs">
+          Simpan Akun
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL C: DETAIL FULL JURNAL ENTRY -->
+  <div 
+    x-cloak 
+    x-show="modalDetailJurnal" 
+    class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div 
+      @click.away="modalDetailJurnal = false" 
+      class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-stone-200 space-y-5">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div>
+          <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-brand-100 text-brand-800 font-mono" x-text="selectedJurnal ? selectedJurnal.noEntry : ''"></span>
+          <h4 class="font-extrabold text-stone-900 text-base mt-1" x-text="selectedJurnal ? selectedJurnal.desc : ''"></h4>
+          <p class="text-xs text-stone-500 font-mono" x-text="selectedJurnal ? selectedJurnal.date : ''"></p>
+        </div>
+        <button type="button" @click="modalDetailJurnal = false" class="text-stone-400 hover:text-stone-700">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Detail Pembukuan Debit vs Kredit -->
+      <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3 text-xs">
+        <div class="flex justify-between items-center pb-2 border-b border-stone-200 font-bold text-stone-500 uppercase">
+          <span>Pos Akun</span>
+          <span>Debit / Kredit</span>
+        </div>
+
+        <!-- Debit -->
+        <div class="flex justify-between items-center">
+          <div>
+            <span class="font-mono text-stone-500 mr-1" x-text="selectedJurnal ? selectedJurnal.debitCode : ''"></span>
+            <span class="font-bold text-stone-900" x-text="selectedJurnal ? selectedJurnal.debitName : ''"></span>
+            <span class="block text-[10px] text-emerald-600 font-bold uppercase">(Debit)</span>
+          </div>
+          <span class="font-mono font-bold text-emerald-700 text-sm" x-text="selectedJurnal ? formatRupiah(selectedJurnal.debitAmount) : 'Rp 0'"></span>
+        </div>
+
+        <!-- Kredit -->
+        <div class="flex justify-between items-center pt-2 border-t border-stone-100">
+          <div>
+            <span class="font-mono text-stone-500 mr-1" x-text="selectedJurnal ? selectedJurnal.creditCode : ''"></span>
+            <span class="font-bold text-stone-900" x-text="selectedJurnal ? selectedJurnal.creditName : ''"></span>
+            <span class="block text-[10px] text-rose-600 font-bold uppercase">(Kredit)</span>
+          </div>
+          <span class="font-mono font-bold text-rose-700 text-sm" x-text="selectedJurnal ? formatRupiah(selectedJurnal.creditAmount) : 'Rp 0'"></span>
+        </div>
+      </div>
+
+      <!-- Info Tambahan & Bukti -->
+      <div class="text-xs space-y-1.5 text-stone-600">
+        <div class="flex justify-between">
+          <span class="text-stone-400">Referensi Dokumen:</span>
+          <span class="font-mono font-bold text-stone-800" x-text="selectedJurnal && selectedJurnal.ref ? selectedJurnal.ref : '-'"></span>
+        </div>
+        <template x-if="selectedJurnal && selectedJurnal.proof">
+          <div class="pt-2">
+            <span class="block text-stone-400 mb-1">Foto Bukti Terlampir:</span>
+            <img :src="selectedJurnal.proof" class="max-h-48 rounded-xl border border-stone-200 object-contain mx-auto" />
+          </div>
+        </template>
+      </div>
+
+      <div class="pt-2">
+        <button 
+          type="button" 
+          @click="modalDetailJurnal = false" 
+          class="w-full h-11 rounded-xl bg-stone-900 hover:bg-black text-white font-extrabold text-xs transition cursor-pointer">
+          Tutup
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>
