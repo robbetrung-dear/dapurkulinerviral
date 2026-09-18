@@ -2097,10 +2097,10 @@ window.kasirApp = () => ({
 
     let rawList = [];
     try {
-      const res = await fetch('/orders');
+      const res = await fetch('/pending-orders');
       if (res.ok) {
         const json = await res.json();
-        rawList = json.data || (Array.isArray(json) ? json : []);
+        rawList = json.orders || json.data || (Array.isArray(json) ? json : []);
       }
     } catch (e) {
       console.warn('Gagal memuat /orders:', e);
@@ -2108,78 +2108,10 @@ window.kasirApp = () => ({
 
     // Fallback seed data berkualitas jika server belum memiliki order sama sekali
     if (!rawList || rawList.length === 0) {
-      rawList = [
-        {
-          orderId: "ORD-9821",
-          customer: "Budi Santoso",
-          items: [{ id: "m1", name: "Rice Bowl Chicken Katsu Curry", qty: 2, price: 28000 }, { id: "m9", name: "Es Lemon Tea Segar", qty: 2, price: 8000 }],
-          total: 72000,
-          status: "settlement",
-          paymentMethod: "QRIS",
-          midtransId: "MID-QRIS-9821",
-          createdAt: Date.now() - 3600 * 1000 * 2,
-          reconciled: false
-        },
-        {
-          orderId: "ORD-9822",
-          customer: "Siti Rahmawati",
-          items: [{ id: "m2", name: "Rice Bowl Beef Teriyaki", qty: 1, price: 35000 }, { id: "m7", name: "Dimsum Mentai Mozzarella (4 pcs)", qty: 1, price: 24000 }],
-          total: 59000,
-          status: "pending",
-          paymentMethod: "Transfer Bank BCA",
-          midtransId: "MID-VA-9822",
-          buktiTransfer: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400",
-          createdAt: Date.now() - 3600 * 1000 * 4,
-          reconciled: false
-        },
-        {
-          orderId: "ORD-9823",
-          customer: "Rian Hidayat",
-          items: [{ id: "m3", name: "Spicy Honey Chicken Wings (6 pcs)", qty: 2, price: 32000 }, { id: "m10", name: "Es Cincau Gula Aren Susu", qty: 2, price: 12000 }],
-          total: 88000,
-          status: "pending",
-          paymentMethod: "QRIS",
-          midtransId: "MID-QRIS-9823",
-          createdAt: Date.now() - 3600 * 1000 * 26,
-          reconciled: false
-        },
-        {
-          orderId: "ORD-9824",
-          customer: "Maya Indah",
-          items: [{ id: "m5", name: "Mie Pedas Viral Level 3", qty: 2, price: 22000 }],
-          total: 69000,
-          status: "settlement",
-          paymentMethod: "E-Wallet GoPay",
-          midtransId: "MID-EWL-9824",
-          createdAt: Date.now() - 3600 * 1000 * 1,
-          reconciled: false
-        },
-        {
-          orderId: "ORD-9825",
-          customer: "Dewi Lestari",
-          items: [{ id: "m4", name: "Chicken Egg Roll Bento Komplit", qty: 1, price: 30000 }],
-          total: 30000,
-          status: "gagal",
-          paymentMethod: "QRIS",
-          midtransId: "MID-QRIS-9825",
-          createdAt: Date.now() - 3600 * 1000 * 8,
-          reconciled: false
-        },
-        {
-          orderId: "ORD-9826",
-          customer: "Agus Pratama",
-          items: [{ id: "m8", name: "Siomay Udang Ayam Kukus", qty: 2, price: 20000 }],
-          total: 56000,
-          status: "pending",
-          paymentMethod: "Transfer Mandiri",
-          midtransId: "MID-VA-9826",
-          buktiTransfer: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400",
-          createdAt: Date.now() - 3600 * 1000 * 28,
-          reconciled: false
-        }
-      ];
-    }
-
+if (!rawList || rawList.length === 0) {
+  rawList = []; // Kosongkan — data dummy dihapus
+  console.log('Tidak ada order pending. Rekonsiliasi kosong.');
+}
     // Mapping ke struktur kolom tabel
     const mapped = rawList
       .filter(o => !o.archived)
