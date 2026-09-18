@@ -27,7 +27,7 @@ export async function onRequest(context) {
   }
 
   try {
-    const dbUrl = (env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
+    const dbUrl = (env.FIREBASE_DATABASE_URL || "https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app").replace(/\/$/, "");
     const apiKey = env.FIREBASE_API_KEY || "";
 
     if (!dbUrl) {
