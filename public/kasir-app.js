@@ -1395,8 +1395,7 @@ window.kasirApp = () => ({
     try {
       if (this._fbDb && this._fbSet && this._fbRef) {
         const txRef = this._fbRef(this._fbDb, `pos/transactions/${dateStr}/${txId}`);
-        const cleanTxRecord = JSON.parse(JSON.stringify(txRecord));
-        await this._fbSet(txRef, cleanTxRecord);
+        await this._fbSet(txRef, txRecord);
         savedToFirebase = true;
       } else if (this._fbConfig && this._fbConfig.databaseURL && !this._fbConfig.databaseURL.includes('local-storage')) {
         const url = `${this._fbConfig.databaseURL.replace(/\/$/, '')}/pos/transactions/${dateStr}/${txId}.json`;
@@ -1515,8 +1514,7 @@ window.kasirApp = () => ({
         try {
           if (this._fbDb && this._fbSet && this._fbRef) {
             const r = this._fbRef(this._fbDb, item.path);
-            const cleanData = JSON.parse(JSON.stringify(item.data));
-            await this._fbSet(r, cleanData);
+            await this._fbSet(r, item.data);
             synced = true;
           } else if (this._fbConfig && this._fbConfig.databaseURL && !this._fbConfig.databaseURL.includes('local-storage')) {
             const url = `${this._fbConfig.databaseURL.replace(/\/$/, '')}/${item.path}.json`;
@@ -2598,8 +2596,7 @@ window.kasirApp = () => ({
     if (this._fbDb && this._fbSet && this._fbRef) {
       try {
         const shiftRef = this._fbRef(this._fbDb, `pos/shifts/${newShiftId}`);
-        const cleanShift = JSON.parse(JSON.stringify(shiftPayload));
-        await this._fbSet(shiftRef, cleanShift);
+        await this._fbSet(shiftRef, shiftPayload);
       } catch (e) {
         console.warn('Firebase shift open warning:', e);
       }
@@ -2981,8 +2978,7 @@ window.kasirApp = () => ({
       if (this._fbDb && this._fbSet && this._fbRef) {
         try {
           const itemRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
-          const cleanItem = JSON.parse(JSON.stringify(newItem));
-          await this._fbSet(itemRef, cleanItem);
+          await this._fbSet(itemRef, newItem);
         } catch (fbErr) {
           console.warn('Firebase item sync warning:', fbErr);
         }
@@ -3413,8 +3409,7 @@ window.kasirApp = () => ({
       if (this._fbDb && this._fbSet && this._fbRef) {
         try {
           const menuRef = this._fbRef(this._fbDb, `menu_items/${menuId}`);
-          const cleanMenu = JSON.parse(JSON.stringify(newMenuItem));
-          await this._fbSet(menuRef, cleanMenu);
+          await this._fbSet(menuRef, newMenuItem);
           if (validIngredients.length > 0) {
             const recipeRef = this._fbRef(this._fbDb, `recipes/${menuId}`);
             await this._fbSet(recipeRef, recipePayload);
@@ -3485,51 +3480,36 @@ window.kasirApp = () => ({
     try {
       let summary = null;
       const res = await fetch(`/pos/summary/daily/${today}`);
-if (res.ok) {
-  const contentType = res.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    try {
-      const json = await res.json();
-      if (json.success || json.totalSales) {
-        summary = {
-          totalSales: json.totalSales || 0,
-          totalTx: json.totalTx || 0,
-          breakdown: json.breakdown || { cash: 0, qris: 0, transfer: 0, ewallet: 0 }
-        };
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          summary = {
+            totalSales: json.totalSales || 0,
+            totalTx: json.totalTx || 0,
+            breakdown: json.breakdown || { cash: 0, qris: 0, transfer: 0, ewallet: 0 }
+          };
+        }
       }
-    } catch (e) {
-      console.warn('Summary response bukan JSON, skip');
-    }
-  }
-}
+
       // Kalau belum ada, hitung dari /pos/transactions/{today}
       if (!summary || summary.totalSales === 0) {
         const txRes = await fetch(`/pos/transactions/${today}`);
-if (txRes.ok) {
-  const ct = txRes.headers.get('content-type') || '';
-  if (ct.includes('application/json')) {
-    try {
-      const txJson = await txRes.json();
-      const txList = Array.isArray(txJson) ? txJson : (txJson.data || []);
-      let totalSales = 0;
-      const breakdown = { cash: 0, qris: 0, transfer: 0, ewallet: 0 };
-      for (const tx of txList) {
-        const amt = Number(tx.total || tx.amount || 0);
-        totalSales += amt;
-        const pm = String(tx.pm || tx.paymentMethod || '').toLowerCase();
-        if (pm.includes('tunai') || pm.includes('cash')) breakdown.cash += amt;
-        else if (pm.includes('qris')) breakdown.qris += amt;
-        else if (pm.includes('transfer')) breakdown.transfer += amt;
-        else if (pm.includes('ewallet')) breakdown.ewallet += amt;
-        else breakdown.cash += amt;
-      }
-      summary = { totalSales, totalTx: txList.length, breakdown };
-    } catch (e) {
-      console.warn('Transactions response bukan JSON, skip');
-    }
-  }
-} 
-        summary = {
+        if (txRes.ok) {
+          const txJson = await txRes.json();
+          const txList = txJson.data || [];
+          let totalSales = 0;
+          const breakdown = { cash: 0, qris: 0, transfer: 0, ewallet: 0 };
+          for (const tx of txList) {
+            const amt = Number(tx.total || tx.amount || 0);
+            totalSales += amt;
+            const pm = String(tx.pm || tx.paymentMethod || '').toLowerCase();
+            if (pm.includes('tunai') || pm.includes('cash')) breakdown.cash += amt;
+            else if (pm.includes('qris')) breakdown.qris += amt;
+            else if (pm.includes('transfer') || pm.includes('bca') || pm.includes('mandiri')) breakdown.transfer += amt;
+            else if (pm.includes('ewallet') || pm.includes('gopay') || pm.includes('ovo')) breakdown.ewallet += amt;
+            else breakdown.cash += amt;
+          }
+          summary = {
             totalSales,
             totalTx: txList.length,
             breakdown
