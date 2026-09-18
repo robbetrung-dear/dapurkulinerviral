@@ -5,7 +5,7 @@ compatibility_date = "2024-09-01"
 pages_build_output_dir = "public"
 
 [vars]
-MIDTRANS_IS_PRODUCTION = "false"
+MIDTRANS_IS_PRODUCTION = "true"
 # API Keys sensitif di bawah ini WAJIB diset via Cloudflare Pages Dashboard:
 # Project Settings > Environment Variables (atau via command wrangler secret put):
 # MIDTRANS_SERVER_KEY = "YOUR_MIDTRANS_SERVER_KEY_HERE"
