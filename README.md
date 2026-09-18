@@ -210,4 +210,6 @@ Aplikasi telah memuat daftar produk dan harga resmi sesuai screenshot:
 - **Viral Dishes**: Seblak Prasmanan Komplit (Rp22.000), Dimsum Mentai Mozarella (Rp20.000), Dessert Box Tiramisu Choco Melt (Rp25.000).
 - **Paket Catering**: Paket Silver Box (Rp25.000/pax), Paket Gold Box (Rp35.000/pax), Paket Platinum Box (Rp50.000/pax).
 
+- <!-- Trigger redeploy: 2026-09-19 01:30 -->
+
 Selamat berjualan & raih omset maksimal dengan website profesional cepat tanpa biaya hosting bulanan! 🎉
