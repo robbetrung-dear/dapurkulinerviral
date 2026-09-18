@@ -2107,11 +2107,10 @@ window.kasirApp = () => ({
     }
 
     // Fallback seed data berkualitas jika server belum memiliki order sama sekali
-    if (!rawList || rawList.length === 0) {
-if (!rawList || rawList.length === 0) {
-  rawList = []; // Kosongkan — data dummy dihapus
-  console.log('Tidak ada order pending. Rekonsiliasi kosong.');
-}
+      if (!rawList || rawList.length === 0) {
+      rawList = [];
+      console.log('Tidak ada order pending. Rekonsiliasi kosong.');
+    }
     // Mapping ke struktur kolom tabel
     const mapped = rawList
       .filter(o => !o.archived)
