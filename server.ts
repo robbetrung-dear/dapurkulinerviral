@@ -159,6 +159,7 @@ const handleOngkir = async (req: express.Request, res: express.Response) => {
 
 app.post('/functions/ongkir', handleOngkir);
 app.post('/api/ongkir', handleOngkir);
+app.post('/ongkir', handleOngkir);
 
 // Handler for Midtrans Snap Payment API (Without Credit Card)
 const handlePayment = async (req: express.Request, res: express.Response) => {
@@ -224,6 +225,7 @@ const handlePayment = async (req: express.Request, res: express.Response) => {
 
 app.post('/functions/payment', handlePayment);
 app.post('/api/payment', handlePayment);
+app.post('/payment', handlePayment);
 
 // Handler for Midtrans Webhook Notification & SHA-512 Security Verification
 const handleWebhook = async (req: express.Request, res: express.Response) => {

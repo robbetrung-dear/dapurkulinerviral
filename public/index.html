@@ -107,24 +107,53 @@
     [x-cloak] { display: none !important; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes marqueeRibbon {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(-50%); }
+    }
+    .animate-marquee-ribbon {
+      display: inline-flex;
+      white-space: nowrap;
+      animation: marqueeRibbon 24s linear infinite;
+      will-change: transform;
+    }
+    .animate-marquee-ribbon:hover {
+      animation-play-state: paused;
+    }
   </style>
 </head>
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917' }" x-data="dapurApp()" x-init="initApp()">
 
-  <!-- Top Notification Ribbon (Editable Teks & Warna) -->
-  <div :style="{ backgroundColor: siteConfig.promoRibbonBg || '#1c1917', color: siteConfig.promoRibbonTextColor || '#fed7aa' }" class="text-xs md:text-sm py-2 px-4 text-center font-medium flex items-center justify-center gap-2 transition-colors">
-    <span class="bg-brand-500 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full" x-text="siteConfig.promoRibbonBadge || 'PROMO'"></span>
-    <span x-text="siteConfig.promoRibbon"></span>
-    <a href="#catering-section" class="underline ml-2 hover:opacity-80 transition" x-text="siteConfig.promoRibbonLinkText || 'Cek Paket'"></a>
+  <!-- Top Notification Ribbon Running Text (Marquee Background Hitam) -->
+  <div class="bg-black text-white text-xs py-2 overflow-hidden relative border-b border-stone-800 select-none z-30" :style="{ backgroundColor: siteConfig.promoRibbonBg || '#000000' }">
+    <div class="w-full overflow-hidden flex">
+      <div class="animate-marquee-ribbon flex items-center gap-8 text-xs font-semibold tracking-wide">
+        <template x-for="i in 8" :key="'marquee-item-' + i">
+          <div class="inline-flex items-center gap-3">
+            <span class="bg-brand-600 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full shadow-xs" x-text="siteConfig.promoRibbonBadge || 'PROMO'"></span>
+            <span class="font-extrabold text-amber-300 tracking-wider">Kuliner &amp; Catering</span>
+            <span class="text-stone-500 text-xs">•</span>
+            <template x-if="siteConfig.promoRibbon">
+              <span class="inline-flex items-center gap-3">
+                <span x-text="siteConfig.promoRibbon" class="text-stone-200 font-medium"></span>
+                <span class="text-stone-500 text-xs">•</span>
+              </span>
+            </template>
+          </div>
+        </template>
+      </div>
+    </div>
   </div>
 
-  <!-- Navbar (Editable Logo, Judul Per Kata, & Warna) -->
+  <!-- Navbar (Editable Logo, Judul Per Kata 2 Baris, & Warna) -->
   <header class="sticky top-0 z-40 border-b border-stone-200/90 backdrop-blur-md transition-colors" :style="{ backgroundColor: (siteConfig.headerBgColor || '#ffffff') + 'f2' }">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-        <!-- Logo Toko (Icon FontAwesome / Gambar Kustom URL & Warna Background Editable) -->
-        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-md overflow-hidden transition-all flex-shrink-0" :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+      
+      <!-- Brand Logo & Judul 2 Baris (Dapur atas, Kuliner Viral bawah - Tanpa Subjudul) -->
+      <div class="flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
+        <!-- Logo Toko -->
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-md overflow-hidden transition-all flex-shrink-0" :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
           <template x-if="siteConfig.logoType === 'image' && siteConfig.logoImage">
             <img :src="siteConfig.logoImage" alt="Logo Toko" class="w-full h-full object-cover" />
           </template>
@@ -132,59 +161,198 @@
             <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" class="text-sm sm:text-lg"></i>
           </template>
         </div>
-        <div class="min-w-0">
-          <!-- Judul Toko dengan Warna Masing-Masing Kata (Editable Manual di Admin) -->
-          <div class="font-black text-sm sm:text-xl tracking-tight truncate">
-            <template x-for="(word, wIdx) in getBrandWords()" :key="'header-word-' + wIdx">
-              <span :style="{ color: word.color }" x-text="word.text + ' '"></span>
+
+        <!-- Judul 2 Baris: Baris Atas "DAPUR", Baris Bawah "KULINER VIRAL" (Ukuran Font Sama Besar) -->
+        <div class="flex flex-col justify-center min-w-0">
+          <div class="font-black text-sm sm:text-base md:text-lg tracking-tight leading-tight uppercase">
+            <span :style="{ color: getBrandFirstWord().color }" x-text="getBrandFirstWord().text"></span>
+          </div>
+          <div class="font-black text-sm sm:text-base md:text-lg tracking-tight leading-tight flex items-center gap-1 whitespace-nowrap">
+            <template x-for="(word, wIdx) in getBrandRemainingWords()" :key="'header-rem-' + wIdx">
+              <span :style="{ color: word.color }" x-text="word.text"></span>
             </template>
           </div>
-          <span class="hidden sm:inline-block mt-0.5 text-[10px] sm:text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded-md font-medium border border-stone-200 truncate max-w-full" x-text="siteConfig.tagline"></span>
         </div>
       </div>
 
-      <!-- Navigation links (Editable Teks) -->
-      <nav class="hidden md:flex items-center gap-6 text-sm font-semibold text-stone-700">
-        <button @click="activeTab = 'menu'" :class="activeTab === 'menu' ? 'text-brand-600 border-b-2 border-brand-600 pb-1' : 'hover:text-brand-600 pb-1'" x-text="siteConfig.navMenuText || 'Menu Harian'"></button>
-        <button @click="activeTab = 'catering'" :class="activeTab === 'catering' ? 'text-brand-600 border-b-2 border-brand-600 pb-1' : 'hover:text-brand-600 pb-1'" x-text="siteConfig.navCateringText || 'Paket Catering'"></button>
+      <!-- Navigation links (Desktop XL: Tampil Cepat) -->
+      <nav class="hidden xl:flex items-center gap-6 text-sm font-semibold text-stone-700">
+        <button @click="activeTab = 'menu'; scrollToSection('tab-section')" :class="activeTab === 'menu' ? 'text-brand-600 border-b-2 border-brand-600 pb-1' : 'hover:text-brand-600 pb-1'" x-text="siteConfig.navMenuText || 'Menu Harian'"></button>
+        <button @click="activeTab = 'catering'; scrollToSection('catering-section')" :class="activeTab === 'catering' ? 'text-brand-600 border-b-2 border-brand-600 pb-1' : 'hover:text-brand-600 pb-1'" x-text="siteConfig.navCateringText || 'Paket Catering'"></button>
         <a href="#ongkir-calculator" class="hover:text-brand-600" x-text="siteConfig.navOngkirText || 'Cek Ongkir'"></a>
         <a href="#b2b-section" class="hover:text-brand-600" x-text="siteConfig.navB2bText || 'Catering B2B'"></a>
-        <a href="/analytics.html" class="flex items-center gap-1.5 text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg border border-brand-200 hover:bg-brand-100 transition">
-          <i class="fa-solid fa-chart-line text-xs"></i>
-          <span>Dasbor Analitik</span>
-        </a>
       </nav>
 
-      <!-- Cart Trigger, Track Order, and Admin Settings Button -->
-      <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+      <!-- Action Buttons (Menu 3 Garis, Analitik, Admin Lock, Keranjang) - Responsif di Tablet & Mobile -->
+      <div class="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+        <!-- Tombol Menu Navigasi 3 Garis (Hamburger Menu dengan Tombol Cepat) -->
+        <button 
+          type="button"
+          @click="isNavMenuOpen = !isNavMenuOpen" 
+          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-stone-300 text-stone-700 hover:text-brand-600 hover:border-brand-500 hover:bg-stone-50 transition shadow-2xs active:scale-95 flex-shrink-0"
+          :class="isNavMenuOpen ? 'bg-brand-50 text-brand-600 border-brand-500 ring-2 ring-brand-500/20' : ''"
+          title="Menu Navigasi Cepat (3 Garis)" 
+          aria-label="Buka Menu Navigasi Cepat">
+          <i :class="isNavMenuOpen ? 'fa-solid fa-xmark text-base' : 'fa-solid fa-bars text-base'"></i>
+          <span class="text-xs font-black hidden sm:inline" x-text="isNavMenuOpen ? 'Tutup' : 'Menu'"></span>
+        </button>
+
+        <!-- Dasbor Analitik Link -->
+        <a href="/analytics.html" class="flex items-center gap-1.5 text-brand-700 bg-brand-50 px-2.5 sm:px-3 py-1.5 rounded-xl border border-brand-200 hover:bg-brand-100 transition text-xs font-bold whitespace-nowrap shadow-2xs" title="Dasbor Analitik Penjualan">
+          <i class="fa-solid fa-chart-line text-xs"></i>
+          <span class="hidden md:inline">Analitik</span>
+        </a>
+
         <!-- Tombol Panel Admin (Hanya Gambar Icon Gembok Saja, Tanpa Teks) -->
         <button 
           @click="openAdminModal()" 
-          class="w-9 h-9 rounded-xl border border-stone-300 text-stone-600 hover:text-brand-600 hover:border-brand-500 hover:bg-stone-50 flex items-center justify-center transition shadow-sm active:scale-95" 
+          class="w-9 h-9 rounded-xl border border-stone-300 text-stone-600 hover:text-brand-600 hover:border-brand-500 hover:bg-stone-50 flex items-center justify-center transition shadow-sm active:scale-95 flex-shrink-0" 
           title="Panel Admin" 
           aria-label="Panel Admin">
           <i class="fa-solid fa-lock text-sm"></i>
         </button>
 
-        <button @click="isTrackerOpen = true" class="text-xs font-semibold px-3 py-2 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-100 transition flex items-center gap-1.5">
-          <i class="fa-solid fa-satellite-dish text-brand-600 animate-pulse"></i>
-          <span class="hidden sm:inline">Lacak Pesanan</span>
-        </button>
-
-        <button @click="isCartOpen = true" class="relative bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-lg shadow-sm transition flex items-center gap-2">
+        <!-- Tombol Keranjang -->
+        <button @click="isCartOpen = true" class="relative bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-2 flex-shrink-0">
           <i class="fa-solid fa-cart-shopping"></i>
-          <span class="hidden xs:inline">Keranjang</span>
+          <span class="hidden sm:inline">Keranjang</span>
           <span class="bg-white text-brand-700 font-extrabold text-xs px-2 py-0.5 rounded-full" x-text="cartTotalCount"></span>
         </button>
+      </div>
+
+    </div>
+
+    <!-- PANEL MENU NAVIGASI CEPAT (DIBUKA SETELAH KLIK ICON 3 GARIS) -->
+    <div 
+      x-show="isNavMenuOpen" 
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 -translate-y-3"
+      x-transition:enter-end="opacity-100 translate-y-0"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100 translate-y-0"
+      x-transition:leave-end="opacity-0 -translate-y-3"
+      @click.outside="isNavMenuOpen = false"
+      x-cloak
+      class="border-t border-stone-200/90 bg-white/98 backdrop-blur-xl shadow-2xl py-4 px-4 sm:px-6 lg:px-8 relative z-50">
+      <div class="max-w-7xl mx-auto">
+        <div class="flex items-center justify-between mb-3 pb-2 border-b border-stone-100">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-brand-600 animate-ping"></span>
+            <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-stone-900 flex items-center gap-1.5">
+              <i class="fa-solid fa-compass text-brand-600"></i>
+              <span>Menu Navigasi &amp; Akses Cepat</span>
+            </h3>
+          </div>
+          <button 
+            type="button" 
+            @click="isNavMenuOpen = false" 
+            class="text-xs font-bold text-stone-500 hover:text-brand-600 px-2.5 py-1 rounded-lg hover:bg-stone-100 transition flex items-center gap-1">
+            <i class="fa-solid fa-xmark"></i>
+            <span>Tutup</span>
+          </button>
+        </div>
+
+        <!-- Grid Tombol-Tombol Cepat dari Menu Header -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+          <!-- 1. Menu Harian -->
+          <button 
+            type="button"
+            @click="activeTab = 'menu'; isNavMenuOpen = false; scrollToSection('tab-section')"
+            class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-3 rounded-2xl border transition-all text-left group shadow-2xs active:scale-95"
+            :class="activeTab === 'menu' ? 'border-brand-500 bg-brand-50/80 text-brand-700 font-black ring-2 ring-brand-500/20' : 'border-stone-200 bg-white hover:border-brand-300 hover:bg-stone-50 text-stone-800 font-bold'">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition flex-shrink-0"
+              :class="activeTab === 'menu' ? 'bg-brand-600 text-white shadow-xs' : 'bg-stone-100 text-stone-700 group-hover:bg-brand-100 group-hover:text-brand-600'">
+              <i class="fa-solid fa-bowl-rice text-base"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="text-xs sm:text-sm block truncate" x-text="siteConfig.navMenuText || 'Menu Harian'"></span>
+              <span class="text-[10px] text-stone-500 block font-normal mt-0.5">Pesan hidangan lezat</span>
+            </div>
+          </button>
+
+          <!-- 2. Paket Catering -->
+          <button 
+            type="button"
+            @click="activeTab = 'catering'; isNavMenuOpen = false; scrollToSection('catering-section')"
+            class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-3 rounded-2xl border transition-all text-left group shadow-2xs active:scale-95"
+            :class="activeTab === 'catering' ? 'border-brand-500 bg-brand-50/80 text-brand-700 font-black ring-2 ring-brand-500/20' : 'border-stone-200 bg-white hover:border-brand-300 hover:bg-stone-50 text-stone-800 font-bold'">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center transition flex-shrink-0"
+              :class="activeTab === 'catering' ? 'bg-brand-600 text-white shadow-xs' : 'bg-stone-100 text-stone-700 group-hover:bg-brand-100 group-hover:text-brand-600'">
+              <i class="fa-solid fa-boxes-packing text-base"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="text-xs sm:text-sm block truncate" x-text="siteConfig.navCateringText || 'Paket Catering'"></span>
+              <span class="text-[10px] text-stone-500 block font-normal mt-0.5">Box syukuran &amp; prasmanan</span>
+            </div>
+          </button>
+
+          <!-- 3. Cek Ongkir -->
+          <button 
+            type="button"
+            @click="isNavMenuOpen = false; scrollToSection('ongkir-calculator')"
+            class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-3 rounded-2xl border border-stone-200 bg-white hover:border-brand-300 hover:bg-stone-50 text-stone-800 font-bold transition-all text-left group shadow-2xs active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-stone-100 text-stone-700 group-hover:bg-blue-100 group-hover:text-blue-600 flex items-center justify-center transition flex-shrink-0">
+              <i class="fa-solid fa-truck-fast text-base"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="text-xs sm:text-sm block truncate" x-text="siteConfig.navOngkirText || 'Cek Ongkir'"></span>
+              <span class="text-[10px] text-stone-500 block font-normal mt-0.5">Hitung tarif kurir</span>
+            </div>
+          </button>
+
+          <!-- 4. Catering B2B -->
+          <button 
+            type="button"
+            @click="isNavMenuOpen = false; scrollToSection('b2b-section')"
+            class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-3 rounded-2xl border border-stone-200 bg-white hover:border-brand-300 hover:bg-stone-50 text-stone-800 font-bold transition-all text-left group shadow-2xs active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-stone-100 text-stone-700 group-hover:bg-amber-100 group-hover:text-amber-600 flex items-center justify-center transition flex-shrink-0">
+              <i class="fa-solid fa-building text-base"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="text-xs sm:text-sm block truncate" x-text="siteConfig.navB2bText || 'Catering B2B'"></span>
+              <span class="text-[10px] text-stone-500 block font-normal mt-0.5">Kantor, seminar &amp; event</span>
+            </div>
+          </button>
+
+          <!-- 5. Lacak Pesanan Realtime -->
+          <button 
+            type="button"
+            @click="isNavMenuOpen = false; isTrackerOpen = true"
+            class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-3 rounded-2xl border border-stone-200 bg-white hover:border-brand-300 hover:bg-stone-50 text-stone-800 font-bold transition-all text-left group shadow-2xs active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-stone-100 text-stone-700 group-hover:bg-emerald-100 group-hover:text-emerald-600 flex items-center justify-center transition flex-shrink-0">
+              <i class="fa-solid fa-satellite-dish text-base"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="text-xs sm:text-sm block truncate">Lacak Pesanan</span>
+              <span class="text-[10px] text-stone-500 block font-normal mt-0.5">Status pesanan realtime</span>
+            </div>
+          </button>
+
+          <!-- 6. Chat WhatsApp Admin -->
+          <button 
+            type="button"
+            @click="isNavMenuOpen = false; openWhatsAppOrder()"
+            class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-3 rounded-2xl border border-stone-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/60 text-stone-800 font-bold transition-all text-left group shadow-2xs active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center transition flex-shrink-0">
+              <i class="fa-brands fa-whatsapp text-lg"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="text-xs sm:text-sm block truncate">Chat WhatsApp</span>
+              <span class="text-[10px] text-stone-500 block font-normal mt-0.5">Konsultasi langsung admin</span>
+            </div>
+          </button>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- Hero Section (Editable Gambar Background, Overlay, Teks Headline & Tombol) -->
-  <section class="relative text-white overflow-hidden py-16 sm:py-24 transition-colors" :style="{ backgroundColor: siteConfig.heroOverlayColor || '#1c1917' }">
-    <!-- Graphic Background Overlay -->
-    <div class="absolute inset-0 opacity-25 mix-blend-luminosity overflow-hidden">
-      <img :src="siteConfig.heroImage" alt="Dapur Kuliner" class="w-full h-full object-cover scale-105 filter blur-[1px]">
+  <!-- Hero Section (Gambar Background Warna Asli, Kontras Tinggi & Menggugah Selera) -->
+  <section class="relative text-white overflow-hidden py-16 sm:py-24 transition-colors bg-stone-950" :style="{ backgroundColor: siteConfig.heroOverlayColor || '#0c0a09' }">
+    <!-- Graphic Background Warna Asli (Tanpa mix-blend-luminosity / Tanpa Grayscale) -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+      <img :src="siteConfig.heroImage" alt="Dapur Kuliner" class="w-full h-full object-cover scale-105" :style="{ opacity: (siteConfig.heroImageOpacity !== undefined ? siteConfig.heroImageOpacity : 0.65) }">
+      <!-- Gradient overlay halus agar foto tetap berwarna-warni dan teks tetap terbaca tajam -->
+      <div class="absolute inset-0 bg-gradient-to-r from-stone-950/90 via-stone-950/65 to-stone-900/30"></div>
     </div>
     
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -744,21 +912,21 @@
                 </div>
               </template>
 
-              <!-- Opsi 2: Midtrans Gateway -->
-              <template x-if="siteConfig.paymentConfig && siteConfig.paymentConfig.enableMidtrans !== false">
+              <!-- Opsi 2: E-Wallet Transfer -->
+              <template x-if="siteConfig.paymentConfig && siteConfig.paymentConfig.enableEwalletTransfer !== false">
                 <div 
-                  @click="selectedPaymentMethod = 'midtrans'" 
-                  :class="selectedPaymentMethod === 'midtrans' ? 'border-2 border-brand-600 bg-brand-50/50 shadow-md ring-2 ring-brand-500/20' : 'border border-stone-300 bg-white hover:border-stone-400'"
+                  @click="selectedPaymentMethod = 'ewallet_transfer'" 
+                  :class="selectedPaymentMethod === 'ewallet_transfer' ? 'border-2 border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-500/20' : 'border border-stone-300 bg-white hover:border-stone-400'"
                   class="p-3.5 rounded-xl cursor-pointer transition flex flex-col justify-between">
                   <div class="flex items-center justify-between mb-2">
                     <span class="font-extrabold text-stone-900 flex items-center gap-1.5">
-                      <i class="fa-solid fa-shield-halved text-brand-600 text-base"></i>
-                      <span>Midtrans Gateway</span>
+                      <i class="fa-solid fa-mobile-screen-button text-indigo-600 text-base"></i>
+                      <span>Transfer E-Wallet</span>
                     </span>
-                    <i class="fa-solid fa-circle-check text-base" :class="selectedPaymentMethod === 'midtrans' ? 'text-brand-600' : 'text-stone-300'"></i>
+                    <i class="fa-solid fa-circle-check text-base" :class="selectedPaymentMethod === 'ewallet_transfer' ? 'text-indigo-600' : 'text-stone-300'"></i>
                   </div>
-                  <p class="text-[11px] text-stone-500 leading-snug">Virtual Account otomatis 24 Jam (BCA, BNI, BRI, Permata) & E-Wallet.</p>
-                  <span class="mt-2 text-[10px] font-bold text-brand-700 bg-brand-100/70 py-0.5 px-2 rounded-md self-start">Verifikasi Otomatis</span>
+                  <p class="text-[11px] text-stone-500 leading-snug">Transfer manual DANA, ShopeePay, GoPay, OVO, atau LinkAja.</p>
+                  <span class="mt-2 text-[10px] font-bold text-indigo-700 bg-indigo-100/70 py-0.5 px-2 rounded-md self-start">Konfirmasi WA Kasir</span>
                 </div>
               </template>
 
@@ -1024,26 +1192,12 @@
         </div>
 
         <!-- QR Code Image -->
-        <div class="bg-white p-2.5 rounded-2xl shadow-md border border-stone-200">
-<template x-if="siteConfig.paymentConfig.qrisType === 'dynamic' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'dynamic')">
-  <div class="flex flex-col items-center">
-    <template x-if="midtransQrUrl">
-      <img :src="midtransQrUrl" alt="QRIS Dinamis Midtrans" class="w-56 h-56 object-contain" />
-    </template>
-    <template x-if="!midtransQrUrl">
-      <div class="w-56 h-56 flex flex-col items-center justify-center bg-stone-100 rounded-xl border border-dashed border-stone-300 text-center p-4">
-        <i class="fa-solid fa-qrcode text-4xl text-stone-400 mb-2"></i>
-        <p class="text-xs text-stone-500 font-semibold">QR Midtrans tidak tersedia</p>
-        <p class="text-[10px] text-stone-400 mt-1">Silakan gunakan QRIS Statis Toko</p>
-      </div>
-    </template>
-    <template x-if="midtransQrIsMock">
-      <span class="mt-2 text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded">MODE SIMULASI (Belum Production)</span>
-    </template>
-  </div>
-</template>
+        <div class="bg-white p-2.5 rounded-2xl shadow-md border border-stone-200 w-full max-w-[240px] aspect-square flex items-center justify-center">
+          <template x-if="siteConfig.paymentConfig.qrisType === 'dynamic' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'dynamic')">
+            <img :src="getDynamicQrisUrl(activeOrder.totalAmount || grandTotal, activeOrder.orderId || 'DEMO')" alt="QRIS Dinamis" class="w-full h-full object-contain" />
+          </template>
           <template x-if="siteConfig.paymentConfig.qrisType === 'static' || (siteConfig.paymentConfig.qrisType === 'both' && qrisViewMode === 'static')">
-            <img :src="siteConfig.paymentConfig.qrisImage || 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=DAPUR_KULINER_VIRAL'" alt="QRIS Statis Toko" class="w-56 h-56 object-contain" />
+            <img :src="siteConfig.paymentConfig.qrisImage || 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=DAPUR_KULINER_VIRAL'" alt="QRIS Statis Toko" class="w-full h-full object-contain" />
           </template>
         </div>
 
@@ -1172,7 +1326,7 @@
       <div class="mt-5 space-y-2">
         <button 
           type="button" 
-          @click="confirmBankPayment()"
+          @click="confirmManualPayment('Bank Transfer')"
           class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2">
           <i class="fa-brands fa-whatsapp text-base"></i>
           <span>Konfirmasi & Kirim Bukti ke WhatsApp</span>
@@ -1181,6 +1335,76 @@
         <button 
           type="button" 
           @click="isBankModalOpen = false"
+          class="w-full py-2 text-stone-500 hover:text-stone-800 font-bold text-xs">
+          Tutup
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL PEMBAYARAN E-WALLET MANUAL -->
+  <div x-cloak x-show="isEwalletModalOpen" class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div @click.away="isEwalletModalOpen = false" class="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-stone-200 relative my-8">
+      
+      <button @click="isEwalletModalOpen = false" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 w-8 h-8 rounded-full flex items-center justify-center">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <!-- Header E-Wallet -->
+      <div class="text-center">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold mb-2">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+          <span>Transfer E-Wallet</span>
+        </div>
+        <h3 class="text-lg font-extrabold text-stone-900">Instruksi Pembayaran E-Wallet</h3>
+        <p class="text-xs text-stone-500 mt-0.5">Transfer saldo ke nomor akun kami</p>
+      </div>
+
+      <!-- Card Rekening Ewallet -->
+      <div class="mt-4 p-4 rounded-2xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+        <div>
+          <span class="text-[10px] uppercase font-bold text-stone-400 block mb-0.5">Pilihan Aplikasi</span>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold">DANA</span>
+            <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded-md text-[10px] font-bold">ShopeePay</span>
+            <span class="px-2 py-1 bg-green-100 text-green-700 rounded-md text-[10px] font-bold">GoPay</span>
+            <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-[10px] font-bold">OVO</span>
+            <span class="px-2 py-1 bg-red-100 text-red-700 rounded-md text-[10px] font-bold">LinkAja</span>
+          </div>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-stone-400 block mb-0.5">Nomor Tujuan</span>
+          <div class="flex items-center justify-between bg-white px-3 py-2 border border-indigo-100 rounded-xl">
+            <span class="text-lg font-black tracking-wider font-mono text-stone-800" x-text="siteConfig.paymentConfig.ewalletPhone || '0812-3456-7890'"></span>
+            <button @click="copyToClipboard(siteConfig.paymentConfig.ewalletPhone || '0812-3456-7890', 'Nomor E-Wallet Disalin!')" class="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-bold text-[10px] uppercase bg-indigo-100 px-2 py-1 rounded-md">
+              <i class="fa-solid fa-copy"></i> Salin
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tagihan -->
+      <div class="mt-4 border-t border-stone-200 pt-4 flex items-center justify-between text-sm font-black">
+        <span class="text-stone-500">Total Transfer</span>
+        <span class="text-indigo-600 text-xl" x-text="formatRupiah(grandTotal)"></span>
+      </div>
+
+      <div class="mt-2 bg-stone-50 p-3 rounded-xl border border-stone-200 text-[10px] sm:text-xs text-stone-600 text-center leading-relaxed font-medium" x-text="siteConfig.paymentConfig.ewalletInstructions || 'Transfer menggunakan DANA, ShopeePay, GoPay, OVO, atau LinkAja ke nomor tertera. Simpan bukti transfer dan konfirmasi ke WhatsApp admin.'"></div>
+
+      <!-- Tombol Konfirmasi -->
+      <div class="mt-6 space-y-2">
+        <button 
+          type="button" 
+          @click="confirmManualPayment('E-Wallet Transfer')"
+          class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-brand-500/30 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-check-circle"></i>
+          <span>Konfirmasi & Kirim Bukti ke WhatsApp</span>
+        </button>
+
+        <button 
+          type="button" 
+          @click="isEwalletModalOpen = false"
           class="w-full py-2 text-stone-500 hover:text-stone-800 font-bold text-xs">
           Tutup
         </button>
@@ -1268,6 +1492,64 @@
           <button @click="simulateStatusUpdate('Diproses')" class="px-2 py-1 rounded bg-amber-100 text-amber-800 font-semibold text-[10px]">Set Diproses</button>
           <button @click="simulateStatusUpdate('Dikirim')" class="px-2 py-1 rounded bg-purple-100 text-purple-800 font-semibold text-[10px]">Set Dikirim</button>
           <button @click="simulateStatusUpdate('Selesai')" class="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-semibold text-[10px]">Set Selesai</button>
+        </div>
+      </div>
+
+      <!-- 5 RIWAYAT PESANAN TERAKHIR PELANGGAN -->
+      <div class="mt-6 border-t border-stone-200 pt-5 text-left">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-black text-stone-900 text-xs sm:text-sm flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-brand-600"></i>
+            <span>5 Riwayat Pesanan Terakhir</span>
+          </h4>
+          <span class="text-[10px] text-stone-500 font-medium" x-text="getRecentOrders().length + ' Pesanan Tersimpan'"></span>
+        </div>
+
+        <template x-if="getRecentOrders().length === 0">
+          <div class="text-center py-6 bg-stone-50 rounded-2xl border border-dashed border-stone-200 text-stone-400 text-xs">
+            <i class="fa-solid fa-receipt text-2xl mb-1 text-stone-300"></i>
+            <p class="font-medium">Belum ada riwayat pesanan yang tersimpan di perangkat ini.</p>
+          </div>
+        </template>
+
+        <div class="space-y-2.5" x-show="getRecentOrders().length > 0">
+          <template x-for="(histOrder, hIdx) in getRecentOrders()" :key="'hist-' + (histOrder.orderId || hIdx)">
+            <div 
+              :class="activeOrder.orderId === histOrder.orderId ? 'border-brand-500 ring-2 ring-brand-500/20 bg-brand-50/30' : 'border-stone-200 bg-white hover:border-stone-300'" 
+              class="p-3 rounded-2xl border shadow-2xs transition flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-mono font-black text-xs text-stone-900" x-text="histOrder.orderId"></span>
+                  <span class="px-2 py-0.5 text-[10px] font-extrabold rounded-full" :class="getOrderStatusColor(histOrder.status)" x-text="histOrder.status"></span>
+                </div>
+                <div class="text-[11px] text-stone-500 mt-1 flex flex-wrap items-center gap-2">
+                  <span x-text="new Date(histOrder.createdAt || Date.now()).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })"></span>
+                  <span>•</span>
+                  <span class="font-extrabold text-stone-800" x-text="formatRupiah(histOrder.totalAmount || 0)"></span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
+                <button 
+                  type="button"
+                  @click="selectRecentOrderToTrack(histOrder)" 
+                  class="px-2.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-2xs active:scale-95"
+                  title="Tampilkan status lengkap pesanan ini">
+                  <i class="fa-solid fa-location-crosshairs text-[10px]"></i>
+                  <span>Lacak</span>
+                </button>
+                <button 
+                  type="button"
+                  @click="downloadReceiptPDF(histOrder)" 
+                  class="p-1.5 text-stone-500 hover:text-brand-600 hover:bg-stone-100 rounded-xl transition border border-stone-200" 
+                  title="Unduh Struk PDF">
+                  <i class="fa-solid fa-file-pdf text-sm text-red-500"></i>
+                </button>
+              </div>
+
+            </div>
+          </template>
         </div>
       </div>
 
@@ -1455,11 +1737,19 @@
           x-ref="adminTabNav" 
           class="flex overflow-x-auto no-scrollbar scroll-smooth text-xs font-bold text-stone-600 flex-1 py-1 gap-1">
           <button 
+            @click="adminActiveTab = 'orders'" 
+            :class="adminActiveTab === 'orders' ? 'border-b-2 border-brand-600 text-brand-600 bg-brand-50/50' : 'hover:text-stone-900'" 
+            class="py-2.5 px-3 sm:px-3.5 rounded-lg flex items-center gap-1.5 whitespace-nowrap transition">
+            <i class="fa-solid fa-list-check text-xs"></i>
+            <span>1. Validasi Pesanan</span>
+          </button>
+
+          <button 
             @click="adminActiveTab = 'branding'" 
             :class="adminActiveTab === 'branding' ? 'border-b-2 border-brand-600 text-brand-600 bg-brand-50/50' : 'hover:text-stone-900'" 
             class="py-2.5 px-3 sm:px-3.5 rounded-lg flex items-center gap-1.5 whitespace-nowrap transition">
             <i class="fa-solid fa-paintbrush text-xs"></i>
-            <span>1. Logo & Judul</span>
+            <span>2. Logo & Judul</span>
           </button>
 
           <button 
@@ -1540,6 +1830,140 @@
 
       <!-- Tab Content Area (Scrollable) -->
       <div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+
+        <!-- TAB VALIDASI PESANAN ONLINE -->
+        <div x-show="adminActiveTab === 'orders'" class="space-y-6">
+          <div class="bg-brand-50 p-4 rounded-2xl border border-brand-200">
+            <h4 class="font-extrabold text-stone-900 text-sm flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-brand-600"></i>
+              <span>Validasi Pesanan Online (Real-Time)</span>
+            </h4>
+            <p class="text-xs text-stone-600 mt-1">Daftar semua pesanan aktif. Klik tombol untuk memperbarui status hingga selesai. Tombol 'Dikirim' akan meminta kurir atau status pengantaran, dan 'Selesai' akan menutup pesanan.</p>
+          </div>
+
+          <!-- KONTROL DOWNLOAD RINGKASAN PESANAN (SELURUH RIWAYAT PER BULAN) DALAM FILE CSV -->
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h5 class="font-black text-xs uppercase tracking-wider text-stone-900 flex items-center gap-2">
+                <i class="fa-solid fa-file-csv text-emerald-600 text-base"></i>
+                <span>Download Ringkasan Pesanan (.CSV)</span>
+              </h5>
+              <p class="text-[11px] text-stone-500 mt-0.5">Ekspor data seluruh riwayat pesanan per bulan untuk pembukuan Excel / Google Sheets.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <select x-model="adminCsvMonthFilter" class="px-3 py-2 border border-stone-300 rounded-xl text-xs bg-stone-50 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="all">Semua Riwayat Bulan</option>
+                <template x-for="m in getAvailableOrderMonths()" :key="m.value">
+                  <option :value="m.value" x-text="m.label"></option>
+                </template>
+              </select>
+
+              <button 
+                type="button" 
+                @click="downloadOrdersCsv(adminCsvMonthFilter)" 
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition flex items-center gap-2 shadow-sm active:scale-95">
+                <i class="fa-solid fa-download"></i>
+                <span>Unduh File CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <template x-for="order in adminOrders.filter(o => o.status !== 'Selesai')" :key="order.orderId">
+              <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1.5 h-full" :class="getOrderStatusColor(order.status).split(' ')[0]"></div>
+                <div class="flex justify-between items-start pl-3 mb-3">
+                  <div>
+                    <h5 class="text-sm font-black text-stone-900 font-mono" x-text="order.orderId"></h5>
+                    <p class="text-[10px] text-stone-500 font-medium mt-0.5" x-text="new Date(order.createdAt).toLocaleString('id-ID')"></p>
+                  </div>
+                  <span class="px-2.5 py-1 text-[10px] font-bold rounded-md" :class="getOrderStatusColor(order.status)" x-text="order.status"></span>
+                </div>
+                
+                <div class="pl-3 grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-xs">
+                  <!-- DETAIL PELANGGAN: NAMA & NOMOR DI BAWAH KATA PELANGGAN -->
+                  <div class="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                    <p class="font-extrabold text-stone-500 text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <i class="fa-solid fa-user text-brand-600"></i>
+                      <span>Pelanggan</span>
+                    </p>
+                    <!-- Nama Pelanggan di bawah kata Pelanggan -->
+                    <div class="text-stone-900 font-black text-sm" x-text="getOrderCustomerName(order)"></div>
+                    <!-- Nomor Pelanggan di bawah Nama -->
+                    <div class="mt-1.5 flex items-center gap-2">
+                      <a :href="'https://wa.me/' + cleanPhone(getOrderCustomerPhone(order))" target="_blank" class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg font-mono text-xs font-bold transition shadow-2xs" title="Hubungi Pelanggan via WhatsApp">
+                        <i class="fa-brands fa-whatsapp text-emerald-600"></i>
+                        <span x-text="getOrderCustomerPhone(order)"></span>
+                      </a>
+                    </div>
+                    <!-- Alamat Pengiriman -->
+                    <div class="text-stone-600 mt-2 text-xs leading-relaxed bg-white p-2 rounded-lg border border-stone-200">
+                      <i class="fa-solid fa-location-dot text-stone-400 mr-1"></i>
+                      <span x-text="getOrderCustomerAddress(order)"></span>
+                    </div>
+                  </div>
+
+                  <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 flex flex-col justify-between">
+                    <div>
+                      <p class="font-extrabold text-emerald-800 text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                        <i class="fa-solid fa-wallet text-emerald-600"></i>
+                        <span>Rincian Tagihan</span>
+                      </p>
+                      <p class="text-emerald-700 font-black text-base" x-text="formatRupiah(order.totalAmount)"></p>
+                      <p class="text-emerald-700 font-semibold text-xs mt-0.5" x-text="order.paymentMethod === 'qris' ? 'Pembayaran QRIS' : (order.paymentMethod === 'bank_transfer' ? 'Transfer Bank / E-Wallet' : order.paymentMethod)"></p>
+                      
+                      <!-- Ringkasan Menu yang Dipesan -->
+                      <div class="mt-2 text-[11px] text-stone-600 bg-white/80 p-2 rounded-lg border border-emerald-100">
+                        <span class="font-bold text-stone-700 block mb-0.5">Item Pesanan:</span>
+                        <div class="space-y-0.5 max-h-20 overflow-y-auto">
+                          <template x-for="(it, iIdx) in (order.items || [])" :key="iIdx">
+                            <div class="flex justify-between">
+                              <span x-text="(it.name || it.id) + ' x' + (it.quantity || 1)"></span>
+                              <span class="font-semibold" x-text="formatRupiah((it.price || 0) * (it.quantity || 1))"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="mt-2 text-[11px] text-stone-500">
+                      <span>Kurir: <strong class="text-stone-800" x-text="order.courier?.name || order.selectedCourier?.courier_name || 'Kurir'"></strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pl-3 flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-100">
+                  <div>
+                    <p class="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Aksi Status Pesanan</p>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button x-show="['Pending', 'Dibayar', 'Diproses'].includes(order.status)" @click="updateAdminOrderStatus(order.orderId, 'Dikirim')" class="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+                        <i class="fa-solid fa-motorcycle"></i>
+                        <span>Set Dikirim</span>
+                      </button>
+                      <button x-show="order.status === 'Dikirim'" @click="updateAdminOrderStatus(order.orderId, 'Selesai')" class="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>Set Selesai</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="button" 
+                    @click="downloadReceiptPDF(order)" 
+                    class="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-stone-200">
+                    <i class="fa-solid fa-file-pdf text-red-500"></i>
+                    <span>Cetak Struk</span>
+                  </button>
+                </div>
+              </div>
+            </template>
+            <div x-show="adminOrders.filter(o => o.status !== 'Selesai').length === 0" class="text-center py-8 text-stone-400 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+              <i class="fa-solid fa-box-open text-3xl mb-2"></i>
+              <p class="text-sm font-semibold">Tidak ada pesanan aktif saat ini.</p>
+            </div>
+          </div>
+        </div>
 
         <!-- TAB 1: LOGO, NAMA BRAND DENGAN WARNA PER KATA & HEADER -->
         <div x-show="adminActiveTab === 'branding'" class="space-y-6">
@@ -1802,12 +2226,20 @@
 
           <!-- Section: Catering Packages -->
           <div class="mt-8 bg-stone-50 p-4 rounded-2xl border border-stone-200">
-            <h4 class="font-extrabold text-stone-900 text-sm mb-3">Paket Catering</h4>
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-extrabold text-stone-900 text-sm">Paket Catering</h4>
+              <button @click="cateringPackages.push({ id: 'pkg-' + Date.now(), name: 'Paket Baru', pricePerPax: 20000, minPax: 15, isPopular: false, description: '', items: [] })" class="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> Tambah Paket
+              </button>
+            </div>
             <div class="space-y-4">
               <template x-for="(pkg, pkgIndex) in cateringPackages" :key="pkg.id">
-                <div class="p-4 bg-white rounded-xl border border-stone-200">
+                <div class="p-4 bg-white rounded-xl border border-stone-200 relative">
+                  <button @click="if(confirm('Hapus paket ini?')) cateringPackages.splice(pkgIndex, 1)" class="absolute top-4 right-4 text-red-400 hover:text-red-600 w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-50 transition" title="Hapus Paket">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                  </button>
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
+                    <div class="pr-8">
                       <label class="block text-xs font-bold text-stone-700 mb-1">Nama Paket</label>
                       <input type="text" x-model="pkg.name" class="w-full p-2 border border-stone-300 rounded text-xs" />
                     </div>
@@ -1890,11 +2322,17 @@
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Overlay Background Hero</label>
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Warna Latar Overlay Banner</label>
               <div class="flex items-center gap-2">
                 <input type="color" x-model="siteConfig.heroOverlayColor" class="w-10 h-10 rounded-xl cursor-pointer border border-stone-300 p-0.5 bg-white" />
                 <input type="text" x-model="siteConfig.heroOverlayColor" class="flex-1 p-2 rounded-xl border border-stone-300 text-xs font-mono" placeholder="#1c1917" />
               </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Transparansi Gambar Banner (<span x-text="Math.round((siteConfig.heroImageOpacity !== undefined ? siteConfig.heroImageOpacity : 0.25) * 100) + '%'"></span>)</label>
+              <input type="range" min="0" max="1" step="0.05" x-model="siteConfig.heroImageOpacity" class="w-full accent-brand-600" />
+              <p class="text-[10px] text-stone-500 mt-1">Geser ke kanan agar gambar lebih terlihat jelas, ke kiri agar gambar pudar (menyatu dengan warna overlay).</p>
             </div>
 
             <div>
@@ -2183,10 +2621,10 @@
               </label>
 
               <label class="flex items-center gap-2.5 p-3 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 cursor-pointer">
-                <input type="checkbox" x-model="siteConfig.paymentConfig.enableMidtrans" class="rounded text-brand-600 focus:ring-brand-500" />
+                <input type="checkbox" x-model="siteConfig.paymentConfig.enableEwalletTransfer" class="rounded text-brand-600 focus:ring-brand-500" />
                 <div>
-                  <span class="text-xs font-bold text-stone-800 block">Midtrans Gateway</span>
-                  <span class="text-[10px] text-stone-500">VA Bank & E-Wallet</span>
+                  <span class="text-xs font-bold text-stone-800 block">E-Wallet Transfer</span>
+                  <span class="text-[10px] text-stone-500">DANA, ShopeePay, GoPay</span>
                 </div>
               </label>
 
@@ -2201,11 +2639,12 @@
           </div>
 
           <!-- Konfigurasi QRIS (Statis & Dinamis) -->
+          <!-- Konfigurasi QRIS -->
           <div class="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/40 space-y-4">
             <div class="flex items-center justify-between">
               <h5 class="text-xs font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
                 <i class="fa-solid fa-qrcode text-emerald-600"></i>
-                <span>Konfigurasi QRIS Restoran (Statis & Dinamis)</span>
+                <span>Konfigurasi QRIS (Statis & Dinamis Terpisah)</span>
               </h5>
               <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">Scan Semua Bank & E-Wallet</span>
             </div>
@@ -2215,30 +2654,36 @@
                 <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Tipe Tampilan QRIS ke Pelanggan</label>
                 <select x-model="siteConfig.paymentConfig.qrisType" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-semibold">
                   <option value="both">Tampilkan Keduanya (Tab QRIS Dinamis & QRIS Statis)</option>
-                  <option value="dynamic">Hanya QRIS Dinamis (Nominal Pas Otomatis)</option>
-                  <option value="static">Hanya QRIS Statis Toko (Barcode Resmi Toko)</option>
+                  <option value="dynamic">Hanya QRIS Dinamis (Auto-Nominal via NMID)</option>
+                  <option value="static">Hanya QRIS Statis (Upload Gambar Barcode)</option>
                 </select>
-                <p class="text-[11px] text-stone-500 mt-1">
-                  <strong>QRIS Dinamis</strong> membuat barcode otomatis dengan nominal rupiah yang pas. <strong>QRIS Statis</strong> menampilkan gambar QRIS toko Anda.
-                </p>
+                <p class="text-[11px] text-stone-500 mt-1">Pilih apakah pelanggan bisa melihat gambar QRIS statis, barcode dinamis, atau keduanya.</p>
               </div>
-
               <div>
-                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Nama Merchant / Toko di Barcode QRIS</label>
-                <input type="text" x-model="siteConfig.paymentConfig.qrisMerchantName" placeholder="Contoh: DAPUR KULINER VIRAL - QRIS RESMI" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-bold" />
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Nama Toko di QRIS Dinamis</label>
+                <input type="text" x-model="siteConfig.paymentConfig.qrisMerchantName" placeholder="Contoh: DAPUR KULINER VIRAL" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-bold" />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">URL Gambar QR Code Toko (QRIS Statis)</label>
-                <input type="url" x-model="siteConfig.paymentConfig.qrisImage" placeholder="https://..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white" />
-                <p class="text-[10px] text-stone-500 mt-1">Upload QRIS BCA/Nobu/DANA/GoPay Anda ke imgur/cloudinary dan tempel link-nya di sini.</p>
+            <div class="mt-4 border-t border-emerald-200/50 pt-4">
+              <h6 class="text-[11px] font-extrabold text-stone-700 uppercase mb-3">▶ Pengaturan QRIS Statis (Hanya Gambar)</h6>
+              <div class="grid grid-cols-1 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-stone-700 uppercase mb-1">URL Gambar QR Code Toko</label>
+                  <input type="url" x-model="siteConfig.paymentConfig.qrisImage" placeholder="https://..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white" />
+                  <p class="text-[10px] text-stone-500 mt-1">Upload 1 barcode QRIS (dari BCA/Nobu/GoPay/ShopeePay) ke imgur/cloudinary lalu tempel link-nya di sini.</p>
+                </div>
               </div>
+            </div>
 
-              <div>
-                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">NMID (National Merchant ID - Opsional)</label>
-                <input type="text" x-model="siteConfig.paymentConfig.qrisNmid" placeholder="Contoh: ID1020023456789" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-mono" />
+            <div class="mt-4 border-t border-emerald-200/50 pt-4">
+              <h6 class="text-[11px] font-extrabold text-stone-700 uppercase mb-3">▶ Pengaturan QRIS Dinamis (Nominal Otomatis)</h6>
+              <div class="grid grid-cols-1 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-stone-700 uppercase mb-1">NMID (National Merchant ID - Dari Aplikasi Merchant)</label>
+                  <input type="text" x-model="siteConfig.paymentConfig.qrisNmid" placeholder="Contoh: ID1020023456789" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-mono" />
+                  <p class="text-[10px] text-stone-500 mt-1">Masukkan NMID Anda jika ingin QRIS ter-generate dengan nominal Rupiah otomatis (dari ShopeePay / provider lain).</p>
+                </div>
               </div>
             </div>
 
@@ -2286,6 +2731,25 @@
             <div>
               <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Petunjuk Transfer Bank untuk Pembeli</label>
               <textarea x-model="siteConfig.paymentConfig.bankInstructions" rows="2" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white"></textarea>
+            </div>
+          </div>
+
+          <!-- Konfigurasi E-Wallet Transfer -->
+          <div class="p-5 rounded-2xl border border-indigo-200 bg-indigo-50/40 space-y-4">
+            <h5 class="text-xs font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-mobile-screen-button text-indigo-600"></i>
+              <span>Konfigurasi E-Wallet Transfer Manual</span>
+            </h5>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Nomor HP E-Wallet</label>
+                <input type="text" x-model="siteConfig.paymentConfig.ewalletPhone" placeholder="Contoh: 0812-3456-7890" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-mono font-bold" />
+                <p class="text-[10px] text-stone-500 mt-1">Nomor yang terdaftar pada DANA, ShopeePay, GoPay, OVO, atau LinkAja.</p>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Petunjuk Pembayaran E-Wallet</label>
+                <textarea x-model="siteConfig.paymentConfig.ewalletInstructions" rows="2" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white"></textarea>
+              </div>
             </div>
           </div>
         </div>
@@ -2721,14 +3185,30 @@ git push -u origin main</pre>
     <span x-text="adminToast"></span>
   </div>
 
-  <!-- FLOATING WHATSAPP BUTTON (Dinamis dengan Ringkasan Pesanan dari Firebase/Cart) -->
-  <aside aria-label="Bantuan WhatsApp" class="fixed bottom-6 right-6 z-40">
+  <!-- FLOATING TRACKER BUTTON (Selalu Muncul di Mobile, Tablet & Desktop) -->
+  <aside aria-label="Lacak Pesanan" class="fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-[60] pointer-events-auto">
     <button 
+      type="button"
+      @click="isTrackerOpen = true" 
+      class="h-11 sm:h-13 px-3.5 sm:px-4 bg-white hover:bg-stone-50 text-brand-600 rounded-full flex items-center gap-2 shadow-2xl border-2 border-brand-500/20 hover:scale-105 active:scale-95 transition-all duration-200 group"
+      title="Lacak Pesanan Realtime"
+      aria-label="Lacak Pesanan Realtime">
+      <i class="fa-solid fa-satellite-dish text-lg sm:text-xl group-hover:animate-pulse"></i>
+      <span class="text-xs font-black tracking-wide text-stone-900">Lacak</span>
+    </button>
+  </aside>
+
+  <!-- FLOATING WHATSAPP BUTTON (Selalu Muncul di Mobile, Tablet & Desktop) -->
+  <aside aria-label="Bantuan WhatsApp" class="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-[60] pointer-events-auto">
+    <button 
+      type="button"
       @click="openWhatsAppOrder()" 
-      class="group relative bg-emerald-500 hover:bg-emerald-600 text-white font-bold p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl hover:shadow-emerald-500/50 transition-all transform hover:scale-105 flex items-center gap-3">
-      <i class="fa-brands fa-whatsapp text-2xl"></i>
-      <span class="hidden sm:inline text-xs font-extrabold tracking-wide">Chat Admin</span>
-      <span x-show="cartTotalCount > 0" class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-600 text-white text-[10px] font-black flex items-center justify-center border-2 border-white" x-text="cartTotalCount"></span>
+      class="group relative bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black h-11 sm:h-13 px-3.5 sm:px-5 rounded-full shadow-2xl hover:shadow-emerald-500/50 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"
+      title="Chat WhatsApp Admin"
+      aria-label="Chat WhatsApp Admin">
+      <i class="fa-brands fa-whatsapp text-xl sm:text-2xl"></i>
+      <span class="text-xs font-black tracking-wide">WhatsApp</span>
+      <span x-show="cartTotalCount > 0" class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-600 text-white text-[10px] font-black flex items-center justify-center border-2 border-white shadow-xs" x-text="cartTotalCount"></span>
     </button>
   </aside>
 
@@ -2947,6 +3427,29 @@ git push -u origin main</pre>
           return () => clearInterval(interval);
         }
       },
+      listenAllOrders: (callback) => {
+        if (db) {
+          const ordersRef = ref(db, 'orders');
+          return onValue(ordersRef, (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+              const ordersArray = Object.values(val);
+              ordersArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              callback(ordersArray);
+            } else {
+              callback([]);
+            }
+          });
+        } else {
+          const interval = setInterval(() => {
+            const existing = JSON.parse(localStorage.getItem("dapur_orders") || "{}");
+            const ordersArray = Object.values(existing);
+            ordersArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            callback(ordersArray);
+          }, 5000);
+          return () => clearInterval(interval);
+        }
+      },
       updateStatus: async (orderId, status) => {
         if (db) {
           const orderRef = ref(db, `orders/${orderId}`);
@@ -3009,6 +3512,7 @@ git push -u origin main</pre>
         selectedCategory: 'all',
         isCartOpen: false,
         isTrackerOpen: false,
+        isNavMenuOpen: false,
         isProcessingPayment: false,
         isLoadingOngkir: false,
 
@@ -3029,11 +3533,11 @@ git push -u origin main</pre>
           pageBgColor: '#fafaf9',
           pageTextColor: '#1c1917',
           themeAccent: '#ea580c',
-          promoRibbon: 'Gratis Ongkir s.d Rp15.000 untuk pesanan Catering >25 pax & Diskon Rice Bowl Viral!',
+          promoRibbon: '',
           promoRibbonBadge: 'PROMO',
-          promoRibbonLinkText: 'Cek Paket',
-          promoRibbonBg: '#1c1917',
-          promoRibbonTextColor: '#fed7aa',
+          promoRibbonLinkText: '',
+          promoRibbonBg: '#000000',
+          promoRibbonTextColor: '#ffffff',
           navMenuText: 'Menu Harian',
           navCateringText: 'Paket Catering',
           navOngkirText: 'Cek Ongkir',
@@ -3051,7 +3555,8 @@ git push -u origin main</pre>
           heroBtn2TextColor: '#ffffff',
           heroProofBadge: '1.200+ Pesanan Puas',
           heroImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1600&auto=format&fit=crop&q=80',
-          heroOverlayColor: '#1c1917',
+          heroOverlayColor: '#0c0a09',
+          heroImageOpacity: 0.65,
           menuSectionTitle: 'Menu Harian & Ala Carte',
           menuSectionSubtitle: 'Pilihan hidangan siap santap dengan cita rasa autentik dan porsi mengenyangkan.',
           menuItemsPerPage: 12,
@@ -3080,7 +3585,7 @@ git push -u origin main</pre>
           },
           // PENGATURAN PEMBAYARAN, QRIS & GATEWAY
           paymentConfig: {
-            enableMidtrans: true,
+            enableEwalletTransfer: true,
             enableQris: true,
             qrisType: 'both', // 'both' | 'static' | 'dynamic'
             qrisImage: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=00020101021126570014ID.LINKAJA.WWW01189360091100223126830208123456780303UMI51440014ID.CO.QRIS.WWW0215ID10200234567890303UMI5204581253033605802ID5919DAPUR+KULINER+VIRAL6007JAKARTA61051219062070703A016304ABCD',
@@ -3091,7 +3596,9 @@ git push -u origin main</pre>
             bankName: 'BCA (Bank Central Asia)',
             bankAccountNumber: '8735-0982-11',
             bankAccountHolder: 'DAPUR KULINER VIRAL',
-            bankInstructions: 'Transfer nominal tepat sesuai total pesanan. Simpan struk dan konfirmasi ke WhatsApp admin.'
+            bankInstructions: 'Transfer nominal tepat sesuai total pesanan. Simpan struk dan konfirmasi ke WhatsApp admin.',
+            ewalletPhone: '0812-3456-7890',
+            ewalletInstructions: 'Transfer menggunakan DANA, ShopeePay, GoPay, OVO, atau LinkAja ke nomor tertera. Simpan bukti transfer dan konfirmasi ke WhatsApp admin.'
           }
         },
 
@@ -3102,20 +3609,20 @@ git push -u origin main</pre>
         adminPasswordInput: '',
         showAdminPassword: false,
         adminPasswordError: '',
-        adminActiveTab: 'branding',
+        adminActiveTab: 'orders',
+        adminOrders: [],
         adminMenuSearch: '',
         adminToast: '',
         currentPage: 1,
 
         // STATE PEMBAYARAN, MODAL QRIS & BANK
-        selectedPaymentMethod: 'qris', // 'qris' | 'midtrans' | 'bank_transfer'
+        selectedPaymentMethod: 'qris', // 'qris' | 'ewallet_transfer' | 'bank_transfer'
         isQrisModalOpen: false,
         isBankModalOpen: false,
+        isEwalletModalOpen: false,
         qrisViewMode: 'dynamic', // 'dynamic' | 'static'
         qrisTimerSeconds: 900,
         qrisTimerInterval: null,
-        midtransQrUrl: null,
-        midtransQrIsMock: false,
 
         // KREDENSIAL & STATUS FIREBASE REALTIME
         firebaseConfigInput: {
@@ -3186,6 +3693,8 @@ git push -u origin main</pre>
 
         // Active Order yang sedang dilacak
         trackingOrderId: '',
+        recentOrders: [],
+        adminCsvMonthFilter: 'all',
         activeOrder: {
           orderId: '',
           customer: {},
@@ -3369,6 +3878,187 @@ git push -u origin main</pre>
           }
         },
 
+        getBrandFirstWord() {
+          const words = this.getBrandWords();
+          return words[0] || { text: 'DAPUR', color: '#ea580c' };
+        },
+
+        getBrandRemainingWords() {
+          const words = this.getBrandWords();
+          return words.slice(1).length > 0 ? words.slice(1) : [{ text: 'KULINER VIRAL', color: '#f59e0b' }];
+        },
+
+        getOrderCustomerName(order) {
+          if (!order) return 'Pelanggan';
+          return order.customerName || (order.customer && order.customer.name) || 'Pelanggan';
+        },
+
+        getOrderCustomerPhone(order) {
+          if (!order) return '-';
+          return order.customerPhone || (order.customer && order.customer.phone) || '-';
+        },
+
+        getOrderCustomerAddress(order) {
+          if (!order) return '-';
+          return order.customerAddress || (order.customer && order.customer.address) || '-';
+        },
+
+        saveToRecentOrders(order) {
+          if (!order || !order.orderId) return;
+          if (!Array.isArray(this.recentOrders)) this.recentOrders = [];
+          this.recentOrders = this.recentOrders.filter(o => o.orderId !== order.orderId);
+          this.recentOrders.unshift({
+            orderId: order.orderId,
+            status: order.status || 'Pending',
+            totalAmount: order.totalAmount || 0,
+            createdAt: order.createdAt || new Date().toISOString(),
+            items: order.items || [],
+            courier: order.courier || null,
+            customer: order.customer || { name: order.customerName, phone: order.customerPhone, address: order.customerAddress },
+            paymentMethod: order.paymentMethod || 'qris'
+          });
+          this.recentOrders = this.recentOrders.slice(0, 5);
+          try {
+            localStorage.setItem("dapur_recent_orders", JSON.stringify(this.recentOrders));
+          } catch (e) {}
+        },
+
+        getRecentOrders() {
+          if (Array.isArray(this.recentOrders) && this.recentOrders.length > 0) {
+            return this.recentOrders.slice(0, 5);
+          }
+          if (Array.isArray(this.adminOrders) && this.adminOrders.length > 0) {
+            return this.adminOrders.slice(0, 5);
+          }
+          return [];
+        },
+
+        selectRecentOrderToTrack(histOrder) {
+          if (!histOrder) return;
+          this.trackingOrderId = histOrder.orderId;
+          this.activeOrder = { ...histOrder };
+          this.listenOrderStatus(histOrder.orderId);
+          this.showToast(`Memuat status realtime pesanan ${histOrder.orderId}`);
+        },
+
+        getAvailableOrderMonths() {
+          const monthsMap = {};
+          (this.adminOrders || []).forEach(o => {
+            if (o.createdAt) {
+              const d = new Date(o.createdAt);
+              if (!isNaN(d.getTime())) {
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const key = `${yyyy}-${mm}`;
+                const monthName = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                monthsMap[key] = monthName;
+              }
+            }
+          });
+          const cur = new Date();
+          const curKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+          if (!monthsMap[curKey]) {
+            monthsMap[curKey] = cur.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+          }
+          return Object.keys(monthsMap).sort().reverse().map(key => ({
+            value: key,
+            label: monthsMap[key]
+          }));
+        },
+
+        downloadOrdersCsv(monthFilter = 'all') {
+          let list = Array.isArray(this.adminOrders) ? [...this.adminOrders] : [];
+          if (monthFilter && monthFilter !== 'all') {
+            list = list.filter(o => {
+              if (!o.createdAt) return false;
+              const d = new Date(o.createdAt);
+              if (isNaN(d.getTime())) return false;
+              const yyyy = d.getFullYear();
+              const mm = String(d.getMonth() + 1).padStart(2, '0');
+              return `${yyyy}-${mm}` === monthFilter;
+            });
+          }
+
+          if (list.length === 0) {
+            this.showToast('Tidak ada data pesanan pada periode bulan yang dipilih.');
+            return;
+          }
+
+          const headers = [
+            "No",
+            "ID Pesanan",
+            "Tanggal",
+            "Waktu",
+            "Nama Pelanggan",
+            "No WhatsApp",
+            "Alamat Pengiriman",
+            "Daftar Menu & Qty",
+            "Kurir Pengiriman",
+            "Subtotal (Rp)",
+            "Ongkir (Rp)",
+            "Total Tagihan (Rp)",
+            "Metode Pembayaran",
+            "Status Pesanan",
+            "Catatan Pesanan"
+          ];
+
+          const escapeCsv = (str) => {
+            if (str === null || str === undefined) return '""';
+            const s = String(str).replace(/"/g, '""');
+            return `"${s}"`;
+          };
+
+          const rows = list.map((o, idx) => {
+            const d = o.createdAt ? new Date(o.createdAt) : new Date();
+            const dateStr = !isNaN(d.getTime()) ? d.toLocaleDateString('id-ID') : '-';
+            const timeStr = !isNaN(d.getTime()) ? d.toLocaleTimeString('id-ID') : '-';
+            
+            const customerName = this.getOrderCustomerName(o);
+            const customerPhone = this.getOrderCustomerPhone(o);
+            const customerAddress = this.getOrderCustomerAddress(o);
+
+            const itemsSummary = (o.items || []).map(i => `${i.name || i.id} (${i.quantity || 1}x)`).join('; ');
+            const courierName = o.courier?.name || o.selectedCourier?.courier_name || (o.courierCode === 'pickup' ? 'Ambil Sendiri' : 'Kurir');
+            const subtotal = o.subtotal || (o.totalAmount - (o.courierFee || 0));
+            const courierFee = o.courierFee || 0;
+            const totalAmount = o.totalAmount || 0;
+            const paymentMethod = o.paymentMethod === 'qris' ? 'QRIS' : (o.paymentMethod === 'bank_transfer' ? 'Transfer Bank / E-Wallet' : (o.paymentMethod || 'Online'));
+            const status = o.status || 'Pending';
+            const notes = o.notes || o.orderNotes || '-';
+
+            return [
+              idx + 1,
+              escapeCsv(o.orderId),
+              escapeCsv(dateStr),
+              escapeCsv(timeStr),
+              escapeCsv(customerName),
+              escapeCsv(customerPhone),
+              escapeCsv(customerAddress),
+              escapeCsv(itemsSummary),
+              escapeCsv(courierName),
+              subtotal,
+              courierFee,
+              totalAmount,
+              escapeCsv(paymentMethod),
+              escapeCsv(status),
+              escapeCsv(notes)
+            ].join(',');
+          });
+
+          const csvContent = [headers.join(','), ...rows].join('\r\n');
+          const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          const timestamp = new Date().toISOString().slice(0, 10);
+          link.href = url;
+          link.setAttribute('download', `Ringkasan_Pesanan_${monthFilter !== 'all' ? monthFilter : 'Semua'}_${timestamp}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          this.showToast(`Berhasil mengunduh ringkasan ${list.length} pesanan (.CSV)`);
+        },
+
         initApp() {
           // 1. Muat Site Configuration dari LocalStorage jika ada
           try {
@@ -3422,6 +4112,11 @@ git push -u origin main</pre>
                   }
                 });
               }
+              if (window.FirebaseBridge && window.FirebaseBridge.listenAllOrders) {
+                window.FirebaseBridge.listenAllOrders((liveOrders) => {
+                  this.adminOrders = liveOrders;
+                });
+              }
             } catch (e) {}
           };
           syncFirebaseListeners();
@@ -3466,6 +4161,17 @@ git push -u origin main</pre>
             this.isTrackerOpen = true;
             this.listenOrderStatus(orderIdParam);
           }
+
+          // Muat 5 riwayat pesanan pelanggan dari localStorage jika ada
+          try {
+            const savedRecent = localStorage.getItem("dapur_recent_orders");
+            if (savedRecent) {
+              const parsed = JSON.parse(savedRecent);
+              if (Array.isArray(parsed)) {
+                this.recentOrders = parsed;
+              }
+            }
+          } catch (e) {}
         },
 
         get filteredMenuItems() {
@@ -3547,12 +4253,10 @@ git push -u origin main</pre>
         },
 
         emptyCart() {
-          if(confirm("Apakah Anda yakin ingin mengosongkan keranjang belanja?")) {
-            this.cart = [];
-            this.selectedCourier = null;
-            this.selectedCourierCode = '';
-            this.calculateOngkir();
-          }
+          this.cart = [];
+          this.selectedCourier = null;
+          this.selectedCourierCode = '';
+          this.calculateOngkir();
         },
 
         selectCateringPackage(pkg) {
@@ -3594,7 +4298,7 @@ git push -u origin main</pre>
           }
         },
 
-        // Panggil Cloudflare Pages Function Proxy /functions/ongkir.js (Biteship)
+        // Panggil Cloudflare Pages Function Proxy /ongkir (Biteship)
         async calculateOngkir() {
           this.isLoadingOngkir = true;
           const totalGrams = Math.max(1000, Math.ceil(this.cateringPax * 400));
@@ -3715,70 +4419,13 @@ git push -u origin main</pre>
 
           this.activeOrder = orderPayload;
           this.trackingOrderId = orderId;
+          this.saveToRecentOrders(orderPayload);
 
           // JIKA METODE PEMBAYARAN = QRIS (Statis & Dinamis)
           if (this.selectedPaymentMethod === 'qris') {
-            const qrisType = this.siteConfig.paymentConfig.qrisType;
-
-            // Jika hanya QRIS Statis, langsung tampilkan modal
-            if (qrisType === 'static') {
-              this.isProcessingPayment = false;
-              this.startQrisTimer();
-              this.isQrisModalOpen = true;
-              return;
-            }
-
-            // QRIS Dinamis / Both → panggil Midtrans Charge API via Cloudflare Function
-            try {
-              const res = await fetch('/payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  order_id: orderId,
-                  gross_amount: this.grandTotal,
-                  customer_details: {
-                    name: this.customerName,
-                    phone: this.customerPhone,
-                    address: this.customerAddress
-                  },
-                  item_details: this.cart.map(i => ({
-                    id: i.id,
-                    price: i.price,
-                    quantity: i.quantity,
-                    name: i.name
-                  }))
-                })
-              });
-
-              const data = await res.json();
-              this.isProcessingPayment = false;
-
-              if (data.success && data.qr_code_url) {
-                // BERHASIL: simpan URL QR dari Midtrans
-                this.midtransQrUrl = data.qr_code_url;
-                this.midtransQrIsMock = data.is_mock === true;
-                if (qrisType === 'both') this.qrisViewMode = 'dynamic';
-                if (data.is_mock) {
-                  this.showToast('Mode simulasi Midtrans aktif (Server Key belum diisi).');
-                }
-              } else {
-                // Gagal: fallback ke QR statis
-                console.warn('Midtrans gagal:', data.error || 'Unknown error');
-                this.midtransQrUrl = null;
-                this.midtransQrIsMock = false;
-                this.showToast('Gagal membuat QRIS Dinamis. Menggunakan QRIS Statis.');
-              }
-
-              this.startQrisTimer();
-              this.isQrisModalOpen = true;
-
-            } catch (err) {
-              console.warn('Midtrans network error:', err);
-              this.isProcessingPayment = false;
-              this.midtransQrUrl = null;
-              this.startQrisTimer();
-              this.isQrisModalOpen = true;
-            }
+            this.isProcessingPayment = false;
+            this.startQrisTimer();
+            this.isQrisModalOpen = true;
             return;
           }
 
@@ -3789,67 +4436,11 @@ git push -u origin main</pre>
             return;
           }
 
-          // JIKA METODE PEMBAYARAN = MIDTRANS SNAP ONLINE GATEWAY
-          try {
-            const res = await fetch('/payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                order_id: orderId,
-                gross_amount: this.grandTotal,
-                customer_details: {
-                  name: this.customerName,
-                  phone: this.customerPhone,
-                  address: this.customerAddress
-                },
-                item_details: this.cart.map(i => ({
-                  id: i.id,
-                  price: i.price,
-                  quantity: i.quantity,
-                  name: i.name
-                }))
-              })
-            });
-
-            const paymentData = await res.json();
+          // JIKA METODE PEMBAYARAN = E-WALLET TRANSFER
+          if (this.selectedPaymentMethod === 'ewallet_transfer') {
             this.isProcessingPayment = false;
-
-            // Jika Snap SDK Midtrans aktif untuk transaksi riil
-            if (paymentData.token && !paymentData.is_mock) {
-              const snapObj = await this.loadMidtransSnap();
-              if (snapObj) {
-                snapObj.pay(paymentData.token, {
-                  onSuccess: (result) => {
-                    this.handlePaymentSuccess(orderPayload);
-                  },
-                  onPending: (result) => {
-                    alert("Pembayaran dalam status pending. Silakan selesaikan pembayaran sesuai instruksi QRIS/VA.");
-                    this.isTrackerOpen = true;
-                    this.listenOrderStatus(orderId);
-                  },
-                  onError: (result) => {
-                    alert("Pembayaran gagal atau dibatalkan.");
-                  },
-                  onClose: () => {
-                    this.isTrackerOpen = true;
-                    this.listenOrderStatus(orderId);
-                  }
-                });
-              } else {
-                this.handlePaymentSuccess(orderPayload);
-              }
-            } else {
-              // Simulasi Pembayaran Sukses Cepat untuk Demo Preview
-              setTimeout(() => {
-                this.handlePaymentSuccess(orderPayload);
-              }, 1200);
-            }
-
-          } catch (err) {
-            this.isProcessingPayment = false;
-            console.warn("Midtrans endpoint note:", err);
-            // Fallback simulasi sukses
-            this.handlePaymentSuccess(orderPayload);
+            this.isEwalletModalOpen = true;
+            return;
           }
         },
 
@@ -3881,12 +4472,13 @@ git push -u origin main</pre>
           this.showToast("Pembayaran QRIS berhasil diverifikasi!");
         },
 
-        // Handler Konfirmasi Transfer Bank dari Pembeli
-        async confirmBankPayment() {
+        // Handler Konfirmasi Manual dari Pembeli (Transfer / E-Wallet)
+        async confirmManualPayment(methodName) {
           if (!this.activeOrder || !this.activeOrder.orderId) return;
           this.isBankModalOpen = false;
+          this.isEwalletModalOpen = false;
           await this.handlePaymentSuccess(this.activeOrder);
-          this.showToast("Pesanan berhasil dicatat! Mohon kirim bukti transfer ke WA.");
+          this.showToast(`Pesanan ${methodName} berhasil dicatat! Mohon kirim bukti transfer ke WA.`);
         },
 
         // Generate QR code data URL dinamis dengan nominal rupiah
@@ -3912,26 +4504,6 @@ git push -u origin main</pre>
         copyGitDeployCommands() {
           const cmds = 'git init\ngit add .\ngit commit -m "feat: deploy dapur kuliner viral"\ngit branch -M main\ngit remote add origin https://github.com/USERNAME/REPO.git\ngit push -u origin main';
           this.copyToClipboard(cmds, 'Perintah Git berhasil disalin!');
-        },
-
-        // Dynamic Loader untuk Midtrans Snap SDK
-        loadMidtransSnap() {
-          if (window.snap) return Promise.resolve(window.snap);
-          return new Promise((resolve) => {
-            const clientKey = this.siteConfig?.paymentConfig?.midtransClientKey || 'SB-Mid-client-demo';
-            const isProd = this.siteConfig?.paymentConfig?.midtransIsProduction;
-            const script = document.createElement('script');
-            script.src = isProd 
-              ? 'https://app.midtrans.com/snap/snap.js'
-              : 'https://app.sandbox.midtrans.com/snap/snap.js';
-            script.setAttribute('data-client-key', clientKey);
-            script.onload = () => resolve(window.snap || null);
-            script.onerror = () => {
-              console.warn('Midtrans Snap SDK gagal dimuat dari server Midtrans.');
-              resolve(null);
-            };
-            document.head.appendChild(script);
-          });
         },
 
         // SIMPAN & TERAPKAN KREDENSIAL FIREBASE MANUAL
@@ -4021,6 +4593,7 @@ git push -u origin main</pre>
         async handlePaymentSuccess(orderPayload) {
           orderPayload.status = 'Dibayar';
           this.activeOrder = orderPayload;
+          this.saveToRecentOrders(orderPayload);
           this.isTrackerOpen = true;
 
           // Update status di Firebase Realtime Database
@@ -4112,6 +4685,7 @@ git push -u origin main</pre>
             if (this.activeOrder.status !== newStatus) {
               this.activeOrder.status = newStatus;
               this.playNotificationSound();
+              this.saveToRecentOrders(this.activeOrder);
             }
           });
         },
@@ -4125,6 +4699,17 @@ git push -u origin main</pre>
           this.activeOrder.status = status;
           await window.FirebaseBridge.updateStatus(this.activeOrder.orderId, status);
           this.playNotificationSound();
+        },
+
+        // Update status dari tab Admin
+        async updateAdminOrderStatus(orderId, status) {
+          await window.FirebaseBridge.updateStatus(orderId, status);
+          this.showToast(`Status pesanan ${orderId} diubah menjadi ${status}`);
+          // Jika update untuk pesanan kita sendiri, setel status lokal
+          if (this.activeOrder.orderId === orderId) {
+            this.activeOrder.status = status;
+            this.playNotificationSound();
+          }
         },
 
         playNotificationSound() {
