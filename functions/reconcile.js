@@ -330,19 +330,30 @@ async function updateInventoryDeduct(items, fbConfig) {
  * 5E. Update Summary Penjualan Harian & Bulanan
  */
 async function triggerSummaryAggregation(posTx, env) {
+  // Fungsi aggregation di-disabled sementara karena file aggregate.js dihapus.
+  // Akan diaktifkan kembali setelah aggregate.js diperbaiki.
   try {
-    const { handleAggregateRequest } = await import('./aggregate.js');
-    if (typeof handleAggregateRequest === 'function') {
-      await handleAggregateRequest({
-        date: posTx.date,
-        txId: posTx.id,
-        amount: posTx.total,
-        method: posTx.pm,
-        itemsCount: (posTx.items || []).length
-      }, env, '127.0.0.1');
-    }
+    const fbConfig = getFirebaseConfig(env);
+    if (!fbConfig.isAvailable) return;
+
+    const dateUrl = `${fbConfig.databaseUrl}/pos/summary/daily/${posTx.date}.json${fbConfig.authParam}`;
+    const getRes = await fetchWithRetry(dateUrl, { method: "GET" });
+    const existing = (getRes.ok ? await getRes.json() : null) || { sales: 0, tx: 0 };
+
+    const updated = {
+      sales: (existing.sales || 0) + Number(posTx.total),
+      tx: (existing.tx || 0) + 1,
+      [posTx.pm]: (existing[posTx.pm] || 0) + Number(posTx.total),
+      lastUpdate: Date.now()
+    };
+
+    await fetchWithRetry(dateUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated)
+    });
   } catch (aggErr) {
-    console.warn('Summary aggregation trigger note:', aggErr);
+    console.warn('Summary aggregation note:', aggErr);
   }
 }
 
