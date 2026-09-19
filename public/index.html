@@ -4607,12 +4607,22 @@ git push -u origin main</pre>
         }
       },
       // Realtime Database persistence untuk Konfigurasi Website (Admin CMS)
-      saveSiteConfig: async (config) => {
-        if (db) {
-          const configRef = ref(db, 'site_config');
-          await set(configRef, config);
+            saveSiteConfig: async (config) => {
+        // Simpan ke localStorage DULU (agar tidak hilang walau Firebase error)
+        try {
+          localStorage.setItem("dapur_site_config", JSON.stringify(config));
+        } catch (e) {
+          console.warn("localStorage saveSiteConfig error:", e);
         }
-        localStorage.setItem("dapur_site_config", JSON.stringify(config));
+        if (db) {
+          try {
+            const cleanConfig = JSON.parse(JSON.stringify(config));
+            const configRef = ref(db, 'site_config');
+            await set(configRef, cleanConfig);
+          } catch (err) {
+            console.warn("Firebase saveSiteConfig error (localStorage tetap tersimpan):", err);
+          }
+        }
       },
       listenSiteConfig: (callback) => {
         if (db) {
