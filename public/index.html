@@ -4635,30 +4635,34 @@ git push -u origin main</pre>
         return () => {};
       },
       // Realtime Database persistence untuk Daftar Menu & Promo (Admin CMS)
-      saveMenu: async (items) => {
+            saveMenu: async (items) => {
+        try {
+          localStorage.setItem("dapur_menu_items", JSON.stringify(items));
+        } catch (e) {}
         if (db) {
-          const menuRef = ref(db, 'menu_items');
-          await set(menuRef, items);
+          try {
+            const cleanItems = JSON.parse(JSON.stringify(items));
+            const menuRef = ref(db, 'menu_items');
+            await set(menuRef, cleanItems);
+          } catch (err) {
+            console.warn("Firebase saveMenu error:", err);
+          }
         }
-        localStorage.setItem("dapur_menu_items", JSON.stringify(items));
-      },
-      listenMenu: (callback) => {
-        if (db) {
-          const menuRef = ref(db, 'menu_items');
-          return onValue(menuRef, (snapshot) => {
-            const val = snapshot.val();
-            if (val && Array.isArray(val)) callback(val);
-          });
-        }
-        return () => {};
       },
       // Realtime Database persistence untuk Kategori Menu (Admin CMS)
       saveCategories: async (cats) => {
+        try {
+          localStorage.setItem("dapur_menu_categories", JSON.stringify(cats));
+        } catch (e) {}
         if (db) {
-          const catRef = ref(db, 'menu_categories');
-          await set(catRef, cats);
+          try {
+            const cleanCats = JSON.parse(JSON.stringify(cats));
+            const catRef = ref(db, 'menu_categories');
+            await set(catRef, cleanCats);
+          } catch (err) {
+            console.warn("Firebase saveCategories error:", err);
+          }
         }
-        localStorage.setItem("dapur_menu_categories", JSON.stringify(cats));
       },
       listenCategories: (callback) => {
         if (db) {
