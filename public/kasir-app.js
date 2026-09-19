@@ -2820,6 +2820,7 @@ window.kasirApp = () => ({
           const invRef = this._fbRef(this._fbDb, 'inventory');
           this._fbOnValue(invRef, (snapshot) => {
             const val = snapshot.val();
+            console.log('🔥 Firebase inventory listener:', val ? Object.keys(val).length + ' items' : 'kosong');
             if (val) {
               this.inventoryList = Array.isArray(val) ? val : Object.entries(val).map(([k, v]) => ({ id: k, ...v }));
             }
@@ -2853,13 +2854,25 @@ window.kasirApp = () => ({
           { id: 'inv1', name: 'Filet Dada Ayam Segar', category: 'Bahan Baku', stock: 18, minStock: 5, unit: 'kg', purchasePrice: 38000, isCountable: true },
           { id: 'inv2', name: 'Tepung Roti Panko Katsu', category: 'Bahan Kering', stock: 4, minStock: 6, unit: 'kg', purchasePrice: 22000, isCountable: true },
           { id: 'inv3', name: 'Beras Pulen Premium', category: 'Sembako', stock: 45, minStock: 20, unit: 'kg', purchasePrice: 14000, isCountable: true },
-          { id: 'inv4', name: 'Kulit Pangsit Dimsum', category: 'Bahan Baku', stock: 2, minStock: 5, unit: 'pack', purchasePrice: 15000, isCountable: true },
-          { id: 'inv5', name: 'Minyak Goreng Sawit', category: 'Minyak', stock: 24, minStock: 10, unit: 'liter', purchasePrice: 18000, isCountable: true },
-          { id: 'inv6', name: 'Sirup Gula Aren Asli', category: 'Minuman', stock: 3, minStock: 4, unit: 'botol', purchasePrice: 25000, isCountable: true },
-          { id: 'inv7', name: 'Paper Bowl 650ml + Tutup', category: 'Kemasan', stock: 320, minStock: 100, unit: 'pcs', purchasePrice: 850, isCountable: true },
-          { id: 'inv8', name: 'Plastik Takeaway Ramah Lingkungan', category: 'Kemasan', stock: 150, minStock: 80, unit: 'pcs', purchasePrice: 300, isCountable: false }
+          { id: 'inv4', name: 'Kulit Pangsit Dimsum', category: 'Bahan Baku', stock: 2, minStock: 5, unit: 'pack', purchasePrice: 15000, isCountable: true }
         ];
       }
+
+      // ✅ AUTO-SAVE semua inventory ke Firebase (agar sync antar device)
+      if (this._fbDb && this._fbSet && this._fbRef) {
+        try {
+          const cleanList = JSON.parse(JSON.stringify(this.inventoryList));
+          for (const item of cleanList) {
+            if (!item.id) continue;
+            const itemRef = this._fbRef(this._fbDb, `inventory/${item.id}`);
+            await this._fbSet(itemRef, item);
+          }
+          console.log(`✅ Auto-saved ${cleanList.length} inventory items ke Firebase`);
+        } catch (fbErr) {
+          console.warn('Firebase auto-save inventory error:', fbErr);
+        }
+      }
+
     } catch (e) {
       console.warn('loadInventory exception:', e);
     } finally {
