@@ -453,6 +453,7 @@ window.kasirApp = () => ({
         const menuRef = this._fbRef(this._fbDb, 'menu_items');
         this._fbOnValue(menuRef, (snapshot) => {
           const val = snapshot.val();
+          console.log('[FB-MENU] Menu listener:', val ? Object.keys(val).length + ' items' : 'kosong');
           if (val) {
             this.menuList = Array.isArray(val) ? val : Object.values(val);
           } else {
@@ -499,6 +500,7 @@ window.kasirApp = () => ({
         const ordersRef = this._fbRef(this._fbDb, 'orders');
         this._fbOnValue(ordersRef, (snapshot) => {
           const val = snapshot.val();
+          console.log('[FB-ORDERS] Orders listener:', val ? Object.keys(val).length + ' items' : 'kosong');
           if (val) {
             const list = Object.values(val);
             const pendingList = list.filter(o => {
@@ -2820,7 +2822,7 @@ window.kasirApp = () => ({
           const invRef = this._fbRef(this._fbDb, 'inventory');
           this._fbOnValue(invRef, (snapshot) => {
             const val = snapshot.val();
-            console.log('🔥 Firebase inventory listener:', val ? Object.keys(val).length + ' items' : 'kosong');
+            console.log('[FB-INV] inventory listener:', val ? Object.keys(val).length + ' items' : 'kosong');
             if (val) {
               this.inventoryList = Array.isArray(val) ? val : Object.entries(val).map(([k, v]) => ({ id: k, ...v }));
             }
