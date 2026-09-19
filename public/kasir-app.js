@@ -399,8 +399,8 @@ window.kasirApp = () => ({
         if (stored) cfg = JSON.parse(stored);
       } catch (e) {}
 
-            if (!cfg || !cfg.apiKey) {
-        // Hardcode fallback — Firebase API key aman untuk publik
+        if (!cfg || !cfg.apiKey) {
+        // Fallback hardcoded (Firebase API key aman untuk publik)
         cfg = {
           apiKey: "AIzaSyDeoY0Qqdi7RwE3opAhYkbuBnYqqKDQA6s",
           authDomain: "dapurkulinerviral.firebaseapp.com",
@@ -420,8 +420,16 @@ window.kasirApp = () => ({
       const { getDatabase, ref, set, onValue } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
 
       this._fbRef = ref;
-      this._fbSet = set;
       this._fbOnValue = onValue;
+      
+      // ✅ WRAPPER: Auto-clone semua value ke plain JSON sebelum kirim ke Firebase
+      // Menghindari error "i.insert is not a function" karena Proxy Alpine.js
+      this._fbSet = async (reference, value) => {
+        const plain = (value === null || typeof value !== 'object') 
+          ? value 
+          : JSON.parse(JSON.stringify(value));
+        return set(reference, plain);
+      };
 
       if (cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_FIREBASE')) {
         const app = getApps().length > 0 ? getApps()[0] : initializeApp(cfg);
@@ -464,7 +472,7 @@ window.kasirApp = () => ({
           const val = snapshot.val();
           console.log('[FB-MENU] Menu listener:', val ? Object.keys(val).length + ' items' : 'kosong');
           if (val) {
-            this.menuList = Array.isArray(val) ? val : Object.values(val);
+            this.menuList = Array.isArray(val) ? JSON.parse(JSON.stringify(val)) : Object.values(val);
           } else {
             this.menuList = fallbackMenu;
           }
@@ -2833,7 +2841,9 @@ window.kasirApp = () => ({
             const val = snapshot.val();
             console.log('[FB-INV] inventory listener:', val ? Object.keys(val).length + ' items' : 'kosong');
             if (val) {
-              this.inventoryList = Array.isArray(val) ? val : Object.entries(val).map(([k, v]) => ({ id: k, ...v }));
+              this.inventoryList = Array.isArray(val) 
+  ? JSON.parse(JSON.stringify(val)) 
+  : Object.entries(val).map(([k, v]) => ({ id: k, ...v }));
             }
           });
         } catch (e) {
