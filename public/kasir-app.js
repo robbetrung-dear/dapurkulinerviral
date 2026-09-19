@@ -2910,12 +2910,23 @@ window.kasirApp = () => ({
       });
 
       // 3. Realtime database sync
-      if (this._fbDb && this._fbSet && this._fbRef) {
+        if (this._fbDb && this._fbSet && this._fbRef) {
         try {
-          const stockRef = this._fbRef(this._fbDb, `inventory/${itemId}/stok`);
-          await this._fbSet(stockRef, numStok);
+          const stockRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
+          await this._fbSet(stockRef, JSON.parse(JSON.stringify({
+            id: itemId,
+            stok: numStok,
+            stock: numStok,
+            name: item ? item.name : itemId,
+            category: item ? item.category : 'Bahan Baku',
+            minStock: item ? item.minStock : 5,
+            unit: item ? item.unit : 'kg',
+            purchasePrice: newPurchasePrice,
+            isCountable: item ? item.isCountable : true,
+            lastUpdate: Date.now()
+          })));
           const logRef = this._fbRef(this._fbDb, `inventory_logs/${itemId}/${logId}`);
-          await this._fbSet(logRef, logPayload);
+          await this._fbSet(logRef, JSON.parse(JSON.stringify(logPayload)));
         } catch (fbErr) {
           console.warn('Firebase inventory stock sync error:', fbErr);
         }
@@ -2977,8 +2988,9 @@ window.kasirApp = () => ({
 
       if (this._fbDb && this._fbSet && this._fbRef) {
         try {
+          const cleanItem = JSON.parse(JSON.stringify(newItem));
           const itemRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
-          await this._fbSet(itemRef, newItem);
+          await this._fbSet(itemRef, cleanItem);
         } catch (fbErr) {
           console.warn('Firebase item sync warning:', fbErr);
         }
