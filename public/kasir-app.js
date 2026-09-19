@@ -399,9 +399,18 @@ window.kasirApp = () => ({
         if (stored) cfg = JSON.parse(stored);
       } catch (e) {}
 
-      if (!cfg || !cfg.apiKey) {
-        const res = await fetch(`/api/firebase-config?_cb=${Date.now()}`);
-        if (res.ok) cfg = await res.json();
+            if (!cfg || !cfg.apiKey) {
+        // Hardcode fallback — Firebase API key aman untuk publik
+        cfg = {
+          apiKey: "AIzaSyDeoY0Qqdi7RwE3opAhYkbuBnYqqKDQA6s",
+          authDomain: "dapurkulinerviral.firebaseapp.com",
+          databaseURL: "https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app",
+          projectId: "dapurkulinerviral",
+          storageBucket: "dapurkulinerviral.firebasestorage.app",
+          messagingSenderId: "321264279924",
+          appId: "1:321264279924:web:90291c9fecb93de1aacc21"
+        };
+        console.log('[FB-INIT] Menggunakan fallback config hardcoded');
       }
 
       this._fbConfig = cfg;
