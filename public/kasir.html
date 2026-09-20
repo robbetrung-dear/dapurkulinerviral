@@ -8,7 +8,7 @@
   <!-- Global safety shield: handle cross-origin Script error and prevent uncaught runtime stops -->
   <script>
     window.addEventListener('error', function(event) {
-  console.error('🔴 REAL ERROR:', event.message, event.filename, event.lineno, event.error);
+  if (event && event.message) console.error('🔴 REAL ERROR:', event.message, event.filename || '-', event.lineno || '-', event.error);
   if (event.preventDefault) event.preventDefault();
   if (event.stopImmediatePropagation) event.stopImmediatePropagation();
   return true;
