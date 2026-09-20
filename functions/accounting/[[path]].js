@@ -176,84 +176,80 @@ async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) 
 async function fetchLedgerAccount(dbUrl, accCode, bulan, apiKey) {
   const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
   try {
-    const res = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${auth}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data === 'object') {
-        return {
-          opening: Number(data.opening) || 0,
-          debit: Number(data.debit) || 0,
-          credit: Number(data.credit) || 0,
-          closing: Number(data.closing) || 0
-        };
-      }
-    }
+    const url = `${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${auth}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data || { opening: 0, debit: 0, credit: 0, closing: 0 };
   } catch (e) {
-    console.warn(`[ACCOUNTING-API] Gagal fetch ledger acc ${accCode}:`, e.message);
+    console.warn(`Fetch ledger ${accCode} error:`, e.message);
+    return { opening: 0, debit: 0, credit: 0, closing: 0 };
   }
-  return { opening: 0, debit: 0, credit: 0, closing: 0 };
 }
 
 /**
  * Helper: Hitung ringkasan P&L dan Keuangan langsung dari Ledger Firebase
  */
 async function calculateSummaryFromLedger(dbUrl, bulan, apiKey) {
-  const accountsToFetch = [
-    '401', '402',              // Pendapatan (Penjualan POS, Catering)
-    '501',                     // HPP Bahan Baku
-    '601', '602', '603', '604', '605', '606', // Beban Operasional
-    '101', '102', '103', '105', '111', // Aset / Kas
-    '201', '301', '302'        // Kewajiban & Ekuitas
-  ];
+  const [
+    acc101, acc102, acc103, acc105,
+    acc201, acc301, acc302,
+    acc401, acc402,
+    acc501,
+    acc601, acc602, acc603, acc604, acc605, acc606
+  ] = await Promise.all([
+    fetchLedgerAccount(dbUrl, '101', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '102', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '103', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '105', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '201', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '301', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '302', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '401', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '402', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '501', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '601', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '602', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '603', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '604', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '605', bulan, apiKey),
+    fetchLedgerAccount(dbUrl, '606', bulan, apiKey)
+  ]);
 
-  const results = await Promise.all(
-    accountsToFetch.map(async acc => ({
-      acc,
-      ledger: await fetchLedgerAccount(dbUrl, acc, bulan, apiKey)
-    }))
-  );
-
-  const ledgerMap = {};
-  results.forEach(r => {
-    ledgerMap[r.acc] = r.ledger;
-  });
-
-  // 1. PENDAPATAN (Revenue): credit - debit
-  const acc401 = ledgerMap['401'] || { debit: 0, credit: 0 };
-  const acc402 = ledgerMap['402'] || { debit: 0, credit: 0 };
-  const penjualanPos = (acc401.credit || 0) - (acc401.debit || 0);
-  const penjualanCatering = (acc402.credit || 0) - (acc402.debit || 0);
+  // Revenue (credit - debit)
+  const penjualanPos = (Number(acc401.credit) || 0) - (Number(acc401.debit) || 0);
+  const penjualanCatering = (Number(acc402.credit) || 0) - (Number(acc402.debit) || 0);
   const totalPendapatan = penjualanPos + penjualanCatering;
 
-  // 2. HPP (Harga Pokok Penjualan): debit - credit
-  const acc501 = ledgerMap['501'] || { debit: 0, credit: 0 };
-  const hppBahanBaku = (acc501.debit || 0) - (acc501.credit || 0);
+  // HPP (debit - credit)
+  const hppBahanBaku = (Number(acc501.debit) || 0) - (Number(acc501.credit) || 0);
   const totalHpp = hppBahanBaku;
 
-  // 3. LABA KOTOR
+  // Laba Kotor
   const labaKotor = totalPendapatan - totalHpp;
-  const marginKotor = totalPendapatan > 0 ? (labaKotor / totalPendapatan) * 100 : 0;
+  const marginKotor = totalPendapatan > 0 ? Math.round((labaKotor / totalPendapatan) * 10000) / 100 : 0;
 
-  // 4. BEBAN OPERASIONAL (Operating Expenses): debit - credit
-  const getExpense = (accCode) => {
-    const a = ledgerMap[accCode] || { debit: 0, credit: 0 };
-    return (a.debit || 0) - (a.credit || 0);
-  };
+  // Beban
+  const bebanGaji = (Number(acc601.debit) || 0) - (Number(acc601.credit) || 0);
+  const bebanSewa = (Number(acc602.debit) || 0) - (Number(acc602.credit) || 0);
+  const bebanListrik = (Number(acc603.debit) || 0) - (Number(acc603.credit) || 0);
+  const bebanMarketing = (Number(acc604.debit) || 0) - (Number(acc604.credit) || 0);
+  const bebanKurir = (Number(acc605.debit) || 0) - (Number(acc605.credit) || 0);
+  const bebanPenyusutan = (Number(acc606.debit) || 0) - (Number(acc606.credit) || 0);
+  const totalBeban = bebanGaji + bebanSewa + bebanListrik + bebanMarketing + bebanKurir + bebanPenyusutan;
 
-  const gaji = getExpense('601');
-  const sewa = getExpense('602');
-  const utilitas = getExpense('603');
-  const marketing = getExpense('604');
-  const kurir = getExpense('605');
-  const penyusutan = getExpense('606');
-  const totalBeban = gaji + sewa + utilitas + marketing + kurir + penyusutan;
-
-  // 5. LABA BERSIH
+  // Laba Bersih
   const labaBersih = labaKotor - totalBeban;
-  const marginBersih = totalPendapatan > 0 ? (labaBersih / totalPendapatan) * 100 : 0;
+  const marginBersih = totalPendapatan > 0 ? Math.round((labaBersih / totalPendapatan) * 10000) / 100 : 0;
 
-  // 6. STATUS
-  const status = labaBersih >= 0 ? 'PROFIT' : 'LOSS';
+  // INFORMASI TAMBAHAN (BARU)
+  const pembelianBahanBaku = Number(acc105.debit) || 0;
+  const persediaanAkhir = Number(acc105.closing) || 0;
+
+  // Saldo kas/bank
+  const saldoKas = Number(acc101.closing) || 0;
+  const saldoBank = Number(acc102.closing) || 0;
+
+  const status = labaBersih >= 0 ? "PROFIT" : "LOSS";
 
   console.log(`[SUMMARY] ${bulan}: Revenue=${totalPendapatan}, HPP=${totalHpp}, Laba=${labaBersih}`);
 
@@ -271,16 +267,20 @@ async function calculateSummaryFromLedger(dbUrl, bulan, apiKey) {
     labaKotor,
     marginKotor,
     beban: {
-      gaji,
-      sewa,
-      utilitas,
-      marketing,
-      kurir,
-      penyusutan,
+      gaji: bebanGaji,
+      sewa: bebanSewa,
+      utilitas: bebanListrik,
+      marketing: bebanMarketing,
+      kurir: bebanKurir,
+      penyusutan: bebanPenyusutan,
       totalBeban
     },
     labaBersih,
     marginBersih,
+    pembelianBahanBaku,
+    persediaanAkhir,
+    saldoKas,
+    saldoBank,
     status,
     updatedAt: Date.now()
   };

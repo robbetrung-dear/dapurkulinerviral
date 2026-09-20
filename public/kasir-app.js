@@ -4703,6 +4703,9 @@ window.kasirApp = () => ({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       
       const json = await res.json();
+      console.log('[ACCT] Raw response:', json);
+      console.log('[ACCT] data keys:', json.data ? Object.keys(json.data) : 'NO DATA');
+
       if (!json.success || !json.data) {
         throw new Error(json.error || 'Response format tidak valid');
       }
@@ -4722,31 +4725,49 @@ window.kasirApp = () => ({
   },
 
   getAccountingSummary() {
-    // Kalau ada data dari endpoint, pakai itu
-    if (this.accountingSummaryData && this.accountingSummaryData.pendapatan) {
-      const d = this.accountingSummaryData;
+    const d = this.accountingSummaryData;
+    
+    // Debug log
+    if (d) {
+      console.log('[ACCT-GETTER] Cache OK, keys:', Object.keys(d));
+    } else {
+      console.log('[ACCT-GETTER] No cache, using fallback');
+    }
+    
+    // Check lebih fleksibel
+    const hasValidData = d && typeof d === 'object' && 
+      (d.pendapatan !== undefined || d.labaKotor !== undefined || d.hpp !== undefined);
+    
+    if (hasValidData) {
+      const pendapatan = d.pendapatan || {};
+      const hpp = d.hpp || {};
+      const beban = d.beban || {};
+      
       return {
-        totalRev: Number(d.pendapatan?.totalPendapatan) || 0,
-        totalCOGS: Number(d.hpp?.totalHpp) || 0,
+        totalRev: Number(pendapatan.totalPendapatan) || 0,
+        totalCOGS: Number(hpp.totalHpp) || 0,
         grossProfit: Number(d.labaKotor) || 0,
         grossMargin: Number(d.marginKotor) || 0,
         opExList: [
-          { name: 'Beban Gaji Karyawan', amount: Number(d.beban?.gaji) || 0 },
-          { name: 'Beban Sewa Tempat', amount: Number(d.beban?.sewa) || 0 },
-          { name: 'Beban Listrik & Air', amount: Number(d.beban?.utilitas) || 0 },
-          { name: 'Beban Marketing', amount: Number(d.beban?.marketing) || 0 },
-          { name: 'Beban Kurir', amount: Number(d.beban?.kurir) || 0 },
-          { name: 'Beban Penyusutan', amount: Number(d.beban?.penyusutan) || 0 }
+          { name: 'Beban Gaji Karyawan', amount: Number(beban.gaji) || 0 },
+          { name: 'Beban Sewa Tempat', amount: Number(beban.sewa) || 0 },
+          { name: 'Beban Listrik & Air', amount: Number(beban.utilitas) || 0 },
+          { name: 'Beban Marketing', amount: Number(beban.marketing) || 0 },
+          { name: 'Beban Kurir', amount: Number(beban.kurir) || 0 },
+          { name: 'Beban Penyusutan', amount: Number(beban.penyusutan) || 0 }
         ].filter(item => item.amount > 0),
-        totalOpEx: Number(d.beban?.totalBeban) || 0,
+        totalOpEx: Number(beban.totalBeban) || 0,
         netProfit: Number(d.labaBersih) || 0,
         netMargin: Number(d.marginBersih) || 0,
-        status: d.status || 'LOSS',
-        source: 'firebase'  // ← marker: data dari Firebase
+        status: d.status || (Number(d.labaBersih) >= 0 ? 'PROFIT' : 'LOSS'),
+        // INFORMASI TAMBAHAN
+        pembelianBahanBaku: Number(d.pembelianBahanBaku) || 0,
+        persediaanAkhir: Number(d.persediaanAkhir) || 0,
+        source: 'firebase'
       };
     }
 
-    console.log('[ACCOUNTING-SUMMARY] Using fallback local calc');
+    console.log('[ACCT-GETTER] Using fallback local calc');
     // FALLBACK: kalkulasi lama (existing, hardcoded)
     const totalRev = Number(this.todayTotalRevenue) || 0;
     
@@ -4795,7 +4816,9 @@ window.kasirApp = () => ({
       netProfit,
       netMargin: totalRev > 0 ? Math.round((netProfit / totalRev) * 100) : 0,
       status: netProfit >= 0 ? 'PROFIT' : 'LOSS',
-      source: 'local'  // ← marker: data lokal
+      source: 'local',
+      pembelianBahanBaku: 0,
+      persediaanAkhir: 0
     };
   },
 

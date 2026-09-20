@@ -2022,6 +2022,39 @@
                 <span>LABA BERSIH OPERASIONAL (NET PROFIT)</span>
                 <span class="font-mono text-emerald-400" x-text="formatRupiah(getAccountingSummary().netProfit)"></span>
               </div>
+
+              <!-- INFO TAMBAHAN: Pembelian & Persediaan -->
+              <div class="mt-6 pt-4 border-t-2 border-dashed border-stone-300 space-y-2">
+                <div class="flex items-center gap-2 mb-2">
+                  <i class="fa-solid fa-circle-info text-stone-400 text-sm"></i>
+                  <span class="text-xs font-bold text-stone-500 uppercase tracking-wider">
+                    Informasi Pembelian &amp; Persediaan
+                  </span>
+                </div>
+                <div class="flex justify-between text-xs px-3">
+                  <div>
+                    <span class="text-stone-700 font-semibold">Pembelian Bahan Baku (periode ini)</span>
+                    <span class="text-[10px] text-stone-400 block italic">
+                      Bahan yang dibeli, masuk ke Persediaan (akun 105)
+                    </span>
+                  </div>
+                  <span class="font-mono font-bold text-stone-900 text-sm" 
+                        x-text="formatRupiah(getAccountingSummary().pembelianBahanBaku || 0)"></span>
+                </div>
+                <div class="flex justify-between text-xs px-3">
+                  <div>
+                    <span class="text-stone-700 font-semibold">Saldo Persediaan Akhir</span>
+                    <span class="text-[10px] text-stone-400 block italic">
+                      Nilai bahan baku yang masih ada di gudang
+                    </span>
+                  </div>
+                  <span class="font-mono font-bold text-stone-900 text-sm"
+                        x-text="formatRupiah(getAccountingSummary().persediaanAkhir || 0)"></span>
+                </div>
+                <div class="text-[10px] text-stone-400 italic px-3 pt-2 leading-relaxed">
+                  💡 HPP di atas terisi otomatis saat bahan baku <strong>terjual</strong> (dari transaksi kasir). Pembelian bahan yang masih di gudang belum masuk HPP.
+                </div>
+              </div>
             </div>
           </div>
 
