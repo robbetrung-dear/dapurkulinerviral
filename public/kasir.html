@@ -1947,6 +1947,13 @@
 
           <!-- TAMPILAN A: LABA RUGI -->
           <div x-show="accountingTab === 'pnl'" class="space-y-4">
+            <!-- Hint UI saat P&L pakai data lokal -->
+            <div x-show="getAccountingSummary().source === 'local'" 
+                 class="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span>Data P&L belum tersinkron dengan ledger. Menampilkan estimasi lokal.</span>
+            </div>
+
             <div class="max-w-3xl mx-auto bg-stone-50 p-6 rounded-2xl border border-stone-200 space-y-4">
               <div class="text-center pb-4 border-b border-stone-200">
                 <h4 class="font-extrabold text-stone-900 text-lg uppercase tracking-tight">Dapur Kuliner Viral</h4>

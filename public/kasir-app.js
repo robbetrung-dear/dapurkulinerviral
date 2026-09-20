@@ -303,6 +303,12 @@ window.kasirApp = () => ({
   approvalFilter: 'all',  // all | pending | approved | rejected
   approvalSearch: '',
 
+  // State accounting summary (P&L Ledger Realtime)
+  accountingSummaryData: null,  // hasil fetch terakhir
+  accountingSummaryLoading: false,
+  accountingSummaryLastFetch: 0,
+  accountingSummaryError: null,
+
   // Inventory Modals & Recipe State
   editStockModal: false,
   selectedStockItem: null,
@@ -424,6 +430,7 @@ window.kasirApp = () => ({
     this.syncCategoriesWithMainStore();
     this.listenMenuItems();
     this.loadPrinterConfig();
+    this.loadAccountingSummary(true);
 
     // 6. Muat Inventory Realtime, Resep Bahan Baku & Riwayat Shift (BAGIAN 3)
     this.loadInventory();
@@ -4678,7 +4685,69 @@ window.kasirApp = () => ({
   // 14.8 AKUNTANSI & LAPORAN KEUANGAN KASIR
   // -------------------------------------------------------------------------
 
+  async loadAccountingSummary(forceRefresh = false) {
+    const bulan = new Date().toISOString().slice(0, 7);  // YYYY-MM
+    
+    // Cek cache (30 detik)
+    const now = Date.now();
+    if (!forceRefresh && this.accountingSummaryData && (now - this.accountingSummaryLastFetch < 30000)) {
+      return this.accountingSummaryData;
+    }
+    
+    this.accountingSummaryLoading = true;
+    this.accountingSummaryError = null;
+    console.log('[ACCOUNTING-SUMMARY] Loading for bulan:', bulan);
+    
+    try {
+      const res = await fetch(`/accounting/summary/${bulan}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      
+      const json = await res.json();
+      if (!json.success || !json.data) {
+        throw new Error(json.error || 'Response format tidak valid');
+      }
+      
+      this.accountingSummaryData = json.data;
+      this.accountingSummaryLastFetch = now;
+      console.log('[ACCOUNTING-SUMMARY] Loaded:', json.data);
+      return json.data;
+      
+    } catch (err) {
+      console.error('[ACCOUNTING-SUMMARY] Error:', err);
+      this.accountingSummaryError = err.message;
+      return null;
+    } finally {
+      this.accountingSummaryLoading = false;
+    }
+  },
+
   getAccountingSummary() {
+    // Kalau ada data dari endpoint, pakai itu
+    if (this.accountingSummaryData && this.accountingSummaryData.pendapatan) {
+      const d = this.accountingSummaryData;
+      return {
+        totalRev: Number(d.pendapatan?.totalPendapatan) || 0,
+        totalCOGS: Number(d.hpp?.totalHpp) || 0,
+        grossProfit: Number(d.labaKotor) || 0,
+        grossMargin: Number(d.marginKotor) || 0,
+        opExList: [
+          { name: 'Beban Gaji Karyawan', amount: Number(d.beban?.gaji) || 0 },
+          { name: 'Beban Sewa Tempat', amount: Number(d.beban?.sewa) || 0 },
+          { name: 'Beban Listrik & Air', amount: Number(d.beban?.utilitas) || 0 },
+          { name: 'Beban Marketing', amount: Number(d.beban?.marketing) || 0 },
+          { name: 'Beban Kurir', amount: Number(d.beban?.kurir) || 0 },
+          { name: 'Beban Penyusutan', amount: Number(d.beban?.penyusutan) || 0 }
+        ].filter(item => item.amount > 0),
+        totalOpEx: Number(d.beban?.totalBeban) || 0,
+        netProfit: Number(d.labaBersih) || 0,
+        netMargin: Number(d.marginBersih) || 0,
+        status: d.status || 'LOSS',
+        source: 'firebase'  // ← marker: data dari Firebase
+      };
+    }
+
+    console.log('[ACCOUNTING-SUMMARY] Using fallback local calc');
+    // FALLBACK: kalkulasi lama (existing, hardcoded)
     const totalRev = Number(this.todayTotalRevenue) || 0;
     
     // Hitung total HPP
@@ -4723,7 +4792,10 @@ window.kasirApp = () => ({
       grossMargin,
       opExList,
       totalOpEx,
-      netProfit
+      netProfit,
+      netMargin: totalRev > 0 ? Math.round((netProfit / totalRev) * 100) : 0,
+      status: netProfit >= 0 ? 'PROFIT' : 'LOSS',
+      source: 'local'  // ← marker: data lokal
     };
   },
 
@@ -5087,6 +5159,10 @@ window.kasirApp = () => ({
         await this.loadJournalList(bulan);
       }
       
+      // Refresh summary P&L
+      await this.loadAccountingSummary(true);
+      this.showToast('Jurnal di-approve, laporan P&L di-refresh', 'success');
+      
       return true;
       
     } catch (err) {
@@ -5160,6 +5236,8 @@ window.kasirApp = () => ({
       if (typeof this.loadJournalList === 'function') {
         await this.loadJournalList(bulan);
       }
+      // Refresh summary P&L
+      await this.loadAccountingSummary(true);
       return true;
       
     } catch (err) {

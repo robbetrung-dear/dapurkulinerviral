@@ -171,66 +171,139 @@ async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) 
 }
 
 /**
+ * Helper: Ambil data akun dari Ledger Firebase
+ */
+async function fetchLedgerAccount(dbUrl, accCode, bulan, apiKey) {
+  const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
+  try {
+    const res = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${auth}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        return {
+          opening: Number(data.opening) || 0,
+          debit: Number(data.debit) || 0,
+          credit: Number(data.credit) || 0,
+          closing: Number(data.closing) || 0
+        };
+      }
+    }
+  } catch (e) {
+    console.warn(`[ACCOUNTING-API] Gagal fetch ledger acc ${accCode}:`, e.message);
+  }
+  return { opening: 0, debit: 0, credit: 0, closing: 0 };
+}
+
+/**
+ * Helper: Hitung ringkasan P&L dan Keuangan langsung dari Ledger Firebase
+ */
+async function calculateSummaryFromLedger(dbUrl, bulan, apiKey) {
+  const accountsToFetch = [
+    '401', '402',              // Pendapatan (Penjualan POS, Catering)
+    '501',                     // HPP Bahan Baku
+    '601', '602', '603', '604', '605', '606', // Beban Operasional
+    '101', '102', '103', '105', '111', // Aset / Kas
+    '201', '301', '302'        // Kewajiban & Ekuitas
+  ];
+
+  const results = await Promise.all(
+    accountsToFetch.map(async acc => ({
+      acc,
+      ledger: await fetchLedgerAccount(dbUrl, acc, bulan, apiKey)
+    }))
+  );
+
+  const ledgerMap = {};
+  results.forEach(r => {
+    ledgerMap[r.acc] = r.ledger;
+  });
+
+  // 1. PENDAPATAN (Revenue): credit - debit
+  const acc401 = ledgerMap['401'] || { debit: 0, credit: 0 };
+  const acc402 = ledgerMap['402'] || { debit: 0, credit: 0 };
+  const penjualanPos = (acc401.credit || 0) - (acc401.debit || 0);
+  const penjualanCatering = (acc402.credit || 0) - (acc402.debit || 0);
+  const totalPendapatan = penjualanPos + penjualanCatering;
+
+  // 2. HPP (Harga Pokok Penjualan): debit - credit
+  const acc501 = ledgerMap['501'] || { debit: 0, credit: 0 };
+  const hppBahanBaku = (acc501.debit || 0) - (acc501.credit || 0);
+  const totalHpp = hppBahanBaku;
+
+  // 3. LABA KOTOR
+  const labaKotor = totalPendapatan - totalHpp;
+  const marginKotor = totalPendapatan > 0 ? (labaKotor / totalPendapatan) * 100 : 0;
+
+  // 4. BEBAN OPERASIONAL (Operating Expenses): debit - credit
+  const getExpense = (accCode) => {
+    const a = ledgerMap[accCode] || { debit: 0, credit: 0 };
+    return (a.debit || 0) - (a.credit || 0);
+  };
+
+  const gaji = getExpense('601');
+  const sewa = getExpense('602');
+  const utilitas = getExpense('603');
+  const marketing = getExpense('604');
+  const kurir = getExpense('605');
+  const penyusutan = getExpense('606');
+  const totalBeban = gaji + sewa + utilitas + marketing + kurir + penyusutan;
+
+  // 5. LABA BERSIH
+  const labaBersih = labaKotor - totalBeban;
+  const marginBersih = totalPendapatan > 0 ? (labaBersih / totalPendapatan) * 100 : 0;
+
+  // 6. STATUS
+  const status = labaBersih >= 0 ? 'PROFIT' : 'LOSS';
+
+  console.log(`[SUMMARY] ${bulan}: Revenue=${totalPendapatan}, HPP=${totalHpp}, Laba=${labaBersih}`);
+
+  const summary = {
+    periode: bulan,
+    pendapatan: {
+      penjualanPos,
+      penjualanCatering,
+      totalPendapatan
+    },
+    hpp: {
+      bahanBaku: hppBahanBaku,
+      totalHpp
+    },
+    labaKotor,
+    marginKotor,
+    beban: {
+      gaji,
+      sewa,
+      utilitas,
+      marketing,
+      kurir,
+      penyusutan,
+      totalBeban
+    },
+    labaBersih,
+    marginBersih,
+    status,
+    updatedAt: Date.now()
+  };
+
+  return summary;
+}
+
+/**
  * Helper: Auto-update Ringkasan Laporan Finansial (P&L, Neraca, Cash Flow)
  */
 async function updateSummaryAfterApprove(dbUrl, bulan, apiKey) {
   const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
   try {
-    const jRes = await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(bulan)}.json${auth}`);
-    if (!jRes.ok) return;
-    const jData = await jRes.json();
-
-    let revenue = 0;
-    let hpp = 0;
-    let expense = 0;
-    let cashIn = 0;
-    let cashOut = 0;
-
-    if (jData && typeof jData === 'object') {
-      Object.values(jData).forEach(entry => {
-        if (entry && entry.status === 'approved' && Array.isArray(entry.lines)) {
-          entry.lines.forEach(l => {
-            const acc = String(l.acc || '');
-            const d = Number(l.debit) || 0;
-            const c = Number(l.credit) || 0;
-
-            if (acc.startsWith('4')) {
-              revenue += (c - d);
-            } else if (acc.startsWith('5')) {
-              hpp += (d - c);
-            } else if (acc.startsWith('6')) {
-              expense += (d - c);
-            }
-
-            if (acc === '101' || acc === '102') {
-              cashIn += d;
-              cashOut += c;
-            }
-          });
-        }
-      });
-    }
-
-    const summary = {
-      bulan,
-      revenue,
-      hpp,
-      grossProfit: revenue - hpp,
-      expense,
-      netProfit: revenue - hpp - expense,
-      cashIn,
-      cashOut,
-      netCashFlow: cashIn - cashOut,
-      updatedAt: Date.now()
-    };
-
+    const summary = await calculateSummaryFromLedger(dbUrl, bulan, apiKey);
     await fetch(`${dbUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${auth}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(summary)
     });
+    return summary;
   } catch (e) {
     console.error('[ACCOUNTING-API] Gagal update summary:', e);
+    return null;
   }
 }
 
@@ -627,32 +700,22 @@ export async function onRequest(context) {
         return jsonResponse({ success: false, error: `Metode ${method} tidak diizinkan pada /accounting/summary` }, 405);
       }
 
-      const res = await fetch(`${dbUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${authParam}`);
-      let summary = await res.json().catch(() => null);
+      // Hitung langsung dari data ledger terkini di Firebase
+      let summary = await calculateSummaryFromLedger(dbUrl, bulan, apiKey);
 
-      if (!summary || typeof summary !== 'object') {
-        await updateSummaryAfterApprove(dbUrl, bulan, apiKey);
-        const refetch = await fetch(`${dbUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${authParam}`);
-        summary = await refetch.json().catch(() => null);
-      }
-
-      if (!summary || typeof summary !== 'object') {
-        summary = {
-          bulan,
-          revenue: 0,
-          hpp: 0,
-          grossProfit: 0,
-          expense: 0,
-          netProfit: 0,
-          cashIn: 0,
-          cashOut: 0,
-          netCashFlow: 0
-        };
+      // Simpan juga ke cache summary Firebase untuk backup
+      try {
+        await fetch(`${dbUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${authParam}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(summary)
+        });
+      } catch (saveErr) {
+        console.warn('[ACCOUNTING-API] Gagal cache summary:', saveErr);
       }
 
       return jsonResponse({
         success: true,
-        bulan,
         data: summary
       }, 200);
     }
