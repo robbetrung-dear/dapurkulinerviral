@@ -1406,95 +1406,43 @@ app.post(['/aggregate', '/api/aggregate', '/functions/aggregate'], async (req, r
 });
 
 // =========================================================================
-// ACCOUNTING (AKUNTANSI) BACKEND API ROUTES
+// ACCOUNTING (AKUNTANSI) BACKEND API ROUTES -> Delegated to functions/accounting/[[path]].js
 // =========================================================================
-const inMemoryAccountingCOA: any[] = [
-  { code: '1001', name: 'Kas di Tangan (Cash on Hand)', type: 'Aset', normalBalance: 'Debit', initialBalance: 3500000, currentBalance: 4850000 },
-  { code: '1002', name: 'Kas di Bank (BCA Operasional)', type: 'Aset', normalBalance: 'Debit', initialBalance: 25000000, currentBalance: 38450000 },
-  { code: '1003', name: 'Piutang Usaha / Catering', type: 'Aset', normalBalance: 'Debit', initialBalance: 1200000, currentBalance: 1850000 },
-  { code: '1004', name: 'Persediaan Bahan Baku (Stok)', type: 'Aset', normalBalance: 'Debit', initialBalance: 6500000, currentBalance: 5200000 },
-  { code: '1005', name: 'Peralatan & Mesin Dapur', type: 'Aset', normalBalance: 'Debit', initialBalance: 15000000, currentBalance: 15000000 },
-  { code: '2001', name: 'Hutang Dagang / Supplier', type: 'Kewajiban', normalBalance: 'Kredit', initialBalance: 4500000, currentBalance: 3200000 },
-  { code: '2002', name: 'Hutang Beban & Operasional', type: 'Kewajiban', normalBalance: 'Kredit', initialBalance: 850000, currentBalance: 650000 },
-  { code: '3001', name: 'Modal Pemilik', type: 'Ekuitas', normalBalance: 'Kredit', initialBalance: 45000000, currentBalance: 45000000 },
-  { code: '3002', name: 'Laba Ditahan', type: 'Ekuitas', normalBalance: 'Kredit', initialBalance: 850000, currentBalance: 850000 },
-  { code: '3003', name: 'Prive Pemilik', type: 'Ekuitas', normalBalance: 'Debit', initialBalance: 0, currentBalance: 2500000 },
-  { code: '4001', name: 'Pendapatan Penjualan POS', type: 'Pendapatan', normalBalance: 'Kredit', initialBalance: 0, currentBalance: 28400000 },
-  { code: '4002', name: 'Pendapatan Pesanan Catering', type: 'Pendapatan', normalBalance: 'Kredit', initialBalance: 0, currentBalance: 7800000 },
-  { code: '5001', name: 'Harga Pokok Penjualan (HPP)', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 14200000 },
-  { code: '6001', name: 'Beban Gaji Karyawan', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 5500000 },
-  { code: '6002', name: 'Beban Sewa Tempat & Outlet', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 2500000 },
-  { code: '6003', name: 'Beban Listrik, Air & Gas', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 1350000 },
-  { code: '6004', name: 'Beban Marketing & Iklan', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 850000 },
-  { code: '6005', name: 'Beban Operasional & Kurir', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 650000 }
-];
-
-const inMemoryAccountingJournals: Record<string, any[]> = {};
-
-// GET /accounting/coa
-app.get(['/accounting/coa', '/api/accounting/coa'], (req, res) => {
-  res.json({ success: true, data: inMemoryAccountingCOA });
-});
-
-// POST /accounting/coa
-app.post(['/accounting/coa', '/api/accounting/coa'], (req, res) => {
+app.all(['/accounting', '/accounting/*', '/api/accounting', '/api/accounting/*'], async (req, res) => {
   try {
-    const newAcc = req.body;
-    if (!newAcc || !newAcc.code || !newAcc.name) {
-      return res.status(400).json({ success: false, error: "Kode dan nama akun wajib diisi." });
+    const { onRequest } = await import('./functions/accounting/[[path]].js');
+    const targetPath = req.originalUrl.replace(/^\/api/, '');
+    const fullUrl = `http://${req.get('host') || '127.0.0.1:3000'}${targetPath}`;
+    const headers = new Headers();
+    Object.entries(req.headers).forEach(([k, v]) => {
+      if (v) headers.set(k, Array.isArray(v) ? v.join(', ') : v);
+    });
+    if (!headers.has('content-type')) {
+      headers.set('content-type', 'application/json');
     }
-    const existingIndex = inMemoryAccountingCOA.findIndex(c => c.code === newAcc.code);
-    if (existingIndex >= 0) {
-      inMemoryAccountingCOA[existingIndex] = { ...inMemoryAccountingCOA[existingIndex], ...newAcc };
-    } else {
-      inMemoryAccountingCOA.push(newAcc);
-    }
-    res.json({ success: true, message: "Akun berhasil disimpan", data: newAcc });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
-// PATCH /accounting/coa/:accCode/saldoAwal
-app.patch(['/accounting/coa/:accCode/saldoAwal', '/accounting/coa/:accCode'], (req, res) => {
-  try {
-    const { accCode } = req.params;
-    const { saldoAwal, initialBalance } = req.body || {};
-    const val = Number(saldoAwal !== undefined ? saldoAwal : initialBalance) || 0;
-    const target = inMemoryAccountingCOA.find(c => c.code === accCode);
-    if (target) {
-      target.initialBalance = val;
-      return res.json({ success: true, message: "Saldo awal berhasil diperbarui", data: target });
-    }
-    res.status(404).json({ success: false, error: "Akun tidak ditemukan" });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+    const hasBody = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+    const bodyStr = hasBody ? JSON.stringify(req.body || {}) : undefined;
 
-// GET /accounting/journal/:bulan
-app.get(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], (req, res) => {
-  try {
-    const { bulan } = req.params;
-    const list = inMemoryAccountingJournals[bulan] || [];
-    res.json({ success: true, data: list });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+    const webReq = new Request(fullUrl, {
+      method: req.method,
+      headers,
+      body: bodyStr
+    });
 
-// POST /accounting/journal/:bulan or /accounting/journal/:bulan/:entryId
-app.post(['/accounting/journal/:bulan', '/accounting/journal/:bulan/:entryId', '/api/accounting/journal/:bulan', '/api/accounting/journal/:bulan/:entryId'], (req, res) => {
-  try {
-    const { bulan } = req.params;
-    const entry = req.body;
-    if (!inMemoryAccountingJournals[bulan]) {
-      inMemoryAccountingJournals[bulan] = [];
-    }
-    inMemoryAccountingJournals[bulan].unshift(entry);
-    res.json({ success: true, message: "Jurnal berhasil dicatat", data: entry });
+    const webRes = await onRequest({
+      request: webReq,
+      env: process.env
+    });
+
+    res.status(webRes.status);
+    webRes.headers.forEach((val, key) => {
+      res.setHeader(key, val);
+    });
+    const bodyText = await webRes.text();
+    res.send(bodyText);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message || "Gagal memproses request accounting" });
   }
 });
 
