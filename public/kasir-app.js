@@ -197,7 +197,107 @@ window.kasirApp = () => ({
   showInventoryLogsModal: false,
 
   // Module Akuntansi Kasir State
-  accountingTab: 'pnl', // 'pnl' | 'balance' | 'cashflow' | 'journal' | 'coa'
+  accountingTab: 'pnl', // 'pnl' | 'balance' | 'cashflow' | 'journal' | 'coa' | 'approval'
+  accountingJournalList: [],
+
+  // State Manual Input Jurnal
+  journalForm: {
+    category: 'operasional',  // pembelian | operasional | modal | prive | penyesuaian
+    date: new Date().toISOString().slice(0, 10),
+    desc: '',
+    ref: '',
+    lampiran: '',  // base64 atau URL bukti
+    lines: [
+      { acc: '', debit: 0, credit: 0 },
+      { acc: '', debit: 0, credit: 0 }
+    ]
+  },
+  journalCategories: [
+    { id: 'pembelian', name: 'Pembelian Bahan/Aset', icon: 'fa-truck-loading' },
+    { id: 'operasional', name: 'Biaya Operasional', icon: 'fa-file-invoice-dollar' },
+    { id: 'modal', name: 'Setoran Modal', icon: 'fa-hand-holding-dollar' },
+    { id: 'prive', name: 'Prive / Ambil Pribadi', icon: 'fa-person-walking-arrow-right' },
+    { id: 'penyesuaian', name: 'Penyesuaian / Adjustment', icon: 'fa-sliders' }
+  ],
+  journalTemplates: [
+    {
+      id: 'beli_bahan_kredit',
+      name: 'Beli Bahan Baku (Kredit/Hutang)',
+      category: 'pembelian',
+      lines: [
+        { acc: '105', debit: 0, credit: 0, hint: 'Persediaan Bahan Baku' },
+        { acc: '201', debit: 0, credit: 0, hint: 'Hutang Supplier' }
+      ]
+    },
+    {
+      id: 'beli_bahan_tunai',
+      name: 'Beli Bahan Baku (Tunai)',
+      category: 'pembelian',
+      lines: [
+        { acc: '105', debit: 0, credit: 0, hint: 'Persediaan Bahan Baku' },
+        { acc: '101', debit: 0, credit: 0, hint: 'Kas di Tangan' }
+      ]
+    },
+    {
+      id: 'bayar_listrik',
+      name: 'Bayar Listrik & Air',
+      category: 'operasional',
+      lines: [
+        { acc: '603', debit: 0, credit: 0, hint: 'Beban Listrik & Air' },
+        { acc: '101', debit: 0, credit: 0, hint: 'Kas di Tangan' }
+      ]
+    },
+    {
+      id: 'bayar_gaji',
+      name: 'Bayar Gaji Karyawan',
+      category: 'operasional',
+      lines: [
+        { acc: '601', debit: 0, credit: 0, hint: 'Beban Gaji' },
+        { acc: '101', debit: 0, credit: 0, hint: 'Kas di Tangan' }
+      ]
+    },
+    {
+      id: 'setor_modal',
+      name: 'Setoran Modal Pemilik',
+      category: 'modal',
+      lines: [
+        { acc: '101', debit: 0, credit: 0, hint: 'Kas di Tangan' },
+        { acc: '301', debit: 0, credit: 0, hint: 'Modal Pemilik' }
+      ]
+    },
+    {
+      id: 'prive',
+      name: 'Prive Pemilik',
+      category: 'prive',
+      lines: [
+        { acc: '302', debit: 0, credit: 0, hint: 'Prive' },
+        { acc: '101', debit: 0, credit: 0, hint: 'Kas di Tangan' }
+      ]
+    },
+    {
+      id: 'setor_bank',
+      name: 'Setor ke Bank',
+      category: 'penyesuaian',
+      lines: [
+        { acc: '102', debit: 0, credit: 0, hint: 'Bank' },
+        { acc: '101', debit: 0, credit: 0, hint: 'Kas di Tangan' }
+      ]
+    },
+    {
+      id: 'penyusutan',
+      name: 'Penyusutan Aset Tetap',
+      category: 'penyesuaian',
+      lines: [
+        { acc: '606', debit: 0, credit: 0, hint: 'Beban Penyusutan' },
+        { acc: '111', debit: 0, credit: 0, hint: 'Akum. Penyusutan' }
+      ]
+    }
+  ],
+  showJournalFormModal: false,
+  showApprovalModal: false,
+  pendingApprovals: [],
+  approvalFilter: 'all',  // all | pending | approved | rejected
+  approvalSearch: '',
 
   // Inventory Modals & Recipe State
   editStockModal: false,
@@ -4612,6 +4712,287 @@ window.kasirApp = () => ({
         creditAmount: summary.totalOpEx
       }
     ];
+  },
+
+  // -------------------------------------------------------------------------
+  // 14.8.1 INPUT JURNAL MANUAL, DOUBLE-ENTRY, APPROVAL & AUTO-UPDATE LEDGER
+  // -------------------------------------------------------------------------
+
+  openJournalFormModal() {
+    this.resetJournalForm();
+    this.showJournalFormModal = true;
+  },
+
+  resetJournalForm() {
+    this.journalForm = {
+      category: 'operasional',
+      date: new Date().toISOString().slice(0, 10),
+      desc: '',
+      ref: '',
+      lampiran: '',
+      lines: [
+        { acc: '', debit: 0, credit: 0 },
+        { acc: '', debit: 0, credit: 0 }
+      ]
+    };
+  },
+
+  applyJournalTemplate(templateId) {
+    const tmpl = this.journalTemplates.find(t => t.id === templateId);
+    if (!tmpl) return;
+    this.journalForm.category = tmpl.category || this.journalForm.category;
+    if (Array.isArray(tmpl.lines) && tmpl.lines.length > 0) {
+      this.journalForm.lines = tmpl.lines.map(l => ({
+        acc: l.acc || '',
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0
+      }));
+    }
+    if (!this.journalForm.desc) {
+      this.journalForm.desc = tmpl.name;
+    }
+  },
+
+  addJournalLine() {
+    this.journalForm.lines.push({ acc: '', debit: 0, credit: 0 });
+  },
+
+  removeJournalLine(index) {
+    if (this.journalForm.lines.length <= 2) {
+      this.showToast('Jurnal minimal membutuhkan 2 baris transaksi', 'error');
+      return;
+    }
+    this.journalForm.lines.splice(index, 1);
+  },
+
+  getJournalTotalDebit() {
+    if (!this.journalForm || !Array.isArray(this.journalForm.lines)) return 0;
+    return this.journalForm.lines.reduce((sum, line) => sum + (Number(line.debit) || 0), 0);
+  },
+
+  getJournalTotalCredit() {
+    if (!this.journalForm || !Array.isArray(this.journalForm.lines)) return 0;
+    return this.journalForm.lines.reduce((sum, line) => sum + (Number(line.credit) || 0), 0);
+  },
+
+  isJournalBalanced() {
+    const debit = this.getJournalTotalDebit();
+    const credit = this.getJournalTotalCredit();
+    return debit > 0 && Math.abs(debit - credit) < 0.01;
+  },
+
+  handleJournalAttachment(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    
+    // Validasi ukuran maks 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      this.showToast('Ukuran lampiran maksimal 2MB', 'error');
+      event.target.value = '';
+      return;
+    }
+    
+    // Validasi tipe
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      this.showToast('Format lampiran: JPG, PNG, atau PDF', 'error');
+      event.target.value = '';
+      return;
+    }
+    
+    // Convert ke base64
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.journalForm.lampiran = e.target.result;
+      this.showToast('Lampiran berhasil diunggah', 'success');
+    };
+    reader.onerror = () => {
+      this.showToast('Gagal membaca file lampiran', 'error');
+    };
+    reader.readAsDataURL(file);
+  },
+
+  getAccountName(accCode) {
+    const coa = {
+      '101': 'Kas di Tangan',
+      '102': 'Bank',
+      '103': 'Piutang',
+      '105': 'Persediaan Bahan Baku',
+      '111': 'Akum. Penyusutan',
+      '201': 'Hutang Supplier',
+      '301': 'Modal Pemilik',
+      '302': 'Prive',
+      '401': 'Pendapatan Penjualan',
+      '402': 'Pendapatan Catering',
+      '501': 'HPP',
+      '601': 'Beban Gaji',
+      '602': 'Beban Sewa',
+      '603': 'Beban Listrik & Air',
+      '604': 'Beban Marketing',
+      '605': 'Beban Kurir',
+      '606': 'Beban Penyusutan'
+    };
+    return coa[accCode] || ('Akun ' + accCode);
+  },
+
+  async submitJournalEntry() {
+    // Validasi balance
+    if (!this.isJournalBalanced()) {
+      this.showToast('Total Debit dan Kredit harus sama dan > 0', 'error');
+      return false;
+    }
+    
+    // Validasi desc
+    const desc = (this.journalForm.desc || '').trim();
+    if (!desc) {
+      this.showToast('Deskripsi jurnal wajib diisi', 'error');
+      return false;
+    }
+    
+    // Validasi semua line punya acc dan nominal > 0 (minimal di satu sisi)
+    const validLines = this.journalForm.lines.filter(l => 
+      l.acc && (Number(l.debit) > 0 || Number(l.credit) > 0)
+    );
+    if (validLines.length < 2) {
+      this.showToast('Minimal 2 baris jurnal dengan akun dan nominal', 'error');
+      return false;
+    }
+    
+    // Prepare payload
+    const bulan = this.journalForm.date.slice(0, 7); // YYYY-MM
+    const payload = {
+      category: this.journalForm.category,
+      date: this.journalForm.date,
+      desc: desc,
+      ref: this.journalForm.ref || '',
+      lampiran: this.journalForm.lampiran || '',
+      lines: validLines.map(l => ({
+        acc: l.acc,
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0
+      })),
+      createdBy: this.kasirInfo?.name || 'kasir'
+    };
+    
+    try {
+      this.isLoading = true;
+      const res = await fetch(`/accounting/journal/${bulan}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        this.showToast(`Jurnal ${data.noEntry} berhasil dibuat (menunggu approval)`, 'success');
+        this.showJournalFormModal = false;
+        this.resetJournalForm();
+        // Refresh list
+        await this.loadPendingApprovals();
+        await this.loadJournalList(bulan);
+      } else {
+        this.showToast(data.error || 'Gagal membuat jurnal', 'error');
+      }
+    } catch (err) {
+      console.error('Submit journal error:', err);
+      this.showToast('Gagal mengirim jurnal ke server', 'error');
+    } finally {
+      this.isLoading = false;
+    }
+    return true;
+  },
+
+  async loadPendingApprovals() {
+    try {
+      const res = await fetch('/accounting/approvals');
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.data)) {
+        this.pendingApprovals = data.data;
+      }
+    } catch (err) {
+      console.error('Error load pending approvals:', err);
+    }
+  },
+
+  async approveJournal(entryId, bulan) {
+    const b = bulan || (this.journalForm && this.journalForm.date ? this.journalForm.date.slice(0, 7) : new Date().toISOString().slice(0, 7));
+    try {
+      this.isLoading = true;
+      const res = await fetch(`/accounting/journal/${b}/${encodeURIComponent(entryId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', approvedBy: this.kasirInfo?.name || 'Finance / Owner' })
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        this.showToast('Jurnal berhasil disetujui & buku besar diperbarui', 'success');
+        await this.loadPendingApprovals();
+        await this.loadJournalList(b);
+      } else {
+        this.showToast(data.error || 'Gagal menyetujui jurnal', 'error');
+      }
+    } catch (err) {
+      console.error('Approve journal error:', err);
+      this.showToast('Gagal memproses approval jurnal', 'error');
+    } finally {
+      this.isLoading = false;
+    }
+  },
+
+  async rejectJournal(entryId, bulan, reason) {
+    const reasonText = reason || prompt('Alasan penolakan jurnal:') || 'Ditolak oleh finance';
+    const b = bulan || new Date().toISOString().slice(0, 7);
+    try {
+      this.isLoading = true;
+      const res = await fetch(`/accounting/journal/${b}/${encodeURIComponent(entryId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', rejectedReason: reasonText })
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        this.showToast('Jurnal berhasil ditolak', 'success');
+        await this.loadPendingApprovals();
+        await this.loadJournalList(b);
+      } else {
+        this.showToast(data.error || 'Gagal menolak jurnal', 'error');
+      }
+    } catch (err) {
+      console.error('Reject journal error:', err);
+      this.showToast('Gagal memproses penolakan jurnal', 'error');
+    } finally {
+      this.isLoading = false;
+    }
+  },
+
+  async loadJournalList(bulan) {
+    const b = bulan || new Date().toISOString().slice(0, 7);
+    try {
+      const res = await fetch(`/accounting/journal/${b}`);
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.data)) {
+        this.accountingJournalList = data.data;
+      }
+    } catch (err) {
+      console.error('Error load journal list:', err);
+    }
+  },
+
+  filteredApprovals() {
+    let list = Array.isArray(this.pendingApprovals) ? this.pendingApprovals : [];
+    if (this.approvalFilter && this.approvalFilter !== 'all') {
+      list = list.filter(a => a.status === this.approvalFilter);
+    }
+    const q = (this.approvalSearch || '').trim().toLowerCase();
+    if (q) {
+      list = list.filter(a => 
+        (a.desc && a.desc.toLowerCase().includes(q)) ||
+        (a.noEntry && a.noEntry.toLowerCase().includes(q)) ||
+        (a.ref && a.ref.toLowerCase().includes(q)) ||
+        (a.category && a.category.toLowerCase().includes(q))
+      );
+    }
+    return list;
   },
 
   // -------------------------------------------------------------------------

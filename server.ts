@@ -640,6 +640,256 @@ app.post(['/recipes/:menuId', '/api/recipes/:menuId'], (req, res) => {
   }
 });
 
+// ==========================================
+// In-Memory Accounting Store for Server
+// ==========================================
+let serverCOA: Record<string, { n: string; t: string }> = {
+  "101": { n: "Kas di Tangan", t: "asset" },
+  "102": { n: "Bank", t: "asset" },
+  "103": { n: "Piutang", t: "asset" },
+  "105": { n: "Persediaan Bahan Baku", t: "asset" },
+  "111": { n: "Akum. Penyusutan", t: "asset" },
+  "201": { n: "Hutang Supplier", t: "liability" },
+  "301": { n: "Modal Pemilik", t: "equity" },
+  "302": { n: "Prive", t: "equity" },
+  "401": { n: "Pendapatan Penjualan", t: "revenue" },
+  "402": { n: "Pendapatan Catering", t: "revenue" },
+  "501": { n: "HPP", t: "expense" },
+  "601": { n: "Beban Gaji", t: "expense" },
+  "602": { n: "Beban Sewa", t: "expense" },
+  "603": { n: "Beban Listrik & Air", t: "expense" },
+  "604": { n: "Beban Marketing", t: "expense" },
+  "605": { n: "Beban Kurir", t: "expense" },
+  "606": { n: "Beban Penyusutan", t: "expense" }
+};
+let serverJournals: Record<string, Record<string, any>> = {};
+let serverLedger: Record<string, Record<string, any>> = {};
+
+// GET & POST /accounting/coa
+app.get(['/accounting/coa', '/api/accounting/coa'], (req, res) => {
+  res.json({ success: true, data: serverCOA });
+});
+app.post(['/accounting/coa', '/api/accounting/coa'], (req, res) => {
+  const body = req.body || {};
+  if (body.code && body.n) {
+    serverCOA[body.code] = { n: body.n, t: body.t || 'expense' };
+  } else if (typeof body === 'object') {
+    serverCOA = { ...serverCOA, ...body };
+  }
+  res.json({ success: true, message: "COA berhasil disimpan", data: serverCOA });
+});
+
+// GET /accounting/approvals
+app.get(['/accounting/approvals', '/api/accounting/approvals'], (req, res) => {
+  const approvals: any[] = [];
+  Object.entries(serverJournals).forEach(([bulanKey, monthData]) => {
+    if (monthData && typeof monthData === 'object') {
+      Object.entries(monthData).forEach(([eId, entry]) => {
+        approvals.push({ entryId: eId, bulan: bulanKey, ...entry });
+      });
+    }
+  });
+  approvals.sort((a, b) => (b.createdAt || b.t || 0) - (a.createdAt || a.t || 0));
+  res.json({ success: true, count: approvals.length, data: approvals });
+});
+
+// GET & POST /accounting/journal/:bulan
+app.get(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], (req, res) => {
+  const { bulan } = req.params;
+  const monthData = serverJournals[bulan] || {};
+  const entries = Object.entries(monthData).map(([id, val]) => ({ entryId: id, bulan, ...val }));
+  entries.sort((a, b) => (b.createdAt || b.t || 0) - (a.createdAt || a.t || 0));
+  res.json({ success: true, bulan, data: entries });
+});
+
+app.post(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], (req, res) => {
+  try {
+    const { bulan } = req.params;
+    const body = req.body || {};
+    const lines = Array.isArray(body.lines) ? body.lines : [];
+
+    if (lines.length < 2) {
+      return res.status(400).json({ success: false, error: "Jurnal minimal harus memiliki 2 baris transaksi" });
+    }
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+    for (const l of lines) {
+      totalDebit += Number(l.debit) || 0;
+      totalCredit += Number(l.credit) || 0;
+    }
+
+    if (totalDebit <= 0 || Math.abs(totalDebit - totalCredit) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        error: `Total debit (${totalDebit}) dan kredit (${totalCredit}) harus seimbang dan > 0`
+      });
+    }
+
+    if (!serverJournals[bulan]) serverJournals[bulan] = {};
+    const count = Object.keys(serverJournals[bulan]).length + 1;
+    const [yyyy, mm] = bulan.split('-');
+    const noEntry = `JE-${yyyy || '2026'}-${mm || '09'}-${String(count).padStart(4, '0')}`;
+    const entryId = "JE-" + Date.now();
+
+    const entryPayload = {
+      t: Date.now(),
+      noEntry,
+      date: body.date || new Date().toISOString().slice(0, 10),
+      desc: (body.desc || '').trim(),
+      category: body.category || 'operasional',
+      ref: body.ref || '',
+      lampiran: body.lampiran || '',
+      lines: lines.map((l: any) => ({
+        acc: String(l.acc || '').trim(),
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0
+      })),
+      status: "pending",
+      createdBy: body.createdBy || "kasir",
+      createdAt: Date.now(),
+      approvedBy: null,
+      approvedAt: null,
+      rejectedReason: null
+    };
+
+    serverJournals[bulan][entryId] = entryPayload;
+    res.json({ success: true, entryId, noEntry, data: entryPayload });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /accounting/journal/:bulan/:entryId
+app.patch(['/accounting/journal/:bulan/:entryId', '/api/accounting/journal/:bulan/:entryId'], (req, res) => {
+  try {
+    const { bulan, entryId } = req.params;
+    const body = req.body || {};
+    const action = body.action;
+
+    if (!serverJournals[bulan] || !serverJournals[bulan][entryId]) {
+      return res.status(404).json({ success: false, error: "Jurnal tidak ditemukan" });
+    }
+
+    const currentEntry = serverJournals[bulan][entryId];
+
+    if (action === 'approve') {
+      currentEntry.status = "approved";
+      currentEntry.approvedBy = body.approvedBy || "Finance / Owner";
+      currentEntry.approvedAt = Date.now();
+      currentEntry.rejectedReason = null;
+
+      // Update Ledger in memory
+      for (const line of currentEntry.lines || []) {
+        const acc = line.acc;
+        if (!serverLedger[acc]) serverLedger[acc] = {};
+        if (!serverLedger[acc][bulan]) {
+          serverLedger[acc][bulan] = { accCode: acc, bulan, opening: 0, totalDebit: 0, totalCredit: 0, closing: 0, entries: [] };
+        }
+        const l = serverLedger[acc][bulan];
+        l.entries.push({
+          entryId,
+          noEntry: currentEntry.noEntry,
+          date: currentEntry.date,
+          desc: currentEntry.desc,
+          debit: Number(line.debit) || 0,
+          credit: Number(line.credit) || 0,
+          t: currentEntry.t || Date.now()
+        });
+        l.totalDebit += Number(line.debit) || 0;
+        l.totalCredit += Number(line.credit) || 0;
+        l.closing = (l.opening || 0) + l.totalDebit - l.totalCredit;
+      }
+
+      return res.json({
+        success: true,
+        message: `Jurnal ${currentEntry.noEntry} berhasil disetujui`,
+        entryId,
+        data: currentEntry
+      });
+    } else if (action === 'reject') {
+      currentEntry.status = "rejected";
+      currentEntry.rejectedReason = body.rejectedReason || "Ditolak oleh finance";
+      currentEntry.rejectedAt = Date.now();
+      return res.json({ success: true, message: `Jurnal ${currentEntry.noEntry} berhasil ditolak`, entryId, data: currentEntry });
+    } else if (action === 'edit') {
+      if (body.newData) {
+        Object.assign(currentEntry, body.newData);
+      }
+      return res.json({ success: true, message: `Jurnal ${currentEntry.noEntry} berhasil diupdate`, entryId, data: currentEntry });
+    } else {
+      return res.status(400).json({ success: false, error: `Action '${action}' tidak valid` });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /accounting/ledger/:accCode/:bulan
+app.get(['/accounting/ledger/:accCode/:bulan', '/api/accounting/ledger/:accCode/:bulan'], (req, res) => {
+  const { accCode, bulan } = req.params;
+  const ledgerData = serverLedger[accCode]?.[bulan] || {
+    accCode,
+    bulan,
+    opening: 0,
+    totalDebit: 0,
+    totalCredit: 0,
+    closing: 0,
+    entries: []
+  };
+  res.json({ success: true, accCode, bulan, data: ledgerData });
+});
+
+// GET /accounting/summary/:bulan
+app.get(['/accounting/summary/:bulan', '/api/accounting/summary/:bulan'], (req, res) => {
+  const { bulan } = req.params;
+  let revenue = 0;
+  let hpp = 0;
+  let expense = 0;
+  let cashIn = 0;
+  let cashOut = 0;
+
+  const monthJournals = serverJournals[bulan] || {};
+  Object.values(monthJournals).forEach(entry => {
+    if (entry.status === 'approved' && Array.isArray(entry.lines)) {
+      entry.lines.forEach((l: any) => {
+        const acc = String(l.acc);
+        const d = Number(l.debit) || 0;
+        const c = Number(l.credit) || 0;
+        if (acc.startsWith('4')) revenue += (c - d);
+        else if (acc.startsWith('5')) hpp += (d - c);
+        else if (acc.startsWith('6')) expense += (d - c);
+        if (acc === '101' || acc === '102') {
+          cashIn += d;
+          cashOut += c;
+        }
+      });
+    }
+  });
+
+  const grossProfit = revenue - hpp;
+  const netProfit = grossProfit - expense;
+  const netCashFlow = cashIn - cashOut;
+
+  res.json({
+    success: true,
+    bulan,
+    data: {
+      bulan,
+      revenue,
+      hpp,
+      grossProfit,
+      expense,
+      netProfit,
+      cashIn,
+      cashOut,
+      netCashFlow,
+      updatedAt: Date.now()
+    }
+  });
+});
+
+
 // In-Memory Orders Store with Seed Data for Reconciliation
 let ordersStore: Record<string, any> = {
   "ORD-9821": {

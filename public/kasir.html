@@ -1816,6 +1816,13 @@ window.addEventListener('unhandledrejection', function(event) {
           </div>
 
           <div class="flex items-center gap-2">
+            <button 
+              type="button"
+              @click="openJournalFormModal()" 
+              class="min-h-[44px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-2 transition shadow-xs cursor-pointer">
+              <i class="fa-solid fa-plus-circle text-xs"></i>
+              <span>+ Input Jurnal Manual</span>
+            </button>
             <a 
               href="/accounting.html" 
               target="_blank"
@@ -1867,7 +1874,7 @@ window.addEventListener('unhandledrejection', function(event) {
           </div>
         </div>
 
-        <!-- Sub Tab Akuntansi (P&L | Jurnal Umum | COA) -->
+        <!-- Sub Tab Akuntansi (P&L | Jurnal Umum | COA | Approval) -->
         <div class="bg-white rounded-3xl p-6 border border-stone-200 shadow-xs space-y-6">
           <div class="flex items-center justify-between border-b border-stone-200 pb-4 flex-wrap gap-3">
             <div class="inline-flex p-1 bg-stone-100 rounded-2xl border border-stone-200">
@@ -1894,6 +1901,19 @@ window.addEventListener('unhandledrejection', function(event) {
                 class="px-4 py-2 rounded-xl text-xs transition cursor-pointer flex items-center gap-2">
                 <i class="fa-solid fa-list-check text-xs"></i>
                 <span>Bagan Akun (COA)</span>
+              </button>
+              <button 
+                type="button" 
+                @click="accountingTab = 'approval'; loadPendingApprovals()"
+                :class="accountingTab === 'approval' ? 'bg-white text-stone-900 font-black shadow-xs' : 'text-stone-500 font-bold'"
+                class="px-4 py-2 rounded-xl text-xs transition cursor-pointer flex items-center gap-2 relative">
+                <i class="fa-solid fa-clipboard-check text-xs"></i>
+                <span>Approval Jurnal</span>
+                <span 
+                  x-show="pendingApprovals.filter(a => a.status === 'pending').length > 0"
+                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse"
+                  x-text="pendingApprovals.filter(a => a.status === 'pending').length">
+                </span>
               </button>
             </div>
 
@@ -2039,6 +2059,170 @@ window.addEventListener('unhandledrejection', function(event) {
                 </ul>
               </div>
             </div>
+          </div>
+
+          <!-- TAMPILAN D: APPROVAL JURNAL -->
+          <div x-show="accountingTab === 'approval'" class="space-y-4">
+            
+            <!-- Toolbar & Filter Approval -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-stone-50 rounded-2xl border border-stone-200">
+              <div class="flex items-center gap-2 flex-wrap">
+                <button 
+                  type="button" 
+                  @click="approvalFilter = 'all'"
+                  :class="approvalFilter === 'all' ? 'bg-stone-900 text-white font-black' : 'bg-white text-stone-600 border border-stone-200 font-semibold'"
+                  class="px-3 py-1.5 rounded-xl text-xs transition cursor-pointer">
+                  Semua (<span x-text="pendingApprovals.length"></span>)
+                </button>
+                <button 
+                  type="button" 
+                  @click="approvalFilter = 'pending'"
+                  :class="approvalFilter === 'pending' ? 'bg-amber-600 text-white font-black' : 'bg-white text-stone-600 border border-stone-200 font-semibold'"
+                  class="px-3 py-1.5 rounded-xl text-xs transition cursor-pointer">
+                  Pending (<span x-text="pendingApprovals.filter(a => a.status === 'pending').length"></span>)
+                </button>
+                <button 
+                  type="button" 
+                  @click="approvalFilter = 'approved'"
+                  :class="approvalFilter === 'approved' ? 'bg-emerald-600 text-white font-black' : 'bg-white text-stone-600 border border-stone-200 font-semibold'"
+                  class="px-3 py-1.5 rounded-xl text-xs transition cursor-pointer">
+                  Disetujui (<span x-text="pendingApprovals.filter(a => a.status === 'approved').length"></span>)
+                </button>
+                <button 
+                  type="button" 
+                  @click="approvalFilter = 'rejected'"
+                  :class="approvalFilter === 'rejected' ? 'bg-red-600 text-white font-black' : 'bg-white text-stone-600 border border-stone-200 font-semibold'"
+                  class="px-3 py-1.5 rounded-xl text-xs transition cursor-pointer">
+                  Ditolak (<span x-text="pendingApprovals.filter(a => a.status === 'rejected').length"></span>)
+                </button>
+              </div>
+
+              <div class="flex items-center gap-2 w-full sm:w-auto">
+                <input 
+                  type="text" 
+                  x-model="approvalSearch" 
+                  placeholder="Cari no entry, deskripsi..." 
+                  class="h-9 px-3 text-xs rounded-xl border border-stone-200 bg-white focus:border-stone-900 focus:outline-none w-full sm:w-56">
+                <button 
+                  type="button" 
+                  @click="loadPendingApprovals()" 
+                  class="h-9 w-9 rounded-xl border border-stone-200 bg-white hover:bg-stone-100 flex items-center justify-center text-stone-600 transition cursor-pointer"
+                  title="Segarkan data">
+                  <i class="fa-solid fa-rotate text-xs"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- List Jurnal Menunggu Approval -->
+            <div class="space-y-3">
+              <template x-if="filteredApprovals().length === 0">
+                <div class="text-center py-12 bg-stone-50 rounded-2xl border border-dashed border-stone-300">
+                  <i class="fa-solid fa-clipboard-check text-4xl text-stone-300 mb-3 block"></i>
+                  <h5 class="font-bold text-stone-700 text-sm">Tidak ada transaksi jurnal</h5>
+                  <p class="text-xs text-stone-400 mt-1">Semua jurnal sudah ditinjau atau belum ada data yang dibuat.</p>
+                </div>
+              </template>
+
+              <template x-for="item in filteredApprovals()" :key="item.id">
+                <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs space-y-3">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+                    <div class="flex items-center gap-2">
+                      <span 
+                        class="px-2 py-0.5 rounded text-[10px] font-black uppercase font-mono tracking-wider"
+                        :class="{
+                          'bg-amber-100 text-amber-800': item.status === 'pending',
+                          'bg-emerald-100 text-emerald-800': item.status === 'approved',
+                          'bg-red-100 text-red-800': item.status === 'rejected'
+                        }"
+                        x-text="item.status">
+                      </span>
+                      <strong class="text-xs font-mono text-stone-900" x-text="item.noEntry || item.id"></strong>
+                      <span class="text-xs text-stone-400">•</span>
+                      <span class="text-xs text-stone-500 font-mono" x-text="item.date"></span>
+                      <span class="text-xs text-stone-400" x-show="item.ref" x-text="'(Ref: ' + item.ref + ')'"></span>
+                    </div>
+
+                    <div class="text-xs text-stone-500">
+                      Dibuat oleh: <strong class="text-stone-800" x-text="item.createdBy || 'Staff'"></strong>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col sm:flex-row justify-between gap-4">
+                    <div class="space-y-1 max-w-xl">
+                      <p class="text-xs font-bold text-stone-800" x-text="item.desc"></p>
+                      <div class="text-[11px] text-stone-500 flex items-center gap-2">
+                        <span>Kategori: <span class="capitalize font-semibold text-stone-700" x-text="item.category"></span></span>
+                        <template x-if="item.lampiran">
+                          <span class="inline-flex items-center gap-1 text-blue-600">
+                            <i class="fa-solid fa-paperclip"></i>
+                            <a :href="item.lampiran" target="_blank" class="hover:underline font-semibold">Lihat Bukti</a>
+                          </span>
+                        </template>
+                      </div>
+                    </div>
+
+                    <div class="text-right">
+                      <span class="text-[10px] text-stone-400 uppercase font-bold block">Total Transaksi</span>
+                      <span class="text-sm font-black font-mono text-stone-900" x-text="formatRupiah(item.totalDebit || (item.lines ? item.lines.reduce((s,l) => s + (Number(l.debit)||0), 0) : 0))"></span>
+                    </div>
+                  </div>
+
+                  <!-- Detail Baris Jurnal Double-Entry -->
+                  <div class="overflow-x-auto rounded-xl border border-stone-200 bg-stone-50/50">
+                    <table class="w-full text-left text-xs">
+                      <thead class="bg-stone-100 text-stone-600 font-bold uppercase text-[10px]">
+                        <tr>
+                          <th class="p-2">Kode &amp; Akun</th>
+                          <th class="p-2 text-right">Debit</th>
+                          <th class="p-2 text-right">Kredit</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-stone-200 font-mono">
+                        <template x-for="line in (item.lines || [])" :key="line.acc + line.debit + line.credit">
+                          <tr>
+                            <td class="p-2 text-stone-800">
+                              <span class="font-bold" x-text="line.acc"></span>
+                              <span class="text-stone-500 text-[11px]" x-text="' - ' + getAccountName(line.acc)"></span>
+                            </td>
+                            <td class="p-2 text-right text-stone-900" x-text="Number(line.debit) > 0 ? formatRupiah(line.debit) : '-'"></td>
+                            <td class="p-2 text-right text-stone-900" x-text="Number(line.credit) > 0 ? formatRupiah(line.credit) : '-'"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Aksi Approval (Hanya jika status pending) -->
+                  <template x-if="item.status === 'pending'">
+                    <div class="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                      <button 
+                        type="button" 
+                        @click="rejectJournal(item.id, item.bulan || (item.date ? item.date.slice(0, 7) : ''))"
+                        class="px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                        <span>Tolak</span>
+                      </button>
+                      <button 
+                        type="button" 
+                        @click="approveJournal(item.id, item.bulan || (item.date ? item.date.slice(0, 7) : ''))"
+                        class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-check text-xs"></i>
+                        <span>Setujui &amp; Posting Buku Besar</span>
+                      </button>
+                    </div>
+                  </template>
+
+                  <!-- Info Approval jika sudah disetujui / ditolak -->
+                  <template x-if="item.status !== 'pending'">
+                    <div class="text-[11px] text-stone-500 pt-2 border-t border-stone-100 flex items-center justify-between">
+                      <span x-text="item.status === 'approved' ? 'Disetujui oleh: ' + (item.approvedBy || 'Finance') : 'Ditolak: ' + (item.rejectedReason || '-')"></span>
+                      <span class="font-mono text-stone-400" x-text="item.approvedAt || item.rejectedAt"></span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+
           </div>
 
         </div>
@@ -3838,6 +4022,248 @@ window.addEventListener('unhandledrejection', function(event) {
             Simpan Pengaturan
           </button>
         </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: INPUT JURNAL MANUAL (DOUBLE-ENTRY) -->
+  <div 
+    x-cloak 
+    x-show="showJournalFormModal" 
+    class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
+    <div 
+      @click.away="showJournalFormModal = false" 
+      class="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative transition-all space-y-6 my-8">
+      
+      <!-- Tombol Tutup -->
+      <button 
+        type="button" 
+        @click="showJournalFormModal = false" 
+        class="absolute top-5 right-5 w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 flex items-center justify-center transition cursor-pointer">
+        <i class="fa-solid fa-xmark text-sm"></i>
+      </button>
+
+      <!-- Header Modal -->
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-wide">Akuntansi Umum</span>
+          <span class="text-xs text-stone-400 font-mono">Double-Entry Posting</span>
+        </div>
+        <h3 class="text-xl font-black text-stone-900 tracking-tight mt-1">Input Transaksi Jurnal Manual</h3>
+        <p class="text-xs text-stone-500 mt-0.5">Catat pengeluaran, pembelian bahan, setoran modal, atau penyesuaian non-kasir.</p>
+      </div>
+
+      <!-- Pilihan Template Jurnal Cepat -->
+      <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+        <label class="block text-xs font-bold uppercase tracking-wider text-stone-600">Template Jurnal Cepat (Opsional)</label>
+        <div class="flex flex-wrap gap-2">
+          <template x-for="tmpl in journalTemplates" :key="tmpl.id">
+            <button 
+              type="button" 
+              @click="applyJournalTemplate(tmpl.id)"
+              class="px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:border-emerald-500 hover:text-emerald-700 text-stone-700 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-2xs">
+              <i class="fa-solid fa-bolt text-amber-500 text-[10px]"></i>
+              <span x-text="tmpl.name"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Form Detail Transaksi -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <!-- Tanggal -->
+        <div>
+          <label class="block text-xs font-bold text-stone-700 mb-1">Tanggal Transaksi</label>
+          <input 
+            type="date" 
+            x-model="journalForm.date" 
+            class="w-full h-10 px-3 text-xs rounded-xl border border-stone-300 font-mono focus:border-stone-900 focus:outline-none bg-white" 
+          />
+        </div>
+
+        <!-- Kategori -->
+        <div>
+          <label class="block text-xs font-bold text-stone-700 mb-1">Kategori Transaksi</label>
+          <select 
+            x-model="journalForm.category" 
+            class="w-full h-10 px-3 text-xs rounded-xl border border-stone-300 font-semibold focus:border-stone-900 focus:outline-none bg-white">
+            <template x-for="cat in journalCategories" :key="cat.id">
+              <option :value="cat.id" x-text="cat.name"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- No Referensi / Bukti -->
+        <div>
+          <label class="block text-xs font-bold text-stone-700 mb-1">No. Ref / No. Nota / Bukti</label>
+          <input 
+            type="text" 
+            x-model="journalForm.ref" 
+            placeholder="Misal: NOTA-0812 / BKK-01" 
+            class="w-full h-10 px-3 text-xs rounded-xl border border-stone-300 font-mono focus:border-stone-900 focus:outline-none bg-white" 
+          />
+        </div>
+      </div>
+
+      <!-- Deskripsi Transaksi -->
+      <div>
+        <label class="block text-xs font-bold text-stone-700 mb-1">Deskripsi / Keterangan Transaksi <span class="text-red-500">*</span></label>
+        <input 
+          type="text" 
+          x-model="journalForm.desc" 
+          placeholder="Misal: Pembayaran tagihan listrik dapur bulan ini / Pembelian beras 2 karung" 
+          class="w-full h-10 px-3 text-xs rounded-xl border border-stone-300 font-medium focus:border-stone-900 focus:outline-none bg-white" 
+        />
+      </div>
+
+      <!-- Upload Lampiran Bukti -->
+      <div class="p-3 bg-stone-50 rounded-xl border border-dashed border-stone-300 flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-file-arrow-up text-stone-400 text-lg"></i>
+          <div>
+            <span class="text-xs font-bold text-stone-700 block">Lampiran / Bukti Transaksi</span>
+            <span class="text-[10px] text-stone-500">Maksimal 2MB (JPG, PNG, atau PDF)</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input 
+            type="file" 
+            accept="image/*,application/pdf" 
+            @change="handleJournalAttachment($event)" 
+            class="text-xs text-stone-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-stone-200 file:text-stone-700 hover:file:bg-stone-300 cursor-pointer" 
+          />
+          <template x-if="journalForm.lampiran">
+            <span class="text-xs font-bold text-emerald-600 flex items-center gap-1">
+              <i class="fa-solid fa-circle-check"></i> Terunggah
+            </span>
+          </template>
+        </div>
+      </div>
+
+      <!-- Tabel Double-Entry (Debit vs Credit) -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="block text-xs font-bold uppercase tracking-wider text-stone-700">Baris Jurnal Akun (Double-Entry)</label>
+          <button 
+            type="button" 
+            @click="addJournalLine()" 
+            class="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-plus text-[10px]"></i>
+            <span>Tambah Baris</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-stone-200">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-stone-100 text-stone-700 font-extrabold uppercase text-[10px]">
+              <tr>
+                <th class="p-3">Akun COA</th>
+                <th class="p-3 w-40 text-right">Debit (IDR)</th>
+                <th class="p-3 w-40 text-right">Kredit (IDR)</th>
+                <th class="p-3 w-12 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-200">
+              <template x-for="(line, index) in journalForm.lines" :key="index">
+                <tr class="bg-white hover:bg-stone-50/80">
+                  <td class="p-2">
+                    <select 
+                      x-model="line.acc" 
+                      class="w-full h-9 px-2 text-xs rounded-lg border border-stone-200 font-semibold focus:border-stone-900 focus:outline-none bg-white">
+                      <option value="">-- Pilih Akun --</option>
+                      <option value="101">101 - Kas di Tangan</option>
+                      <option value="102">102 - Bank</option>
+                      <option value="103">103 - Piutang Usaha</option>
+                      <option value="105">105 - Persediaan Bahan Baku</option>
+                      <option value="111">111 - Akum. Penyusutan Aset</option>
+                      <option value="201">201 - Hutang Supplier</option>
+                      <option value="301">301 - Modal Pemilik</option>
+                      <option value="302">302 - Prive Pemilik</option>
+                      <option value="401">401 - Pendapatan Penjualan</option>
+                      <option value="402">402 - Pendapatan Catering</option>
+                      <option value="501">501 - HPP Bahan Baku</option>
+                      <option value="601">601 - Beban Gaji Karyawan</option>
+                      <option value="602">602 - Beban Sewa Tempat</option>
+                      <option value="603">603 - Beban Listrik, Air &amp; Gas</option>
+                      <option value="604">604 - Beban Pemasaran &amp; Promosi</option>
+                      <option value="605">605 - Beban Kurir &amp; Ekspedisi</option>
+                      <option value="606">606 - Beban Penyusutan</option>
+                    </select>
+                  </td>
+                  <td class="p-2 text-right">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="1000" 
+                      x-model.number="line.debit" 
+                      @focus="$event.target.select()" 
+                      class="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-stone-200 focus:border-stone-900 focus:outline-none bg-white" 
+                    />
+                  </td>
+                  <td class="p-2 text-right">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="1000" 
+                      x-model.number="line.credit" 
+                      @focus="$event.target.select()" 
+                      class="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-stone-200 focus:border-stone-900 focus:outline-none bg-white" 
+                    />
+                  </td>
+                  <td class="p-2 text-center">
+                    <button 
+                      type="button" 
+                      @click="removeJournalLine(index)" 
+                      class="w-7 h-7 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition cursor-pointer mx-auto"
+                      title="Hapus baris">
+                      <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+            <tfoot class="bg-stone-50 border-t-2 border-stone-200 font-mono font-bold text-xs">
+              <tr>
+                <td class="p-3 text-stone-700 font-sans font-extrabold uppercase">Total</td>
+                <td class="p-3 text-right text-stone-900" x-text="formatRupiah(getJournalTotalDebit())"></td>
+                <td class="p-3 text-right text-stone-900" x-text="formatRupiah(getJournalTotalCredit())"></td>
+                <td class="p-3 text-center"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Indikator Keseimbangan (Balance Indicator) -->
+        <div class="flex items-center justify-between p-3 rounded-xl"
+             :class="isJournalBalanced() ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-amber-50 border border-amber-200 text-amber-800'">
+          <div class="flex items-center gap-2 text-xs font-bold">
+            <i class="fa-solid" :class="isJournalBalanced() ? 'fa-circle-check text-emerald-600' : 'fa-triangle-exclamation text-amber-600'"></i>
+            <span x-text="isJournalBalanced() ? 'Jurnal Seimbang (Balance)' : 'Jurnal Tidak Seimbang - Total Debit harus sama dengan Kredit'"></span>
+          </div>
+          <div class="text-xs font-mono font-extrabold" x-show="!isJournalBalanced() && (getJournalTotalDebit() > 0 || getJournalTotalCredit() > 0)">
+            Selisih: <span x-text="formatRupiah(Math.abs(getJournalTotalDebit() - getJournalTotalCredit()))"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tombol Aksi Modal -->
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-stone-200">
+        <button 
+          type="button" 
+          @click="showJournalFormModal = false" 
+          class="h-11 px-5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 text-xs font-bold transition cursor-pointer">
+          Batal
+        </button>
+        <button 
+          type="button" 
+          @click="submitJournalEntry()" 
+          :disabled="!isJournalBalanced() || isLoading" 
+          :class="(!isJournalBalanced() || isLoading) ? 'opacity-50 cursor-not-allowed bg-stone-400' : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'"
+          class="h-11 px-6 rounded-xl text-white text-xs font-bold transition shadow-xs flex items-center gap-2">
+          <i class="fa-solid fa-paper-plane text-xs"></i>
+          <span>Simpan &amp; Ajukan Approval</span>
+        </button>
       </div>
 
     </div>
