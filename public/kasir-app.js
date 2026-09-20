@@ -12,6 +12,9 @@
  * 7. Sound Feedback: Web Audio API synth ('click', 'success', 'error', 'notify')
  */
 
+// ✅ Simpan Firebase di MODULE SCOPE (bukan di this/Alpine) — hindari Proxy pollution
+let FB_DB = null;
+
 window.kasirApp = () => ({
   // =========================================================================
   // 1. STATE DASAR & NAVIGASI
@@ -420,21 +423,24 @@ window.kasirApp = () => ({
         return;
       }
 
-      if (!firebase.apps || firebase.apps.length === 0) {
+        if (!firebase.apps || firebase.apps.length === 0) {
         firebase.initializeApp(cfg);
       }
 
-      const db = firebase.database();
+      // ✅ Simpan db di MODULE SCOPE — bukan di this (Alpine tidak bisa Proxy module var)
+      FB_DB = firebase.database();
+      this._fbDb = FB_DB;
 
-      // Adapter agar API konsisten dengan modular: this._fbRef(this._fbDb, path)
-      this._fbDb = db;
-      this._fbRef = (database, path) => database.ref(path);
+      // ✅ _fbRef IGNORE parameter database, selalu pakai FB_DB (module scope, tidak di-Proxy)
+      this._fbRef = (database, path) => FB_DB.ref(path);
+
       this._fbOnValue = (refObj, callback, errCallback) => {
         refObj.on('value', (snap) => callback(snap), (err) => {
           if (errCallback) errCallback(err);
           else console.warn('FB listener error:', err);
         });
       };
+
       this._fbSet = async (refObj, value) => {
         const plain = (value === null || typeof value !== 'object') 
           ? value 
