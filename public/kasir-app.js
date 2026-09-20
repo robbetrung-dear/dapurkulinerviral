@@ -390,17 +390,16 @@ window.kasirApp = () => ({
   /**
    * Inisialisasi Firebase Modular SDK secara dinamis
    */
-  async initFirebaseSDK() {
+    async initFirebaseSDK() {
     try {
-      // Ambil kredensial Firebase dari API Server atau Local Storage
+      // Ambil kredensial Firebase
       let cfg = null;
       try {
         const stored = localStorage.getItem('dapur_firebase_custom_config');
         if (stored) cfg = JSON.parse(stored);
       } catch (e) {}
 
-        if (!cfg || !cfg.apiKey) {
-        // Fallback hardcoded (Firebase API key aman untuk publik)
+      if (!cfg || !cfg.apiKey) {
         cfg = {
           apiKey: "AIzaSyDeoY0Qqdi7RwE3opAhYkbuBnYqqKDQA6s",
           authDomain: "dapurkulinerviral.firebaseapp.com",
@@ -415,29 +414,37 @@ window.kasirApp = () => ({
 
       this._fbConfig = cfg;
 
-      // Import Firebase JS Modular SDK dari CDN
-      const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
-      const { getDatabase, ref, set, onValue } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js');
+      // ✅ Pakai Firebase COMPAT SDK (di-load via <script> tag di kasir.html)
+      if (typeof firebase === 'undefined' || !firebase.database) {
+        console.warn('[FB-INIT] Firebase compat SDK belum dimuat — cek kasir.html');
+        return;
+      }
 
-      this._fbRef = ref;
-      this._fbOnValue = onValue;
-      
-      // ✅ WRAPPER: Auto-clone semua value ke plain JSON sebelum kirim ke Firebase
-      // Menghindari error "i.insert is not a function" karena Proxy Alpine.js
-      this._fbSet = async (reference, value) => {
+      if (!firebase.apps || firebase.apps.length === 0) {
+        firebase.initializeApp(cfg);
+      }
+
+      const db = firebase.database();
+
+      // Adapter agar API konsisten dengan modular: this._fbRef(this._fbDb, path)
+      this._fbDb = db;
+      this._fbRef = (database, path) => database.ref(path);
+      this._fbOnValue = (refObj, callback, errCallback) => {
+        refObj.on('value', (snap) => callback(snap), (err) => {
+          if (errCallback) errCallback(err);
+          else console.warn('FB listener error:', err);
+        });
+      };
+      this._fbSet = async (refObj, value) => {
         const plain = (value === null || typeof value !== 'object') 
           ? value 
           : JSON.parse(JSON.stringify(value));
-        return set(reference, plain);
+        return refObj.set(plain);
       };
 
-      if (cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_FIREBASE')) {
-        const app = getApps().length > 0 ? getApps()[0] : initializeApp(cfg);
-        this._fbDb = getDatabase(app);
-        console.log('Firebase RTDB terhubung untuk Kasir POS:', cfg.projectId);
-      }
+      console.log('[FB-INIT] ✅ Firebase Compat connected:', cfg.projectId);
     } catch (err) {
-      console.warn('Firebase init note (berjalan di mode fallback lokal):', err);
+      console.warn('[FB-INIT] Firebase init error:', err);
     }
   },
 
