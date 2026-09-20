@@ -12,8 +12,9 @@
  * 7. Sound Feedback: Web Audio API synth ('click', 'success', 'error', 'notify')
  */
 
-// ✅ Simpan Firebase di MODULE SCOPE (bukan di this/Alpine) — hindari Proxy pollution
+// ✅ Simpan Firebase & AudioContext di MODULE SCOPE (bukan di this/Alpine) — hindari Proxy pollution
 let FB_DB = null;
+let GLOBAL_AUDIO_CTX = null;
 
 window.kasirApp = () => ({
   // =========================================================================
@@ -567,7 +568,7 @@ window.kasirApp = () => ({
   listenMenuItems() {
     this.isLoadingMenu = true;
 
-    // Fallback menu standar jika database belum terisi
+    // Fallback menu standar jika database belum terisi / offline / timeout
     const fallbackMenu = [
       { id: 'm1', name: 'Rice Bowl Chicken Katsu Curry', category: 'rice-bowl', price: 28000, desc: 'Nasi pulen + katsu crispy saus kari gurih', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400' },
       { id: 'm2', name: 'Rice Bowl Beef Teriyaki', category: 'rice-bowl', price: 35000, desc: 'Daging sapi iris bumbu teriyaki jepang', image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400' },
@@ -581,10 +582,23 @@ window.kasirApp = () => ({
       { id: 'm10', name: 'Es Cincau Gula Aren Susu', category: 'minuman', price: 12000, desc: 'Cincau hitam kenyal dengan susu aren legit', image: 'https://images.unsplash.com/photo-1556881286-fc6915169721?w=400' }
     ];
 
+    // Timeout safety 5 detik: jangan sampai loading spinner stuck selamanya
+    const menuTimeout = setTimeout(() => {
+      if (this.isLoadingMenu) {
+        console.warn('Firebase menu listener timeout 5s, using fallback menu');
+        if (!this.menuList || this.menuList.length === 0) {
+          this.menuList = fallbackMenu;
+        }
+        this.syncCategoriesWithMainStore();
+        this.isLoadingMenu = false;
+      }
+    }, 5000);
+
     if (this._fbDb && this._fbOnValue && this._fbRef) {
       try {
         const menuRef = this._fbRef(this._fbDb, 'menu_items');
         this._fbOnValue(menuRef, (snapshot) => {
+          clearTimeout(menuTimeout);
           const val = snapshot.val();
           console.log('[FB-MENU] Menu listener:', val ? Object.keys(val).length + ' items' : 'kosong');
           if (val) {
@@ -595,8 +609,11 @@ window.kasirApp = () => ({
           this.syncCategoriesWithMainStore();
           this.isLoadingMenu = false;
         }, (err) => {
+          clearTimeout(menuTimeout);
           console.warn('Firebase menu listener error:', err);
-          this.menuList = fallbackMenu;
+          if (!this.menuList || this.menuList.length === 0) {
+            this.menuList = fallbackMenu;
+          }
           this.syncCategoriesWithMainStore();
           this.isLoadingMenu = false;
         });
@@ -609,16 +626,22 @@ window.kasirApp = () => ({
             try { localStorage.setItem('dapur_menu_categories', JSON.stringify(catVal)); } catch(e) {}
             this.syncCategoriesWithMainStore();
           }
+        }, (catErr) => {
+          console.warn('Firebase category listener error:', catErr);
         });
 
         return;
       } catch (e) {
+        clearTimeout(menuTimeout);
         console.warn('Menu listener setup exception:', e);
+        this.menuList = fallbackMenu;
+        this.isLoadingMenu = false;
       }
     }
 
     // Fallback load lokal
     setTimeout(() => {
+      clearTimeout(menuTimeout);
       this.menuList = fallbackMenu;
       this.isLoadingMenu = false;
     }, 200);
@@ -649,6 +672,9 @@ window.kasirApp = () => ({
               this.playSound('notify');
             }
           }
+        }, (err) => {
+          console.warn('Firebase orders reconciliation listener error:', err);
+          this.cekPendingRekonsiliasi();
         });
         return;
       } catch (e) {
@@ -1962,17 +1988,20 @@ window.kasirApp = () => ({
    */
   playSound(type = 'click') {
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
+      if (!window.__userInteracted) return; // skip kalau belum ada gesture pengguna
 
-      if (!this._audioCtx) {
-        this._audioCtx = new AudioCtx();
-      }
-      if (this._audioCtx.state === 'suspended') {
-        this._audioCtx.resume();
+      if (!GLOBAL_AUDIO_CTX) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        GLOBAL_AUDIO_CTX = new AudioCtx();
+        window.__audioCtx = GLOBAL_AUDIO_CTX;
       }
 
-      const ctx = this._audioCtx;
+      if (GLOBAL_AUDIO_CTX.state === 'suspended') {
+        GLOBAL_AUDIO_CTX.resume().catch(() => {});
+      }
+
+      const ctx = GLOBAL_AUDIO_CTX;
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -2981,18 +3010,33 @@ window.kasirApp = () => ({
    */
   async loadInventory() {
     this.loadingStates.inventory = true;
+
+    // Timeout safety 5 detik agar state loading tidak gantung
+    const invTimeout = setTimeout(() => {
+      if (this.loadingStates && this.loadingStates.inventory) {
+        console.warn('Inventory loading timeout 5s, unlocking loading state');
+        this.loadingStates.inventory = false;
+      }
+    }, 5000);
+
     try {
       if (this._fbDb && this._fbOnValue && this._fbRef) {
         try {
           const invRef = this._fbRef(this._fbDb, 'inventory');
           this._fbOnValue(invRef, (snapshot) => {
+            clearTimeout(invTimeout);
             const val = snapshot.val();
             console.log('[FB-INV] inventory listener:', val ? Object.keys(val).length + ' items' : 'kosong');
             if (val) {
               this.inventoryList = Array.isArray(val) 
-  ? JSON.parse(JSON.stringify(val)) 
-  : Object.entries(val).map(([k, v]) => ({ id: k, ...v }));
+                ? JSON.parse(JSON.stringify(val)) 
+                : Object.entries(val).map(([k, v]) => ({ id: k, ...v }));
             }
+            this.loadingStates.inventory = false;
+          }, (err) => {
+            clearTimeout(invTimeout);
+            console.warn('Firebase inventory listener error:', err);
+            this.loadingStates.inventory = false;
           });
         } catch (e) {
           console.warn('Firebase inventory listener warning:', e);
@@ -3045,6 +3089,7 @@ window.kasirApp = () => ({
     } catch (e) {
       console.warn('loadInventory exception:', e);
     } finally {
+      clearTimeout(invTimeout);
       this.loadingStates.inventory = false;
     }
   },
