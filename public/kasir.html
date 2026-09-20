@@ -2146,7 +2146,7 @@
                 </div>
               </template>
 
-              <template x-for="item in filteredApprovals()" :key="item.id">
+              <template x-for="item in filteredApprovals()" :key="item.entryId || item.noEntry || item.id">
                 <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs space-y-3">
                   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
                     <div class="flex items-center gap-2">
@@ -2220,14 +2220,14 @@
                     <div class="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
                       <button 
                         type="button" 
-                        @click="rejectJournal(item.id, item.bulan || (item.date ? item.date.slice(0, 7) : ''))"
+                        @click="rejectJournal(item)"
                         class="px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                         <i class="fa-solid fa-xmark text-xs"></i>
                         <span>Tolak</span>
                       </button>
                       <button 
                         type="button" 
-                        @click="approveJournal(item.id, item.bulan || (item.date ? item.date.slice(0, 7) : ''))"
+                        @click="approveJournal(item)"
                         class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer">
                         <i class="fa-solid fa-check text-xs"></i>
                         <span>Setujui &amp; Posting Buku Besar</span>

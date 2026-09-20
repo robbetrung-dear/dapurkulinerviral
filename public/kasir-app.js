@@ -296,7 +296,10 @@ window.kasirApp = () => ({
   ],
   showJournalFormModal: false,
   showApprovalModal: false,
+  // State approval jurnal
   pendingApprovals: [],
+  isLoadingApprovals: false,
+  isProcessingApproval: false,
   approvalFilter: 'all',  // all | pending | approved | rejected
   approvalSearch: '',
 
@@ -4947,65 +4950,224 @@ window.kasirApp = () => ({
     return true;
   },
 
+  formatNumber(num) {
+    return new Intl.NumberFormat('id-ID').format(Number(num) || 0);
+  },
+
   async loadPendingApprovals() {
+    this.isLoadingApprovals = true;
     try {
       const res = await fetch('/accounting/approvals');
-      const data = await res.json();
-      if (data && data.success && Array.isArray(data.data)) {
-        this.pendingApprovals = data.data;
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
+      const json = await res.json();
+      
+      console.log('[APPROVAL] Response:', json);
+      
+      if (!json.success || !Array.isArray(json.data)) {
+        console.warn('[APPROVAL] Response format tidak valid:', json);
+        this.pendingApprovals = [];
+        return;
+      }
+      
+      // Normalize setiap entry supaya WAJIB punya entryId + bulan
+      this.pendingApprovals = json.data.map((entry, idx) => {
+        // Fallback: kalau entryId tidak ada, coba ambil dari key lain
+        const entryId = entry.entryId 
+                     || entry.id 
+                     || entry.firebaseKey 
+                     || null;
+        
+        const bulan = entry.bulan 
+                   || entry.month 
+                   || (entry.date ? entry.date.slice(0, 7) : null)
+                   || null;
+        
+        if (!entryId || !bulan) {
+          console.warn(`[APPROVAL] Entry #${idx} tidak punya entryId/bulan:`, entry);
+        } else {
+          console.log(`[APPROVAL] Entry ${idx}:`, { entryId, noEntry: entry.noEntry, bulan });
+        }
+        
+        return {
+          ...entry,
+          entryId,   // <-- normalize ke field standar
+          bulan
+        };
+      });
+      
+      console.log(`[APPROVAL] Loaded ${this.pendingApprovals.length} entries`);
+      
+      // Debug: log entries yang tidak lengkap
+      const incomplete = this.pendingApprovals.filter(e => !e.entryId || !e.bulan);
+      if (incomplete.length > 0) {
+        console.warn(`[APPROVAL] ${incomplete.length} entries incomplete:`, incomplete);
+      }
+      
     } catch (err) {
-      console.error('Error load pending approvals:', err);
+      console.error('[APPROVAL] Load error:', err);
+      this.pendingApprovals = [];
+      this.showToast('Gagal memuat daftar approval: ' + err.message, 'error');
+    } finally {
+      this.isLoadingApprovals = false;
     }
   },
 
-  async approveJournal(entryId, bulan) {
-    const b = bulan || (this.journalForm && this.journalForm.date ? this.journalForm.date.slice(0, 7) : new Date().toISOString().slice(0, 7));
+  async approveJournal(entry) {
+    console.log('[APPROVE] Called with:', entry);
+    // Handle berbagai format input: object, atau entryId (string)
+    let entryObj = entry;
+    
+    // Kalau yang dikirim cuma entryId (string), cari dari state
+    if (typeof entry === 'string') {
+      entryObj = this.pendingApprovals.find(e => 
+        e.entryId === entry || e.noEntry === entry || e.id === entry
+      );
+    }
+    
+    if (!entryObj) {
+      this.showToast('Entry jurnal tidak ditemukan di state', 'error');
+      console.error('[APPROVE] Entry not found:', entry);
+      return false;
+    }
+    
+    const identifier = entryObj.entryId || entryObj.noEntry || entryObj.id;
+    const bulan = entryObj.bulan || (entryObj.date ? entryObj.date.slice(0, 7) : null);
+    
+    console.log('[APPROVE] Processing:', { identifier, bulan, entryObj });
+    
+    if (!identifier) {
+      this.showToast('Entry jurnal tidak punya identifier (entryId/noEntry)', 'error');
+      return false;
+    }
+    
+    if (!bulan) {
+      this.showToast('Entry jurnal tidak punya info bulan', 'error');
+      return false;
+    }
+    
+    // Confirm dialog
+    const totalNominal = entryObj.lines?.reduce((s, l) => s + (Number(l.debit) || 0), 0) || 0;
+    if (!confirm(`Setujui jurnal ${entryObj.noEntry || identifier}?\n\n` +
+                 `Deskripsi: ${entryObj.desc || '-'}\n` +
+                 `Total: Rp ${this.formatNumber(totalNominal)}`)) {
+      return false;
+    }
+    
     try {
+      this.isProcessingApproval = true;
       this.isLoading = true;
-      const res = await fetch(`/accounting/journal/${b}/${encodeURIComponent(entryId)}`, {
+      
+      const url = `/accounting/journal/${encodeURIComponent(bulan)}/${encodeURIComponent(identifier)}`;
+      const payload = {
+        action: 'approve',
+        approvedBy: this.kasirInfo?.name || this.kasirInfo?.username || 'Finance / Kasir'
+      };
+      console.log(`[APPROVE] PATCH ${url} with body:`, payload);
+      
+      const res = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'approve', approvedBy: this.kasirInfo?.name || 'Finance / Owner' })
+        body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (data && data.success) {
-        this.showToast('Jurnal berhasil disetujui & buku besar diperbarui', 'success');
-        await this.loadPendingApprovals();
-        await this.loadJournalList(b);
-      } else {
-        this.showToast(data.error || 'Gagal menyetujui jurnal', 'error');
+      
+      const json = await res.json();
+      console.log('[APPROVE] Response:', json);
+      
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || `HTTP ${res.status}`);
       }
+      
+      this.showToast(`Jurnal ${entryObj.noEntry || identifier} berhasil di-approve`, 'success');
+      
+      // Refresh list approval
+      await this.loadPendingApprovals();
+      if (typeof this.loadJournalList === 'function') {
+        await this.loadJournalList(bulan);
+      }
+      
+      return true;
+      
     } catch (err) {
-      console.error('Approve journal error:', err);
-      this.showToast('Gagal memproses approval jurnal', 'error');
+      console.error('[APPROVE] Error:', err);
+      this.showToast('Gagal approve: ' + err.message, 'error');
+      return false;
     } finally {
+      this.isProcessingApproval = false;
       this.isLoading = false;
     }
   },
 
-  async rejectJournal(entryId, bulan, reason) {
-    const reasonText = reason || prompt('Alasan penolakan jurnal:') || 'Ditolak oleh finance';
-    const b = bulan || new Date().toISOString().slice(0, 7);
+  async rejectJournal(entry, reason = null) {
+    console.log('[REJECT] Called with:', entry);
+    let entryObj = entry;
+    
+    if (typeof entry === 'string') {
+      entryObj = this.pendingApprovals.find(e => 
+        e.entryId === entry || e.noEntry === entry || e.id === entry
+      );
+    }
+    
+    if (!entryObj) {
+      this.showToast('Entry jurnal tidak ditemukan', 'error');
+      return false;
+    }
+    
+    const identifier = entryObj.entryId || entryObj.noEntry || entryObj.id;
+    const bulan = entryObj.bulan || (entryObj.date ? entryObj.date.slice(0, 7) : null);
+    
+    if (!identifier || !bulan) {
+      this.showToast('Entry tidak lengkap (butuh identifier + bulan)', 'error');
+      return false;
+    }
+    
+    // Tanya alasan reject
+    const finalReason = reason || prompt(
+      'Alasan penolakan jurnal ' + (entryObj.noEntry || identifier) + ':',
+      'Nominal salah / bukti tidak lengkap'
+    );
+    
+    if (finalReason === null) return false;  // user cancel
+    
     try {
+      this.isProcessingApproval = true;
       this.isLoading = true;
-      const res = await fetch(`/accounting/journal/${b}/${encodeURIComponent(entryId)}`, {
+      
+      const url = `/accounting/journal/${encodeURIComponent(bulan)}/${encodeURIComponent(identifier)}`;
+      const payload = {
+        action: 'reject',
+        rejectedReason: finalReason,
+        approvedBy: this.kasirInfo?.name || this.kasirInfo?.username || 'Finance / Kasir'
+      };
+      console.log(`[REJECT] PATCH ${url} with body:`, payload);
+      
+      const res = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reject', rejectedReason: reasonText })
+        body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (data && data.success) {
-        this.showToast('Jurnal berhasil ditolak', 'success');
-        await this.loadPendingApprovals();
-        await this.loadJournalList(b);
-      } else {
-        this.showToast(data.error || 'Gagal menolak jurnal', 'error');
+      
+      const json = await res.json();
+      console.log('[REJECT] Response:', json);
+      
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || `HTTP ${res.status}`);
       }
+      
+      this.showToast(`Jurnal ditolak: ${finalReason}`, 'notify');
+      await this.loadPendingApprovals();
+      if (typeof this.loadJournalList === 'function') {
+        await this.loadJournalList(bulan);
+      }
+      return true;
+      
     } catch (err) {
-      console.error('Reject journal error:', err);
-      this.showToast('Gagal memproses penolakan jurnal', 'error');
+      console.error('[REJECT] Error:', err);
+      this.showToast('Gagal menolak jurnal: ' + err.message, 'error');
+      return false;
     } finally {
+      this.isProcessingApproval = false;
       this.isLoading = false;
     }
   },
