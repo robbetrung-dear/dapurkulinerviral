@@ -466,7 +466,7 @@
   </section>
 
   <!-- Main Interactive Tabs Section (Alpine.js) -->
-  <main id="tab-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+  <main id="tab-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 max-h-screen overflow-y-auto">
 
     <!-- Tab Buttons -->
     <div class="flex items-center justify-center mb-8">
@@ -2673,11 +2673,72 @@
             </div>
           </div>
 
-          <!-- Search Filter Menu Admin -->
-          <div class="bg-white p-3 rounded-2xl border border-stone-200">
+          <!-- Search & Filter Menu Admin -->
+          <div class="bg-white p-3.5 rounded-2xl border border-stone-200 space-y-3">
             <div class="relative">
               <input type="text" x-model="adminMenuSearch" placeholder="Cari nama menu..." class="w-full p-2.5 pl-8 rounded-xl border border-stone-300 text-xs bg-stone-50 focus:bg-white" />
               <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
+            </div>
+
+            <!-- Filter Status Tampil / Asal Menu -->
+            <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-stone-100">
+              <div class="flex items-center gap-1.5 flex-wrap text-xs">
+                <button 
+                  type="button" 
+                  @click="adminMenuSourceFilter = 'all'"
+                  :class="adminMenuSourceFilter === 'all' ? 'bg-stone-800 text-white font-bold' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'"
+                  class="px-2.5 py-1 rounded-lg transition cursor-pointer text-[11px] flex items-center gap-1">
+                  <span>Semua</span>
+                  <span class="px-1.5 py-0.2 text-[10px] rounded-full bg-black/20" x-text="getAdminMenuCounts().total"></span>
+                </button>
+                <button 
+                  type="button" 
+                  @click="adminMenuSourceFilter = 'kasir'"
+                  :class="adminMenuSourceFilter === 'kasir' ? 'bg-amber-600 text-white font-bold' : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'"
+                  class="px-2.5 py-1 rounded-lg transition cursor-pointer text-[11px] flex items-center gap-1">
+                  <i class="fa-solid fa-cash-register text-[10px]"></i>
+                  <span>Menu dari Kasir</span>
+                  <span class="px-1.5 py-0.2 text-[10px] rounded-full bg-black/10" x-text="getAdminMenuCounts().kasir"></span>
+                </button>
+                <button 
+                  type="button" 
+                  @click="adminMenuSourceFilter = 'visible'"
+                  :class="adminMenuSourceFilter === 'visible' ? 'bg-emerald-600 text-white font-bold' : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'"
+                  class="px-2.5 py-1 rounded-lg transition cursor-pointer text-[11px] flex items-center gap-1">
+                  <i class="fa-solid fa-store text-[10px]"></i>
+                  <span>Tampil di Web</span>
+                  <span class="px-1.5 py-0.2 text-[10px] rounded-full bg-black/10" x-text="getAdminMenuCounts().visible"></span>
+                </button>
+                <button 
+                  type="button" 
+                  @click="adminMenuSourceFilter = 'hidden'"
+                  :class="adminMenuSourceFilter === 'hidden' ? 'bg-stone-600 text-white font-bold' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'"
+                  class="px-2.5 py-1 rounded-lg transition cursor-pointer text-[11px] flex items-center gap-1">
+                  <i class="fa-solid fa-eye-slash text-[10px]"></i>
+                  <span>Disembunyikan</span>
+                  <span class="px-1.5 py-0.2 text-[10px] rounded-full bg-black/10" x-text="getAdminMenuCounts().hidden"></span>
+                </button>
+              </div>
+
+              <!-- Quick Bulk Actions untuk Menu Kasir -->
+              <div class="flex items-center gap-1.5 text-xs" x-show="getAdminMenuCounts().kasir > 0">
+                <button 
+                  type="button" 
+                  @click="bulkSetKasirMenuVisibility(true)"
+                  class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold border border-emerald-300 rounded-lg text-[10px] transition cursor-pointer flex items-center gap-1"
+                  title="Tampilkan semua menu dari kasir ke halaman utama web">
+                  <i class="fa-solid fa-check-double text-[9px]"></i>
+                  <span>Tampilkan Semua Kasir</span>
+                </button>
+                <button 
+                  type="button" 
+                  @click="bulkSetKasirMenuVisibility(false)"
+                  class="px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold border border-stone-300 rounded-lg text-[10px] transition cursor-pointer flex items-center gap-1"
+                  title="Sembunyikan semua menu dari kasir dari halaman web">
+                  <i class="fa-solid fa-eye-slash text-[9px]"></i>
+                  <span>Sembunyikan Semua</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2698,6 +2759,11 @@
                       <span class="font-extrabold text-xs sm:text-sm text-stone-900 truncate" x-text="item.name"></span>
                       <span class="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded font-semibold" x-text="item.categoryLabel"></span>
                       <span x-show="item.badge" class="text-[10px] bg-brand-600 text-white font-bold px-1.5 py-0.5 rounded" x-text="item.badge"></span>
+                      <!-- Badge Asal Menu Kasir POS -->
+                      <span x-show="item.fromKasir || (item.id && String(item.id).startsWith('m_'))" class="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded border border-amber-300 flex items-center gap-1" title="Menu dibuat dari Kasir / POS">
+                        <i class="fa-solid fa-cash-register text-[9px]"></i>
+                        <span>Kasir POS</span>
+                      </span>
                       <!-- Badge Spicy -->
                       <span x-show="item.isSpicy" class="text-[10px] bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border border-red-200" title="Menu Mengandung Cabe (Spicy)">
                         <i class="fa-solid fa-pepper-hot text-red-500 text-[10px]"></i>
@@ -2713,6 +2779,17 @@
                 </div>
 
                 <div class="flex items-center gap-1.5 flex-shrink-0">
+                  <!-- Toggle Tampil di Beranda / Halaman Utama -->
+                  <button 
+                    type="button" 
+                    @click="toggleShowOnMain(item)" 
+                    class="p-2 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    :class="item.showOnMain !== false ? 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100' : 'bg-stone-100 border-stone-300 text-stone-500 hover:bg-stone-200'"
+                    :title="item.showOnMain !== false ? 'Status: TAMPIL di Beranda Utama (Klik untuk sembunyikan)' : 'Status: DISEMBUNYIKAN dari Beranda Utama (Klik untuk tampilkan)'">
+                    <i :class="item.showOnMain !== false ? 'fa-solid fa-store text-emerald-600' : 'fa-solid fa-eye-slash text-stone-400'"></i>
+                    <span class="hidden md:inline" x-text="item.showOnMain !== false ? 'Tampil di Web' : 'Khusus Kasir'"></span>
+                  </button>
+
                   <!-- Quick Toggle Spicy / No -->
                   <button 
                     type="button"
@@ -3847,12 +3924,27 @@ git push -u origin main</pre>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Kategori Menu *</label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-bold text-stone-700 uppercase">Kategori Menu *</label>
+              <span class="text-[10px] text-amber-800 font-extrabold bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-300 flex items-center gap-1">
+                <i class="fa-solid fa-cash-register text-[9px]"></i>
+                <span>Sinkron POS Kasir</span>
+              </span>
+            </div>
             <select x-model="menuForm.category" @change="onMenuCategoryChange()" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-semibold">
-              <template x-for="cat in menuCategories.filter(c => c.id !== 'all')" :key="cat.id">
+              <template x-for="cat in getAvailableMenuCategories()" :key="cat.id">
                 <option :value="cat.id" x-text="cat.name"></option>
               </template>
+              <option value="__custom__">+ Tambah Kategori Baru...</option>
             </select>
+            <div x-show="menuForm.category === '__custom__'" class="mt-2">
+              <input 
+                type="text" 
+                x-model="menuForm.customCategory" 
+                placeholder="Tulis nama kategori baru..." 
+                class="w-full p-2 rounded-xl border border-amber-400 bg-amber-50/60 text-xs font-bold text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" 
+              />
+            </div>
           </div>
 
           <div>
@@ -3952,6 +4044,18 @@ git push -u origin main</pre>
         <div>
           <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Deskripsi Singkat Menu</label>
           <textarea x-model="menuForm.description" rows="2" placeholder="Jelaskan cita rasa dan keunggulan menu..." class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white"></textarea>
+        </div>
+
+        <!-- OPSI TAMPILKAN DI HALAMAN UTAMA -->
+        <div class="p-3 bg-stone-50 rounded-2xl border border-stone-200 flex items-center justify-between gap-3">
+          <div>
+            <span class="block text-xs font-extrabold text-stone-900">Tampilkan di Halaman Utama (Web Pelanggan)</span>
+            <span class="text-[10px] text-stone-500">Jika dinonaktifkan, menu hanya tersimpan di database dan kasir POS tanpa tampil di etalase beranda.</span>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+            <input type="checkbox" x-model="menuForm.showOnMain" class="sr-only peer">
+            <div class="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+          </label>
         </div>
 
         <div class="pt-2 flex items-center justify-end gap-2">
@@ -4649,6 +4753,19 @@ git push -u origin main</pre>
           }
         }
       },
+      listenMenu: (callback) => {
+        if (db) {
+          const menuRef = ref(db, 'menu_items');
+          return onValue(menuRef, (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+              const arr = Array.isArray(val) ? val : Object.values(val);
+              callback(arr);
+            }
+          });
+        }
+        return () => {};
+      },
       // Realtime Database persistence untuk Kategori Menu (Admin CMS)
       saveCategories: async (cats) => {
         try {
@@ -4825,6 +4942,7 @@ git push -u origin main</pre>
         adminActiveTab: 'orders',
         adminOrders: [],
         adminMenuSearch: '',
+        adminMenuSourceFilter: 'all', // 'all' | 'kasir' | 'visible' | 'hidden'
         adminToast: '',
         currentPage: 1,
 
@@ -4867,6 +4985,7 @@ git push -u origin main</pre>
           id: '',
           name: '',
           category: 'rice_bowl',
+          customCategory: '',
           categoryLabel: 'Bento & Rice Bowl',
           price: 28000,
           originalPrice: null,
@@ -4874,7 +4993,8 @@ git push -u origin main</pre>
           badgeColor: 'bg-brand-600 text-white',
           image: '',
           description: '',
-          isSpicy: false
+          isSpicy: false,
+          showOnMain: true
         },
 
         // Form Tambah / Edit Kategori Menu & Simbol Icon (Admin)
@@ -4949,13 +5069,16 @@ git push -u origin main</pre>
         // Keranjang Belanja
         cart: [],
 
-        // Kategori Menu Sesuai Gambar
+        // Kategori Menu Sesuai POS Kasir & Standar Toko
         menuCategories: [
           { id: 'all', name: 'Semua Menu', icon: 'fa-border-all' },
           { id: 'rice_bowl', name: 'Bento & Rice Bowl', icon: 'fa-bowl-rice' },
+          { id: 'chicken', name: 'Ayam & Bento', icon: 'fa-drumstick-bite' },
           { id: 'mie', name: 'Aneka Mie', icon: 'fa-bowl-food' },
+          { id: 'dimsum', name: 'Dimsum & Snack', icon: 'fa-utensils' },
           { id: 'cemilan', name: 'Cemilan / Side Dish', icon: 'fa-cookie-bite' },
           { id: 'ala_carte', name: 'Ala Carte', icon: 'fa-egg' },
+          { id: 'minuman', name: 'Aneka Minuman', icon: 'fa-mug-hot' },
           { id: 'viral', name: 'Viral & Dessert', icon: 'fa-fire' }
         ],
 
@@ -5340,6 +5463,24 @@ git push -u origin main</pre>
             console.warn("Error loading saved categories:", e);
           }
 
+          // Sinkronisasi otomatis kategori menu antara panel admin dan kasir POS
+          this.syncCategoriesWithKasir();
+
+          // Fetch fallback dari server / Cloudflare Pages API endpoint jika tersedia
+          fetch('/menu/categories')
+            .then(r => r.json())
+            .then(res => {
+              if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+                res.data.forEach(c => {
+                  if (c && c.id && c.id !== 'all' && c.id !== 'semua' && !this.menuCategories.some(mc => mc.id === c.id)) {
+                    this.menuCategories.push(c);
+                  }
+                });
+                this.syncCategoriesWithKasir();
+              }
+            })
+            .catch(() => {});
+
           // 3. Realtime Listener dari Firebase jika aktif
           const syncFirebaseListeners = () => {
             try {
@@ -5357,6 +5498,7 @@ git push -u origin main</pre>
                 window.FirebaseBridge.listenMenu((liveMenu) => {
                   if (liveMenu && Array.isArray(liveMenu) && liveMenu.length > 0) {
                     this.menuItems = liveMenu;
+                    this.syncCategoriesWithKasir();
                   }
                 });
               }
@@ -5364,6 +5506,7 @@ git push -u origin main</pre>
                 window.FirebaseBridge.listenCategories((liveCats) => {
                   if (liveCats && Array.isArray(liveCats) && liveCats.length > 0) {
                     this.menuCategories = liveCats;
+                    this.syncCategoriesWithKasir();
                   }
                 });
               }
@@ -5443,9 +5586,19 @@ git push -u origin main</pre>
           } catch (e) {}
         },
 
+        normalizeCatId(catId) {
+          if (!catId) return '';
+          return String(catId).toLowerCase().replace(/[^a-z0-9]/g, '');
+        },
+
         get filteredMenuItems() {
-          if (this.selectedCategory === 'all') return this.menuItems;
-          return this.menuItems.filter(item => item.category === this.selectedCategory);
+          const visible = this.menuItems.filter(item => item.showOnMain !== false);
+          if (this.selectedCategory === 'all' || this.selectedCategory === 'semua') return visible;
+          const selNorm = this.normalizeCatId(this.selectedCategory);
+          return visible.filter(item => {
+            if (item.category === this.selectedCategory) return true;
+            return this.normalizeCatId(item.category) === selNorm || this.normalizeCatId(item.categoryLabel) === selNorm;
+          });
         },
 
         get paginatedMenuItems() {
@@ -5462,10 +5615,27 @@ git push -u origin main</pre>
           return Math.ceil(this.filteredMenuItems.length / perPage) || 1;
         },
 
+        getAdminMenuCounts() {
+          const total = this.menuItems.length;
+          const kasir = this.menuItems.filter(m => m.fromKasir || (m.id && String(m.id).startsWith('m_'))).length;
+          const visible = this.menuItems.filter(m => m.showOnMain !== false).length;
+          const hidden = this.menuItems.filter(m => m.showOnMain === false).length;
+          return { total, kasir, visible, hidden };
+        },
+
         get filteredAdminMenuList() {
-          if (!this.adminMenuSearch) return this.menuItems;
+          let list = this.menuItems;
+          if (this.adminMenuSourceFilter === 'kasir') {
+            list = list.filter(m => m.fromKasir || (m.id && String(m.id).startsWith('m_')));
+          } else if (this.adminMenuSourceFilter === 'visible') {
+            list = list.filter(m => m.showOnMain !== false);
+          } else if (this.adminMenuSourceFilter === 'hidden') {
+            list = list.filter(m => m.showOnMain === false);
+          }
+
+          if (!this.adminMenuSearch) return list;
           const q = this.adminMenuSearch.toLowerCase();
-          return this.menuItems.filter(m => 
+          return list.filter(m => 
             (m.name && m.name.toLowerCase().includes(q)) || 
             (m.categoryLabel && m.categoryLabel.toLowerCase().includes(q)) ||
             (m.description && m.description.toLowerCase().includes(q))
@@ -6603,47 +6773,225 @@ git push -u origin main</pre>
           this.showToast('Password admin baru berhasil disimpan!');
         },
 
+        // SINKRONISASI KATEGORI MENU DENGAN KASIR POS (Mencegah Crash & Memastikan Selalu Sinkron)
+        syncCategoriesWithKasir() {
+          try {
+            if (!Array.isArray(this.menuCategories) || this.menuCategories.length === 0) {
+              this.menuCategories = [
+                { id: 'all', name: 'Semua Menu', icon: 'fa-border-all' }
+              ];
+            }
+
+            if (!this.menuCategories.some(c => c.id === 'all')) {
+              this.menuCategories.unshift({ id: 'all', name: 'Semua Menu', icon: 'fa-border-all' });
+            }
+
+            const standardCategories = [
+              { id: 'rice_bowl', name: 'Bento & Rice Bowl', icon: 'fa-bowl-rice' },
+              { id: 'chicken', name: 'Ayam & Bento', icon: 'fa-drumstick-bite' },
+              { id: 'mie', name: 'Aneka Mie', icon: 'fa-bowl-food' },
+              { id: 'dimsum', name: 'Dimsum & Snack', icon: 'fa-utensils' },
+              { id: 'cemilan', name: 'Cemilan / Side Dish', icon: 'fa-cookie-bite' },
+              { id: 'ala_carte', name: 'Ala Carte', icon: 'fa-egg' },
+              { id: 'minuman', name: 'Aneka Minuman', icon: 'fa-mug-hot' },
+              { id: 'viral', name: 'Viral & Dessert', icon: 'fa-fire' }
+            ];
+
+            const existsCat = (idOrName) => {
+              if (!idOrName) return true;
+              const target = String(idOrName).toLowerCase().replace(/[^a-z0-9]/g, '');
+              return this.menuCategories.some(c => {
+                const cId = String(c.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const cNm = String(c.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return cId === target || cNm === target;
+              });
+            };
+
+            // 1. Tambahkan kategori standar jika belum ada
+            standardCategories.forEach(std => {
+              if (!existsCat(std.id) && !existsCat(std.name)) {
+                this.menuCategories.push(std);
+              }
+            });
+
+            // 2. Baca kategori dari localStorage 'dapur_menu_categories'
+            try {
+              const saved = localStorage.getItem('dapur_menu_categories');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(c => {
+                    if (c && c.id && c.id !== 'all' && c.id !== 'semua' && !existsCat(c.id) && !existsCat(c.name)) {
+                      this.menuCategories.push({
+                        id: c.id,
+                        name: c.name || c.id,
+                        icon: c.icon || 'fa-bowl-food'
+                      });
+                    }
+                  });
+                }
+              }
+            } catch (e) {}
+
+            // 3. Ekstrak kategori dari daftar menuItems
+            if (Array.isArray(this.menuItems)) {
+              this.menuItems.forEach(item => {
+                if (item && item.category && item.category !== 'all' && item.category !== 'semua') {
+                  const catId = item.category;
+                  const catLabel = item.categoryLabel || item.category;
+                  if (!existsCat(catId) && !existsCat(catLabel)) {
+                    this.menuCategories.push({
+                      id: catId,
+                      name: catLabel,
+                      icon: 'fa-bowl-food'
+                    });
+                  }
+                  if (!item.categoryLabel) {
+                    item.categoryLabel = this.getCategoryLabel(item.category);
+                  }
+                }
+              });
+            }
+
+            // 4. Ekstrak kategori dari Kasir POS di localStorage 'dapur_menu_list' jika ada
+            try {
+              const kasirListStr = localStorage.getItem('dapur_menu_list');
+              if (kasirListStr) {
+                const kasirList = JSON.parse(kasirListStr);
+                if (Array.isArray(kasirList)) {
+                  kasirList.forEach(km => {
+                    if (km && km.category && km.category !== 'all' && km.category !== 'semua') {
+                      const cId = km.category;
+                      const cLabel = km.categoryLabel || km.category;
+                      if (!existsCat(cId) && !existsCat(cLabel)) {
+                        this.menuCategories.push({
+                          id: cId,
+                          name: cLabel,
+                          icon: 'fa-bowl-food'
+                        });
+                      }
+                    }
+                  });
+                }
+              }
+            } catch (e) {}
+
+            // Sinkronkan balik ke localStorage agar POS kasir juga menerima update kategori
+            try {
+              localStorage.setItem('dapur_menu_categories', JSON.stringify(this.menuCategories));
+            } catch (e) {}
+          } catch (err) {
+            console.warn('Gagal sinkronkan kategori menu admin & kasir:', err);
+          }
+        },
+
+        getAvailableMenuCategories() {
+          this.syncCategoriesWithKasir();
+          const list = (this.menuCategories || [])
+            .filter(c => c && c.id && c.id !== 'all' && c.id !== 'semua');
+
+          // Pastikan jika menuForm.category sedang bernilai tertentu dan belum terdaftar, sertakan agar dropdown tidak blank/crash
+          if (this.menuForm && this.menuForm.category && this.menuForm.category !== '__custom__') {
+            const currentCat = this.menuForm.category;
+            const exists = list.some(c => c.id === currentCat || (c.name || '').toLowerCase() === String(currentCat).toLowerCase());
+            if (!exists) {
+              list.push({
+                id: currentCat,
+                name: this.menuForm.categoryLabel || this.getCategoryLabel(currentCat),
+                icon: 'fa-bowl-food'
+              });
+            }
+          }
+          return list;
+        },
+
+        getCategoryLabel(catId) {
+          if (!catId) return 'Semua Menu';
+          const found = (this.menuCategories || []).find(c => 
+            c.id === catId || 
+            (c.name || '').toLowerCase() === String(catId).toLowerCase() ||
+            this.normalizeCatId(c.id) === this.normalizeCatId(catId)
+          );
+          if (found) return found.name;
+
+          const map = {
+            'rice_bowl': 'Bento & Rice Bowl',
+            'rice-bowl': 'Bento & Rice Bowl',
+            'chicken': 'Ayam & Bento',
+            'mie': 'Aneka Mie',
+            'mie-bakso': 'Aneka Mie & Bakso',
+            'dimsum': 'Dimsum & Snack',
+            'cemilan': 'Cemilan / Side Dish',
+            'ala_carte': 'Ala Carte',
+            'minuman': 'Aneka Minuman',
+            'viral': 'Viral & Dessert'
+          };
+          return map[catId] || catId.charAt(0).toUpperCase() + catId.slice(1).replace(/[-_]/g, ' ');
+        },
+
         openAddMenuModal() {
+          this.syncCategoriesWithKasir();
           this.editingMenuItemId = null;
+          const defaultCatObj = this.menuCategories.find(c => c.id !== 'all' && c.id !== 'semua') || { id: 'rice_bowl', name: 'Bento & Rice Bowl' };
+          const defaultCat = defaultCatObj.id || 'rice_bowl';
           this.menuForm = {
             id: 'm-' + Date.now(),
             name: '',
-            category: 'rice_bowl',
-            categoryLabel: 'Bento & Rice Bowl',
+            category: defaultCat,
+            customCategory: '',
+            categoryLabel: defaultCatObj.name || this.getCategoryLabel(defaultCat),
             price: 25000,
             originalPrice: null,
             badge: '',
             badgeColor: 'bg-brand-600 text-white',
             image: '',
             description: '',
-            isSpicy: false
+            isSpicy: false,
+            showOnMain: true
           };
           this.isMenuFormOpen = true;
         },
 
         openEditMenuModal(item) {
+          this.syncCategoriesWithKasir();
           this.editingMenuItemId = item.id;
+          const cat = item.category || 'rice_bowl';
+          const label = item.categoryLabel || this.getCategoryLabel(cat);
+
+          // Pastikan kategori item terdaftar di menuCategories agar select tidak blank/crash
+          if (!this.menuCategories.some(c => c.id === cat)) {
+            this.menuCategories.push({
+              id: cat,
+              name: label,
+              icon: 'fa-bowl-food'
+            });
+            this.saveCategoriesData();
+          }
+
           this.menuForm = {
             id: item.id,
-            name: item.name,
-            category: item.category || 'rice_bowl',
-            categoryLabel: item.categoryLabel || 'Bento & Rice Bowl',
+            name: item.name || '',
+            category: cat,
+            customCategory: '',
+            categoryLabel: label,
             price: item.price || 0,
             originalPrice: item.originalPrice || null,
             badge: item.badge || '',
             badgeColor: item.badgeColor || 'bg-brand-600 text-white',
             image: item.image || '',
             description: item.description || '',
-            isSpicy: Boolean(item.isSpicy)
+            isSpicy: Boolean(item.isSpicy),
+            showOnMain: item.showOnMain !== false
           };
           this.isMenuFormOpen = true;
         },
 
         onMenuCategoryChange() {
-          const cat = this.menuCategories.find(c => c.id === this.menuForm.category);
-          if (cat) {
-            this.menuForm.categoryLabel = cat.name;
+          if (this.menuForm.category === '__custom__') {
+            this.menuForm.categoryLabel = this.menuForm.customCategory || 'Kategori Baru';
+            return;
           }
+          this.menuForm.categoryLabel = this.getCategoryLabel(this.menuForm.category);
         },
 
         async toggleMenuItemSpicy(item) {
@@ -6652,31 +7000,113 @@ git push -u origin main</pre>
           this.showToast(item.isSpicy ? `Logo cabe diaktifkan untuk "${item.name}"!` : `Logo cabe dinonaktifkan untuk "${item.name}"!`);
         },
 
+        async toggleShowOnMain(item) {
+          if (!item) return;
+          item.showOnMain = item.showOnMain === false ? true : false;
+          await window.FirebaseBridge.saveMenu(this.menuItems);
+          this.showToast(
+            item.showOnMain 
+              ? `"${item.name}" sekarang TAMPIL di Halaman Utama!` 
+              : `"${item.name}" DISEMBUNYIKAN dari Halaman Utama`,
+            item.showOnMain ? 'success' : 'notify'
+          );
+        },
+
+        async bulkSetKasirMenuVisibility(show) {
+          let count = 0;
+          this.menuItems.forEach(item => {
+            if (item.fromKasir || (item.id && String(item.id).startsWith('m_'))) {
+              item.showOnMain = show;
+              count++;
+            }
+          });
+          await window.FirebaseBridge.saveMenu(this.menuItems);
+          this.showToast(
+            show 
+              ? `${count} menu baru dari kasir sekarang DITAMPILKAN di Halaman Utama!` 
+              : `${count} menu dari kasir sekarang DISEMBUNYIKAN dari Halaman Utama`,
+            show ? 'success' : 'notify'
+          );
+        },
+
         async saveMenuItem() {
-          this.onMenuCategoryChange();
+          // Tangani custom category jika user mengetik nama baru
+          if (this.menuForm.category === '__custom__') {
+            const customName = (this.menuForm.customCategory || '').trim();
+            if (!customName) {
+              alert('Harap tulis nama kategori baru!');
+              return;
+            }
+            const customId = customName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+            if (!this.menuCategories.some(c => c.id === customId)) {
+              this.menuCategories.push({
+                id: customId,
+                name: customName,
+                icon: 'fa-bowl-food'
+              });
+              await this.saveCategoriesData();
+            }
+            this.menuForm.category = customId;
+            this.menuForm.categoryLabel = customName;
+          } else {
+            this.menuForm.categoryLabel = this.getCategoryLabel(this.menuForm.category);
+          }
 
           const formPayload = {
             ...this.menuForm,
-            isSpicy: Boolean(this.menuForm.isSpicy)
+            isSpicy: Boolean(this.menuForm.isSpicy),
+            showOnMain: this.menuForm.showOnMain !== false,
+            updatedAt: Date.now()
           };
+          delete formPayload.customCategory;
 
+          let targetItem = null;
           if (this.editingMenuItemId) {
             const idx = this.menuItems.findIndex(m => m.id === this.editingMenuItemId);
             if (idx !== -1) {
-              this.menuItems[idx] = formPayload;
+              this.menuItems[idx] = { ...this.menuItems[idx], ...formPayload };
+              targetItem = this.menuItems[idx];
             }
           } else {
             const newItem = {
               ...formPayload,
-              id: 'm-' + Date.now()
+              id: 'm-' + Date.now(),
+              createdAt: Date.now()
             };
             this.menuItems.unshift(newItem);
+            targetItem = newItem;
           }
 
           // Simpan ke Firebase Realtime Database & LocalStorage
           await window.FirebaseBridge.saveMenu(this.menuItems);
+
+          // SINKRONISASI KE KASIR POS (dapur_menu_list di LocalStorage & Server API /menu/:id)
+          try {
+            const kasirSaved = localStorage.getItem('dapur_menu_list');
+            let kasirList = kasirSaved ? JSON.parse(kasirSaved) : [];
+            if (Array.isArray(kasirList) && targetItem) {
+              const kIdx = kasirList.findIndex(k => k.id === targetItem.id);
+              if (kIdx !== -1) {
+                kasirList[kIdx] = { ...kasirList[kIdx], ...targetItem };
+              } else {
+                kasirList.unshift(targetItem);
+              }
+              localStorage.setItem('dapur_menu_list', JSON.stringify(kasirList));
+              localStorage.setItem('dapur_menu_items', JSON.stringify(this.menuItems));
+            }
+          } catch (e) {}
+
+          // Simpan juga ke Server / Cloudflare Pages endpoint /menu/:id
+          if (targetItem && targetItem.id) {
+            fetch(`/menu/${encodeURIComponent(targetItem.id)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(targetItem)
+            }).catch(() => {});
+          }
+
           this.isMenuFormOpen = false;
-          this.showToast(this.editingMenuItemId ? 'Menu berhasil diperbarui!' : 'Menu baru berhasil ditambahkan!');
+          this.showToast(this.editingMenuItemId ? 'Menu berhasil diperbarui!' : 'Menu baru berhasil ditambahkan & disinkronkan ke Kasir POS!');
         },
 
         async deleteMenuItem(id) {

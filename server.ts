@@ -532,6 +532,114 @@ app.post(['/inventory/deduct', '/api/inventory/deduct'], (req, res) => {
   }
 });
 
+// In-Memory Menu & Categories Store for Server
+let serverMenuItems: any[] = [];
+let serverCategories: any[] = [
+  { id: 'all', name: 'Semua Menu', icon: 'fa-border-all' },
+  { id: 'rice_bowl', name: 'Bento & Rice Bowl', icon: 'fa-bowl-rice' },
+  { id: 'chicken', name: 'Ayam & Bento', icon: 'fa-drumstick-bite' },
+  { id: 'mie', name: 'Aneka Mie', icon: 'fa-bowl-food' },
+  { id: 'dimsum', name: 'Dimsum & Snack', icon: 'fa-utensils' },
+  { id: 'cemilan', name: 'Cemilan / Side Dish', icon: 'fa-cookie-bite' },
+  { id: 'ala_carte', name: 'Ala Carte', icon: 'fa-egg' },
+  { id: 'minuman', name: 'Aneka Minuman', icon: 'fa-mug-hot' },
+  { id: 'viral', name: 'Viral & Dessert', icon: 'fa-fire' }
+];
+
+// GET /categories & /menu/categories
+app.get(['/categories', '/api/categories', '/menu/categories', '/api/menu/categories'], (req, res) => {
+  res.json({ success: true, data: serverCategories });
+});
+
+// POST /categories & /menu/categories
+app.post(['/categories', '/api/categories', '/menu/categories', '/api/menu/categories'], (req, res) => {
+  if (Array.isArray(req.body)) {
+    serverCategories = req.body;
+  }
+  res.json({ success: true, message: "Kategori menu berhasil disimpan", data: serverCategories });
+});
+
+// GET /menu
+app.get(['/menu', '/api/menu'], (req, res) => {
+  res.json({ success: true, data: serverMenuItems });
+});
+
+// GET /menu/:menuId
+app.get(['/menu/:menuId', '/api/menu/:menuId'], (req, res) => {
+  const { menuId } = req.params;
+  const item = serverMenuItems.find(m => m.id === menuId);
+  if (!item) {
+    return res.status(404).json({ success: false, error: "Menu tidak ditemukan" });
+  }
+  res.json({ success: true, data: item });
+});
+
+// POST /menu/:menuId
+app.post(['/menu/:menuId', '/api/menu/:menuId'], (req, res) => {
+  try {
+    const { menuId } = req.params;
+    const body = req.body || {};
+    const item = { ...body, id: menuId, updatedAt: Date.now() };
+    const idx = serverMenuItems.findIndex(m => m.id === menuId);
+    if (idx !== -1) {
+      serverMenuItems[idx] = item;
+    } else {
+      serverMenuItems.unshift(item);
+    }
+    res.json({ success: true, id: menuId, data: item });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /menu (Bulk save atau tambah menu)
+app.post(['/menu', '/api/menu'], (req, res) => {
+  try {
+    if (Array.isArray(req.body)) {
+      serverMenuItems = req.body;
+      return res.json({ success: true, count: serverMenuItems.length });
+    }
+    const menuId = req.body.id || ('m_' + Date.now());
+    const item = { ...req.body, id: menuId, createdAt: Date.now() };
+    const idx = serverMenuItems.findIndex(m => m.id === menuId);
+    if (idx !== -1) {
+      serverMenuItems[idx] = item;
+    } else {
+      serverMenuItems.unshift(item);
+    }
+    res.json({ success: true, id: menuId, data: item });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /menu/:menuId
+app.delete(['/menu/:menuId', '/api/menu/:menuId'], (req, res) => {
+  const { menuId } = req.params;
+  serverMenuItems = serverMenuItems.filter(m => m.id !== menuId);
+  res.json({ success: true, id: menuId, deleted: true });
+});
+
+// GET /recipes
+app.get(['/recipes', '/api/recipes'], (req, res) => {
+  res.json({ success: true, data: menuRecipesStore });
+});
+
+// POST /recipes/:menuId
+app.post(['/recipes/:menuId', '/api/recipes/:menuId'], (req, res) => {
+  try {
+    const { menuId } = req.params;
+    const { ingredients } = req.body || {};
+    menuRecipesStore[menuId] = {
+      menuId,
+      ingredients: Array.isArray(ingredients) ? ingredients : []
+    };
+    res.json({ success: true, menuId, data: menuRecipesStore[menuId] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // In-Memory Orders Store with Seed Data for Reconciliation
 let ordersStore: Record<string, any> = {
   "ORD-9821": {
@@ -928,6 +1036,46 @@ app.get(['/pos/summary/daily/:today', '/api/pos/summary/daily/:today'], (req, re
   }
 });
 
+// GET /pos/summary/monthly/:month (Laporan Bulanan)
+app.get(['/pos/summary/monthly/:month', '/api/pos/summary/monthly/:month'], (req, res) => {
+  try {
+    const { month } = req.params;
+    const txList = Object.entries(posTransactionsStore)
+      .filter(([key]) => key.startsWith(month))
+      .map(([, val]) => val);
+
+    let totalSales = 0;
+    const breakdown = { cash: 0, qris: 0, transfer: 0, ewallet: 0 };
+
+    for (const tx of txList) {
+      const amt = Number(tx.total || tx.amount || 0);
+      totalSales += amt;
+      const pm = String(tx.pm || tx.paymentMethod || '').toLowerCase();
+      if (pm.includes('tunai') || pm.includes('cash')) {
+        breakdown.cash += amt;
+      } else if (pm.includes('qris')) {
+        breakdown.qris += amt;
+      } else if (pm.includes('transfer') || pm.includes('bca') || pm.includes('mandiri')) {
+        breakdown.transfer += amt;
+      } else if (pm.includes('ewallet') || pm.includes('gopay') || pm.includes('ovo') || pm.includes('dana')) {
+        breakdown.ewallet += amt;
+      } else {
+        breakdown.cash += amt;
+      }
+    }
+
+    res.json({
+      success: true,
+      month,
+      totalSales,
+      totalTx: txList.length,
+      breakdown
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /report-daily, /report-pl, /report-shift
 app.post(['/report-daily', '/api/report-daily', '/report-pl', '/api/report-pl', '/report-shift', '/api/report-shift'], (req, res) => {
   try {
@@ -959,7 +1107,8 @@ app.post(['/receipt', '/api/receipt', '/functions/receipt'], async (req, res) =>
 // POST/GET /archive, /api/archive (Monthly Data Archiving to Firebase Storage)
 app.all(['/archive', '/api/archive', '/functions/archive'], async (req, res) => {
   try {
-    const { executeMonthlyArchive } = await import('./functions/archive.js');
+    const archiveModulePath = './functions/archive.js';
+    const { executeMonthlyArchive }: any = await import(/* @vite-ignore */ archiveModulePath);
     const options = req.method === 'POST' ? req.body : {
       date: req.query.date as string,
       dryRun: req.query.dryRun === 'true' || req.query.dryRun === '1'
@@ -996,7 +1145,8 @@ app.post(['/reconcile', '/api/reconcile', '/functions/reconcile'], async (req, r
 // POST /aggregate, /api/aggregate (Update daily & monthly summaries)
 app.post(['/aggregate', '/api/aggregate', '/functions/aggregate'], async (req, res) => {
   try {
-    const { handleAggregateRequest } = await import('./functions/aggregate.js');
+    const aggregateModulePath = './functions/aggregate.js';
+    const { handleAggregateRequest }: any = await import(/* @vite-ignore */ aggregateModulePath);
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
     const result = await handleAggregateRequest(req.body, process.env, clientIp);
     res.status(result.status).json(result.data);

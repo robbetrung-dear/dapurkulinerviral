@@ -500,7 +500,7 @@ window.addEventListener('unhandledrejection', function(event) {
     <!-- ===================================================================== -->
     <!-- 3. KONTEN AREA UTAMA (Flex-1)                                          -->
     <!-- ===================================================================== -->
-    <main class="flex-1 overflow-y-auto bg-stone-100 p-4 sm:p-6 lg:p-8">
+    <main class="flex-1 max-h-screen overflow-y-auto bg-stone-100 p-4 sm:p-6 lg:p-8">
 
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- TAB 1: TRANSAKSI BARU                                               -->
@@ -1562,6 +1562,19 @@ window.addEventListener('unhandledrejection', function(event) {
                       <span class="text-[10px] font-bold text-stone-400 uppercase tracking-wider" x-text="menu.category || 'Menu'"></span>
                       <h4 class="font-extrabold text-sm text-stone-900 mt-0.5 line-clamp-1" x-text="menu.name"></h4>
                       <p class="text-xs font-mono font-bold text-emerald-700 mt-0.5" x-text="formatRupiah(menu.price)"></p>
+                      
+                      <!-- Toggle Tampil di Halaman Utama (Toko Online) -->
+                      <div class="mt-1.5">
+                        <button 
+                          type="button" 
+                          @click="toggleMenuShowOnMain(menu)"
+                          :class="menu.showOnMain !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'"
+                          class="px-2 py-0.5 rounded-lg border text-[10px] font-bold transition cursor-pointer inline-flex items-center gap-1"
+                          :title="menu.showOnMain !== false ? 'Menu tampil di Toko Utama. Klik untuk sembunyikan.' : 'Menu disembunyikan dari Toko Utama. Klik untuk tampilkan.'">
+                          <i :class="menu.showOnMain !== false ? 'fa-solid fa-store text-emerald-600' : 'fa-solid fa-eye-slash text-stone-400'"></i>
+                          <span x-text="menu.showOnMain !== false ? 'Tampil di Web Utama' : 'Khusus Kasir / POS'"></span>
+                        </button>
+                      </div>
                     </div>
                     <div class="flex flex-col items-end gap-1 flex-shrink-0">
                       <span 
@@ -2649,8 +2662,8 @@ window.addEventListener('unhandledrejection', function(event) {
         <!-- Rincian Pembayaran -->
         <div class="space-y-1 text-[11px]">
           <div class="flex justify-between"><span>Subtotal:</span><span x-text="formatRupiah(currentOrder ? currentOrder.subtotal : getCartSubtotal())"></span></div>
-          <template x-if="(currentOrder ? currentOrder.serviceCharge : getCartServiceCharge()) > 0">
-            <div class="flex justify-between"><span>Service Charge:</span><span x-text="formatRupiah(currentOrder ? currentOrder.serviceCharge : getCartServiceCharge())"></span></div>
+          <template x-if="(currentOrder && currentOrder.serviceCharge !== undefined ? currentOrder.serviceCharge : getCartServiceCharge()) > 0">
+            <div class="flex justify-between"><span>Service Charge (5%):</span><span x-text="formatRupiah(currentOrder && currentOrder.serviceCharge !== undefined ? currentOrder.serviceCharge : getCartServiceCharge())"></span></div>
           </template>
           <div class="flex justify-between"><span>Pajak (11%):</span><span x-text="formatRupiah(currentOrder ? currentOrder.tax : getCartTax())"></span></div>
           <template x-if="(currentOrder ? (currentOrder.discount || currentOrder.disc) : discountAmount) > 0">
@@ -3297,13 +3310,20 @@ window.addEventListener('unhandledrejection', function(event) {
             <select 
               x-model="newMenuForm.category"
               class="w-full h-11 px-3 rounded-xl border border-stone-300 bg-stone-50 text-xs font-bold text-stone-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-              <option value="rice-bowl">Rice Bowl</option>
-              <option value="chicken">Ayam &amp; Bento</option>
-              <option value="mie-bakso">Mie &amp; Bakso</option>
-              <option value="dimsum">Dimsum &amp; Snack</option>
-              <option value="minuman">Minuman</option>
-              <option value="catering">Catering / Package</option>
+              <template x-for="cat in getAvailableMenuCategories()" :key="cat.id">
+                <option :value="cat.id" x-text="cat.name"></option>
+              </template>
+              <option value="__custom__">+ Tambah Kategori Baru...</option>
             </select>
+            <template x-if="newMenuForm.category === '__custom__'">
+              <input 
+                type="text" 
+                x-model="newMenuForm.customCategory" 
+                placeholder="Tulis nama kategori baru..." 
+                required
+                class="w-full h-10 mt-1.5 px-3 rounded-xl border border-amber-400 bg-amber-50/40 text-xs font-bold text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500" 
+              />
+            </template>
           </div>
 
           <div>
@@ -3417,6 +3437,18 @@ window.addEventListener('unhandledrejection', function(event) {
               <div class="font-black text-sm font-mono mt-0.5" x-text="formatRupiah(calculateGrossProfit(newMenuForm.price, calculateNewMenuHPP(newMenuForm.ingredients)).nominal)"></div>
             </div>
           </div>
+        </div>
+
+        <!-- OPSI TAMPILKAN DI HALAMAN UTAMA -->
+        <div class="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 flex items-center justify-between gap-3">
+          <div>
+            <span class="block text-xs font-extrabold text-stone-900">Tampilkan di Halaman Utama (Web Pelanggan)</span>
+            <span class="text-[10px] text-stone-500">Menu ini akan langsung muncul di katalog web utama untuk pemesanan online.</span>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+            <input type="checkbox" x-model="newMenuForm.showOnMain" class="sr-only peer">
+            <div class="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+          </label>
         </div>
 
         <!-- Tombol Simpan Menu Baru -->

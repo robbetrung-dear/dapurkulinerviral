@@ -4,5 +4,9 @@
  */
 
 export default function App() {
-  return <div></div>;
+  return (
+    <main className="max-h-screen overflow-y-auto">
+      <div id="main-content"></div>
+    </main>
+  );
 }

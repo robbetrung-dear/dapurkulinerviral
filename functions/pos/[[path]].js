@@ -1,6 +1,6 @@
 /**
  * functions/pos/[[path]].js
- * Cloudflare Pages Function — Handle semua request /pos/*
+ * Cloudflare Pages Function — Proxy request /pos/* ke Firebase Realtime Database
  */
 
 export async function onRequest(context) {
@@ -8,106 +8,159 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   const method = request.method;
 
-  const fullPath = url.pathname.replace(/^\/pos\/?/, '');
-  const parts = fullPath.split('/').filter(Boolean);
-
+  // Header CORS untuk preflight dan respons API
   const cors = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 
+  // 10. Handle OPTIONS untuk CORS preflight
   if (method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors });
   }
 
+  // Konfigurasi URL Firebase Realtime Database & API Key
   const dbUrl = (env.FIREBASE_DATABASE_URL || "https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app").replace(/\/$/, "");
   const apiKey = env.FIREBASE_API_KEY || "";
   const authParam = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "";
 
+  // Ekstrak path setelah /pos/
+  const fullPath = url.pathname.replace(/^\/pos\/?/, '');
+  const parts = fullPath.split('/').filter(Boolean);
+
   try {
     if (parts.length === 0) {
-      return new Response(JSON.stringify({ success: false, error: "Path kosong" }), {
-        status: 400, headers: { ...cors, "Content-Type": "application/json" }
+      return new Response(JSON.stringify({ success: false, error: "Path /pos tidak boleh kosong" }), {
+        status: 400,
+        headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // GET /pos/summary/daily/{date}
+    // 1. GET /pos/summary/daily/{date} — Ringkasan penjualan harian (YYYY-MM-DD)
     if (method === 'GET' && parts[0] === 'summary' && parts[1] === 'daily' && parts[2]) {
       const date = parts[2];
       const res = await fetch(`${dbUrl}/pos/summary/daily/${encodeURIComponent(date)}.json${authParam}`);
       const data = await res.json() || {};
       return new Response(JSON.stringify({ 
         success: true, 
+        date,
         totalSales: data.sales || 0, 
         totalTx: data.tx || 0, 
-        breakdown: { cash: data.cash || 0, qris: data.qris || 0, transfer: data.transfer || 0, ewallet: data.ewallet || 0 } 
+        breakdown: { 
+          cash: data.cash || 0, 
+          qris: data.qris || 0, 
+          transfer: data.transfer || 0, 
+          ewallet: data.ewallet || 0 
+        } 
       }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // GET /pos/transactions/{date}
-    if (method === 'GET' && parts[0] === 'transactions' && parts[1]) {
-      const date = parts[1];
-      const res = await fetch(`${dbUrl}/pos/transactions/${encodeURIComponent(date)}.json${authParam}`);
-      const data = await res.json();
-      const list = data && typeof data === 'object' ? Object.values(data) : [];
-      return new Response(JSON.stringify({ success: true, data: list }), {
+    // 2. GET /pos/summary/monthly/{month} — Ringkasan penjualan bulanan (YYYY-MM)
+    if (method === 'GET' && parts[0] === 'summary' && parts[1] === 'monthly' && parts[2]) {
+      const month = parts[2];
+      const res = await fetch(`${dbUrl}/pos/summary/monthly/${encodeURIComponent(month)}.json${authParam}`);
+      const data = await res.json() || {};
+      return new Response(JSON.stringify({ 
+        success: true, 
+        month,
+        totalSales: data.sales || 0, 
+        totalTx: data.tx || 0, 
+        breakdown: { 
+          cash: data.cash || 0, 
+          qris: data.qris || 0, 
+          transfer: data.transfer || 0, 
+          ewallet: data.ewallet || 0 
+        } 
+      }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // GET /pos/transactions (all) — untuk laporan bulanan
+    // 3. GET /pos/transactions/{date} — Daftar transaksi per tanggal (YYYY-MM-DD)
+    if (method === 'GET' && parts[0] === 'transactions' && parts[1]) {
+      const date = parts[1];
+      const res = await fetch(`${dbUrl}/pos/transactions/${encodeURIComponent(date)}.json${authParam}`);
+      const data = await res.json();
+      const list = data && typeof data === 'object'
+        ? (Array.isArray(data) ? data : Object.entries(data).map(([id, val]) => ({ id, ...(val || {}) })))
+        : [];
+      return new Response(JSON.stringify({ success: true, date, data: list }), {
+        headers: { ...cors, "Content-Type": "application/json" }
+      });
+    }
+
+    // 4. GET /pos/transactions — Daftar SEMUA transaksi (untuk laporan bulanan/analitik)
     if (method === 'GET' && parts[0] === 'transactions' && parts.length === 1) {
       const res = await fetch(`${dbUrl}/pos/transactions.json${authParam}`);
       const data = await res.json() || {};
       const allTx = [];
-      Object.values(data).forEach(dayData => {
-        if (dayData && typeof dayData === 'object') {
-          Object.values(dayData).forEach(tx => allTx.push(tx));
-        }
-      });
+      if (typeof data === 'object') {
+        Object.entries(data).forEach(([dateKey, dayData]) => {
+          if (dayData && typeof dayData === 'object') {
+            Object.entries(dayData).forEach(([txId, tx]) => {
+              allTx.push({ id: txId, date: dateKey, ...(tx || {}) });
+            });
+          }
+        });
+      }
       return new Response(JSON.stringify({ success: true, data: allTx }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // GET /pos/shifts — list shifts
+    // 5. GET /pos/shifts — Daftar semua riwayat shift kasir
     if (method === 'GET' && parts[0] === 'shifts' && parts.length === 1) {
       const res = await fetch(`${dbUrl}/pos/shifts.json${authParam}`);
       const data = await res.json() || {};
-      const list = Object.entries(data).map(([id, v]) => ({ id, ...(v || {}) }));
+      const list = data && typeof data === 'object'
+        ? Object.entries(data).map(([id, v]) => ({ id, ...(v || {}) }))
+        : [];
+      // Urutkan dari shift terbaru ke terlama
+      list.sort((a, b) => (b.openTime || b.createdAt || 0) - (a.openTime || a.createdAt || 0));
       return new Response(JSON.stringify({ success: true, data: list }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // GET /pos/shifts/{shiftId}
+    // 6. GET /pos/shifts/{shiftId} — Ambil detail satu shift spesifik
     if (method === 'GET' && parts[0] === 'shifts' && parts[1]) {
       const shiftId = parts[1];
       const res = await fetch(`${dbUrl}/pos/shifts/${encodeURIComponent(shiftId)}.json${authParam}`);
       const data = await res.json();
-      return new Response(JSON.stringify({ success: true, data }), {
+      if (!data) {
+        return new Response(JSON.stringify({ success: false, error: "Shift tidak ditemukan" }), {
+          status: 404,
+          headers: { ...cors, "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ success: true, data: { id: shiftId, ...data } }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // POST /pos/shifts — buat shift baru
+    // 7. POST /pos/shifts — Buat shift kasir baru
     if (method === 'POST' && parts[0] === 'shifts' && parts.length === 1) {
       const body = await request.json();
       const shiftId = body.id || ('S-' + Date.now());
+      const shiftData = {
+        ...body,
+        id: shiftId,
+        createdAt: body.createdAt || Date.now()
+      };
       await fetch(`${dbUrl}/pos/shifts/${encodeURIComponent(shiftId)}.json${authParam}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(shiftData)
       });
-      return new Response(JSON.stringify({ success: true, id: shiftId }), {
+      return new Response(JSON.stringify({ success: true, id: shiftId, data: shiftData }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // PATCH /pos/shifts/{shiftId} — update shift (close, pause, dll)
+    // 8. PATCH /pos/shifts/{shiftId} — Update data shift (tutup shift, jeda/pause, update kas)
     if ((method === 'PATCH' || method === 'POST') && parts[0] === 'shifts' && parts[1]) {
       const shiftId = parts[1];
       const body = await request.json();
@@ -116,34 +169,40 @@ export async function onRequest(context) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, id: shiftId }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    // POST /pos/last_reconcile/{username}
+    // 9. POST /pos/last_reconcile/{username} — Update timestamp rekonsiliasi terakhir kasir
     if ((method === 'POST' || method === 'PUT') && parts[0] === 'last_reconcile' && parts[1]) {
       const username = parts[1];
-      const body = await request.json();
-      const timestamp = body.timestamp || Date.now();
+      let timestamp = Date.now();
+      try {
+        const body = await request.json();
+        timestamp = body.timestamp || body.lastReconcile || Date.now();
+      } catch (_) {}
       await fetch(`${dbUrl}/pos/last_reconcile/${encodeURIComponent(username)}.json${authParam}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(timestamp)
       });
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, username, timestamp }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
-    return new Response(JSON.stringify({ success: false, error: "Route tidak ditemukan: /pos/" + fullPath }), {
+    // Default route tidak ditemukan
+    return new Response(JSON.stringify({ success: false, error: `Route /pos/${fullPath} tidak ditemukan` }), {
       status: 404,
       headers: { ...cors, "Content-Type": "application/json" }
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
-      status: 500, headers: { ...cors, "Content-Type": "application/json" }
+    // Tangani semua galat dan pastikan response selalu berupa JSON
+    return new Response(JSON.stringify({ success: false, error: err.message || "Terjadi kesalahan server" }), {
+      status: 500,
+      headers: { ...cors, "Content-Type": "application/json" }
     });
   }
 }

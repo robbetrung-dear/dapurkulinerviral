@@ -48,9 +48,12 @@ window.kasirApp = () => ({
   categories: [
     { id: 'semua', name: 'Semua' },
     { id: 'rice_bowl', name: 'Bento & Rice Bowl' },
+    { id: 'chicken', name: 'Ayam & Bento' },
     { id: 'mie', name: 'Aneka Mie' },
+    { id: 'dimsum', name: 'Dimsum & Snack' },
     { id: 'cemilan', name: 'Cemilan / Side Dish' },
     { id: 'ala_carte', name: 'Ala Carte' },
+    { id: 'minuman', name: 'Aneka Minuman' },
     { id: 'viral', name: 'Viral & Dessert' }
   ],
   selectedCategory: 'semua',
@@ -429,7 +432,7 @@ window.kasirApp = () => ({
 
       // ✅ Simpan db di MODULE SCOPE — bukan di this (Alpine tidak bisa Proxy module var)
       FB_DB = firebase.database();
-      this._fbDb = FB_DB;
+      this._fbDb = true;
 
       // ✅ _fbRef IGNORE parameter database, selalu pakai FB_DB (module scope, tidak di-Proxy)
       this._fbRef = (database, path) => FB_DB.ref(path);
@@ -723,9 +726,12 @@ window.kasirApp = () => ({
       const defaults = [
         { id: 'semua', name: 'Semua' },
         { id: 'rice_bowl', name: 'Bento & Rice Bowl' },
+        { id: 'chicken', name: 'Ayam & Bento' },
         { id: 'mie', name: 'Aneka Mie' },
+        { id: 'dimsum', name: 'Dimsum & Snack' },
         { id: 'cemilan', name: 'Cemilan / Side Dish' },
         { id: 'ala_carte', name: 'Ala Carte' },
+        { id: 'minuman', name: 'Aneka Minuman' },
         { id: 'viral', name: 'Viral & Dessert' }
       ];
       defaults.forEach(d => {
@@ -1712,6 +1718,18 @@ window.kasirApp = () => ({
         });
 
         doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
+        doc.text(`Subtotal : ${this.formatRupiah(order.subtotal || order.sub || this.getCartSubtotal())}`, 5, y); y += 4;
+        const sCharge = order.serviceCharge !== undefined ? order.serviceCharge : this.getCartServiceCharge();
+        if (sCharge > 0) {
+          doc.text(`Service  : ${this.formatRupiah(sCharge)}`, 5, y); y += 4;
+        }
+        if ((order.tax || this.getCartTax()) > 0) {
+          doc.text(`Pajak 11%: ${this.formatRupiah(order.tax || this.getCartTax())}`, 5, y); y += 4;
+        }
+        if ((order.discount || order.disc || this.discountAmount) > 0) {
+          doc.text(`Diskon   : -${this.formatRupiah(order.discount || order.disc || this.discountAmount)}`, 5, y); y += 4;
+        }
+        doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
         doc.setFont('courier', 'bold');
         doc.text(`TOTAL : ${this.formatRupiah(order.total || order.tot || 0)}`, 5, y); y += 5;
 
@@ -1732,13 +1750,34 @@ window.kasirApp = () => ({
    */
   kirimStrukWA(txData) {
     const order = txData || this.currentOrder || { id: 'T' + Date.now(), total: this.getCartGrandTotal() };
+    const sCharge = order.serviceCharge !== undefined ? order.serviceCharge : this.getCartServiceCharge();
+    const subtotal = order.subtotal || order.sub || this.getCartSubtotal();
+    const tax = order.tax || this.getCartTax();
+    const disc = order.discount || order.disc || this.discountAmount;
+
+    let itemsText = '';
+    (order.items || []).forEach(it => {
+      const name = it.name || 'Menu';
+      const qty = it.qty || 1;
+      const price = it.price || 0;
+      itemsText += `• ${name} x${qty} = ${this.formatRupiah(qty * price)}\n`;
+    });
+
+    let details = `Subtotal: ${this.formatRupiah(subtotal)}\n`;
+    if (sCharge > 0) details += `Service Charge (5%): ${this.formatRupiah(sCharge)}\n`;
+    if (tax > 0) details += `Pajak (11%): ${this.formatRupiah(tax)}\n`;
+    if (disc > 0) details += `Diskon: -${this.formatRupiah(disc)}\n`;
+
     const text = `*DAPUR KULINER VIRAL - STRUK TRANSAKSI*\n\n` +
       `No. Order: *${order.id}*\n` +
       `Tanggal: ${order.date || this.formatDate(Date.now())}\n` +
       `Kasir: ${this.kasirInfo.name}\n` +
       `Metode: ${(order.paymentMethod || order.pm || 'CASH').toUpperCase()}\n` +
       `--------------------------------\n` +
-      `Total: *${this.formatRupiah(order.total || order.tot || this.getCartGrandTotal())}*\n\n` +
+      itemsText +
+      `--------------------------------\n` +
+      details +
+      `*TOTAL: ${this.formatRupiah(order.total || order.tot || this.getCartGrandTotal())}*\n\n` +
       `Terima kasih telah berbelanja di Dapur Kuliner Viral!`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
@@ -2048,15 +2087,11 @@ window.kasirApp = () => ({
   },
 
   /**
-   * 1. Cek pending rekonsiliasi dengan filter timestamp dan grouping status
+   * 1. Cek pending rekonsiliasi dengan filter timestamp dan grouping status (SYNCHRONOUS & AMAN DARI REKURSIF)
    */
-  async cekPendingRekonsiliasi() {
-    if (!this.reconciliationList || this.reconciliationList.length === 0) {
-      await this.loadRekonsiliasiList();
-      return { berhasil: [], menggantung: [], gagal: [] };
-    }
-
-    const activeList = this.reconciliationList.filter(item => !item.archived);
+  cekPendingRekonsiliasi() {
+    const list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
+    const activeList = list.filter(item => !item.archived);
 
     // Transaksi menggantung yang butuh verifikasi (status menggantung/pending dan belum direkonsiliasi)
     const menggantung = activeList.filter(i => 
@@ -2106,8 +2141,8 @@ window.kasirApp = () => ({
   /**
    * 2. Tampilkan modal rekonsiliasi otomatis jika ada pesanan pending
    */
-  async tampilModalRekonsiliasi() {
-    const summary = await this.cekPendingRekonsiliasi();
+  tampilModalRekonsiliasi() {
+    const summary = this.cekPendingRekonsiliasi();
     if (summary.menggantung && summary.menggantung.length > 0) {
       this.showRekonsiliasiModal = true;
       this.pendingReconcileModal = true;
@@ -2182,7 +2217,7 @@ window.kasirApp = () => ({
     mapped.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     this.reconciliationList = mapped;
-    await this.cekPendingRekonsiliasi();
+    this.cekPendingRekonsiliasi();
     return mapped;
   },
 
@@ -3376,16 +3411,57 @@ window.kasirApp = () => ({
   },
 
   /**
+   * Mengambil daftar kategori menu yang tersedia dan disinkronkan untuk dropdown pilihan form
+   */
+  getAvailableMenuCategories() {
+    let list = [];
+    if (Array.isArray(this.categories) && this.categories.length > 0) {
+      list = this.categories
+        .map(c => (typeof c === 'string' ? { id: c, name: c } : c))
+        .filter(c => c && c.id && c.id !== 'semua' && c.id !== 'all' && (c.name || '').toLowerCase() !== 'semua' && (c.name || '').toLowerCase() !== 'semua menu');
+    }
+
+    if (list.length === 0) {
+      try {
+        const saved = localStorage.getItem('dapur_menu_categories');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            list = parsed.filter(c => c && c.id !== 'all' && c.id !== 'semua');
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (list.length === 0) {
+      list = [
+        { id: 'rice_bowl', name: 'Bento & Rice Bowl' },
+        { id: 'mie', name: 'Aneka Mie' },
+        { id: 'cemilan', name: 'Cemilan / Side Dish' },
+        { id: 'ala_carte', name: 'Ala Carte' },
+        { id: 'viral', name: 'Viral & Dessert' }
+      ];
+    }
+
+    return list;
+  },
+
+  /**
    * Buka Modal Tambah Menu Baru
    */
   openNewMenuModal() {
+    this.syncCategoriesWithMainStore();
+    const availCats = this.getAvailableMenuCategories();
+    const defaultCat = (availCats && availCats.length > 0) ? availCats[0].id : 'rice_bowl';
     const defaultBahan = (this.inventoryList && this.inventoryList[0]) ? this.inventoryList[0].id : '';
     this.newMenuForm = {
       name: '',
-      category: 'rice-bowl',
+      category: defaultCat,
+      customCategory: '',
       price: 25000,
       desc: '',
       image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
+      showOnMain: true,
       ingredients: defaultBahan ? [{ itemId: defaultBahan, amount: 0.1 }] : []
     };
     this.newMenuModal = true;
@@ -3396,24 +3472,49 @@ window.kasirApp = () => ({
    */
   async tambahMenuBaru(form) {
     const name = (form.name || '').trim();
-    const category = (form.category || 'rice-bowl').trim();
+    let category = (form.category || 'rice_bowl').trim();
+    if (category === '__custom__' && form.customCategory) {
+      category = form.customCategory.trim();
+    }
     const price = Number(form.price) || 0;
     const desc = (form.desc || '').trim();
     const image = (form.image || '').trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400';
+    const showOnMain = form.showOnMain !== false;
 
     if (!name || price <= 0) {
       this.showToast('Nama menu dan harga jual wajib diisi (> 0)', 'error');
       return false;
     }
 
+    // Pastikan kategori baru tersimpan di memori kategori kasir jika belum ada
+    if (category && category !== '__custom__') {
+      const catExists = this.categories.some(c => (c.id === category || (c.name || '').toLowerCase() === category.toLowerCase()));
+      if (!catExists) {
+        const newCatObj = { id: category.toLowerCase().replace(/[^a-z0-9]/g, '_'), name: category };
+        this.categories.push(newCatObj);
+        try {
+          const saved = JSON.parse(localStorage.getItem('dapur_menu_categories') || '[]');
+          saved.push(newCatObj);
+          localStorage.setItem('dapur_menu_categories', JSON.stringify(saved));
+        } catch(e) {}
+      }
+    }
+
+    const catObj = (this.categories || []).find(c => c && (c.id === category || (c.name || '').toLowerCase() === (category || '').toLowerCase()));
+    const categoryLabel = catObj ? catObj.name : (category ? (category.charAt(0).toUpperCase() + category.slice(1).replace(/[-_]/g, ' ')) : 'Menu');
+
     const menuId = 'm_' + Date.now();
     const newMenuItem = {
       id: menuId,
       name,
       category,
+      categoryLabel,
       price,
       desc: desc || 'Menu lezat & higienis',
-      image
+      image,
+      showOnMain,
+      fromKasir: true,
+      createdAt: Date.now()
     };
 
     try {
@@ -3443,9 +3544,10 @@ window.kasirApp = () => ({
 
       this.menuRecipes[menuId] = recipePayload;
 
-      // Persistence to LocalStorage
+      // Persistence to LocalStorage (Keduanya agar Kasir dan Admin Toko Utama selalu sinkron)
       try {
         localStorage.setItem('dapur_menu_list', JSON.stringify(this.menuList));
+        localStorage.setItem('dapur_menu_items', JSON.stringify(this.menuList));
         localStorage.setItem('dapur_menu_recipes', JSON.stringify(this.menuRecipes));
       } catch (e) {}
 
@@ -3483,7 +3585,7 @@ window.kasirApp = () => ({
       const stockPorsi = this.getMenuCalculatedStock(menuId);
 
       this.showToast(
-        `Menu "${name}" berhasil dibuat! (Stok terhubung: ${stockPorsi} porsi | HPP: Rp ${hpp.toLocaleString()} | Laba: ${profit.percentage}%)`,
+        `Menu "${name}" berhasil dibuat! (${showOnMain ? 'Tampil di Web Utama' : 'Khusus Kasir'} | Stok: ${stockPorsi} porsi | HPP: Rp ${hpp.toLocaleString()})`,
         'success'
       );
       this.newMenuModal = false;
@@ -3495,6 +3597,37 @@ window.kasirApp = () => ({
       this.showToast('Gagal menambahkan menu baru', 'error');
       return false;
     }
+  },
+
+  /**
+   * Toggle apakah menu ditampilkan di Halaman Utama (Toko Pelanggan)
+   */
+  async toggleMenuShowOnMain(menu) {
+    if (!menu) return;
+    const newStatus = menu.showOnMain === false ? true : false;
+    menu.showOnMain = newStatus;
+
+    // Simpan ke localStorage
+    try {
+      localStorage.setItem('dapur_menu_list', JSON.stringify(this.menuList));
+    } catch (e) {}
+
+    // Sinkronkan ke Firebase jika terhubung
+    if (this._fbDb && this._fbSet && this._fbRef) {
+      try {
+        const itemRef = this._fbRef(this._fbDb, `menu_items/${menu.id}`);
+        await this._fbSet(itemRef, menu);
+      } catch (err) {
+        console.warn('Gagal sync showOnMain ke Firebase:', err);
+      }
+    }
+
+    this.showToast(
+      newStatus 
+        ? `Menu "${menu.name}" sekarang DITAMPILKAN di Halaman Utama` 
+        : `Menu "${menu.name}" sekarang DISEMBUNYIKAN dari Halaman Utama`,
+      newStatus ? 'success' : 'notify'
+    );
   },
 
   /**
