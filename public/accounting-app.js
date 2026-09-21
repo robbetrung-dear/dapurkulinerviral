@@ -436,14 +436,14 @@ window.accountingApp = function() {
      */
     get summaryMetrics() {
       return {
-        totalAset: Number(this.summary?.totalAset) || Number(this.laporanData.balanceSheet?.totalAset) || 0,
-        totalKewajiban: Number(this.summary?.totalKewajiban) || Number(this.laporanData.balanceSheet?.totalKewajiban) || 0,
-        totalEkuitas: Number(this.summary?.totalEkuitas) || Number(this.laporanData.balanceSheet?.totalEkuitas) || 0,
-        labaBulanIni: Number(this.summary?.labaBulanIni) || Number(this.laporanData.pl?.labaBersih) || 0,
-        kasDiTangan: Number(this.summary?.kas) || Number(this.laporanData.balanceSheet?.kas) || 0,
-        kasDiBank: Number(this.summary?.bank) || Number(this.laporanData.balanceSheet?.bank) || 0,
-        piutang: Number(this.summary?.piutang) || Number(this.laporanData.balanceSheet?.piutang) || 0,
-        hutangSupplier: Number(this.summary?.hutang) || Number(this.laporanData.balanceSheet?.hutangSupplier) || 0
+        totalAset: Number(this.summary?.totalAset) ?? Number(this.laporanData.balanceSheet?.totalAset) ?? 0,
+        totalKewajiban: Number(this.summary?.totalKewajiban) ?? Number(this.laporanData.balanceSheet?.totalKewajiban) ?? 0,
+        totalEkuitas: Number(this.summary?.totalEkuitas) ?? Number(this.laporanData.balanceSheet?.totalEkuitas) ?? 0,
+        labaBulanIni: Number(this.summary?.labaBulanIni) ?? Number(this.laporanData.pl?.labaBersih) ?? 0,
+        kasDiTangan: Number(this.summary?.kas) ?? Number(this.laporanData.balanceSheet?.kas) ?? 0,
+        kasDiBank: Number(this.summary?.bank) ?? Number(this.laporanData.balanceSheet?.bank) ?? 0,
+        piutang: Number(this.summary?.piutang) ?? Number(this.laporanData.balanceSheet?.piutang) ?? 0,
+        hutangSupplier: Number(this.summary?.hutang) ?? Number(this.laporanData.balanceSheet?.hutangSupplier) ?? 0
       };
     },
 
@@ -1186,32 +1186,33 @@ window.accountingApp = function() {
     /**
      * 6C. Laporan Neraca (Balance Sheet - Aset = Kewajiban + Ekuitas)
      */
-    async loadNeraca(bulan) {
+        async loadNeraca(bulan) {
       const getBal = (code) => {
         const f = this.coaList.find(c => c.code === code);
         return f ? Number(f.currentBalance) || 0 : 0;
       };
 
-      const kas = getBal('1001') || getBal('101') || Number(this.summary?.kas) || 0;
-      const bank = getBal('1002') || getBal('102') || Number(this.summary?.bank) || 0;
-      const piutang = getBal('1003') || getBal('103') || Number(this.summary?.piutang) || 0;
-      const persediaan = getBal('1004') || getBal('105') || 0;
+      // Prioritas: summary (dari endpoint) → fallback: COA lokal
+      const kas = Number(this.summary?.kas ?? getBal('1001') ?? getBal('101') ?? 0);
+      const bank = Number(this.summary?.bank ?? getBal('1002') ?? getBal('102') ?? 0);
+      const piutang = Number(this.summary?.piutang ?? getBal('1003') ?? getBal('103') ?? 0);
+      const persediaan = Number(this.summary?.persediaanAkhir ?? getBal('1004') ?? getBal('105') ?? 0);
       const totalAsetLancar = kas + bank + piutang + persediaan;
 
       const peralatan = getBal('1005') || getBal('106') || 0;
       const totalAsetTetap = peralatan;
-      const totalAset = Number(this.summary?.totalAset) || (totalAsetLancar + totalAsetTetap);
+      const totalAset = Number(this.summary?.totalAset ?? (totalAsetLancar + totalAsetTetap));
 
-      const hutangSupplier = getBal('2001') || getBal('201') || Number(this.summary?.hutang) || 0;
+      const hutangSupplier = Number(this.summary?.hutang ?? getBal('2001') ?? getBal('201') ?? 0);
       const hutangBeban = getBal('2002') || 0;
-      const totalKewajiban = Number(this.summary?.totalKewajiban) || (hutangSupplier + hutangBeban);
+      const totalKewajiban = Number(this.summary?.totalKewajiban ?? (hutangSupplier + hutangBeban));
 
       const modalPemilik = getBal('3001') || getBal('301') || 0;
       const labaDitahan = getBal('3002') || getBal('302') || 0;
       const labaBerjalan = Number(this.laporanData.pl.labaBersih) || Number(this.summary?.labaBulanIni) || 0;
       const prive = getBal('3003') || 0;
 
-      const totalEkuitas = Number(this.summary?.totalEkuitas) || (modalPemilik + labaDitahan + labaBerjalan - prive);
+      const totalEkuitas = Number(this.summary?.totalEkuitas ?? (modalPemilik + labaDitahan + labaBerjalan - prive));
       const totalKewajibanEkuitas = totalKewajiban + totalEkuitas;
 
       const selisih = Math.abs(totalAset - totalKewajibanEkuitas);
