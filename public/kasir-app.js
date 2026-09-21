@@ -4739,6 +4739,12 @@ window.kasirApp = () => ({
   getAccountingSummary() {
     const d = this.accountingSummaryData;
     
+    // Debug log
+    if (d) {
+      console.log('[ACCT-GETTER] Cache OK, keys:', Object.keys(d));
+    } else {
+      console.log('[ACCT-GETTER] No cache, using fallback');
+    }
     
     // Check lebih fleksibel
     const hasValidData = d && typeof d === 'object' && 
@@ -4773,7 +4779,7 @@ window.kasirApp = () => ({
       };
     }
 
-    
+    console.log('[ACCT-GETTER] Using fallback local calc');
     // FALLBACK: kalkulasi lama (existing, hardcoded)
     const totalRev = Number(this.todayTotalRevenue) || 0;
     
