@@ -131,6 +131,7 @@ window.kasirApp = () => ({
   reconciliationList: [],
   reconciliationFilter: 'all',
   reconcileFilter: 'semua',
+  reconcileDateRange: 'today',
   selectedOrders: [],
   selectedReconcileIds: [],
   showRekonsiliasiModal: false,
@@ -311,7 +312,17 @@ window.kasirApp = () => ({
 
   // Inventory Modals & Recipe State
   editStockModal: false,
-  selectedStockItem: null,
+  selectedStockItem: {
+    id: '',
+    name: '',
+    category: 'Bahan Baku',
+    stock: 0,
+    stok: 0,
+    minStock: 0,
+    unit: 'unit',
+    purchasePrice: 0,
+    isCountable: true
+  },
   newStockValue: 0,
   stockChangeReason: '',
   addInventoryModal: false,
@@ -595,14 +606,14 @@ window.kasirApp = () => ({
     // Timeout safety 5 detik: jangan sampai loading spinner stuck selamanya
     const menuTimeout = setTimeout(() => {
       if (this.isLoadingMenu) {
-        console.warn('Firebase menu listener timeout 10s, using fallback menu');
+        console.warn('Firebase menu listener timeout 5s, using fallback menu');
         if (!this.menuList || this.menuList.length === 0) {
           this.menuList = fallbackMenu;
         }
         this.syncCategoriesWithMainStore();
         this.isLoadingMenu = false;
       }
-    }, 10000);
+    }, 5000);
 
     if (this._fbDb && this._fbOnValue && this._fbRef) {
       try {
@@ -2147,8 +2158,11 @@ window.kasirApp = () => ({
     try {
       const res = await fetch('/inventory');
       if (res.ok) {
-        const json = await res.json();
-        if (json.data) this.inventoryList = json.data;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const json = await res.json();
+          if (json && json.data) this.inventoryList = json.data;
+        }
       }
     } catch (e) {
       console.warn('Fetch inventory note:', e);
@@ -2195,20 +2209,42 @@ window.kasirApp = () => ({
    * Filter daftar rekonsiliasi sesuai filter tab aktif
    */
   filteredReconciliationList() {
+    let list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
     const f = (this.reconcileFilter || this.reconciliationFilter || 'semua').toLowerCase();
-    if (f === 'semua' || f === 'all') return this.reconciliationList;
-    return this.reconciliationList.filter(item => {
-      if (f === 'berhasil' || f === 'settlement') {
-        return item.status === 'berhasil' || item.rawStatus === 'settlement';
-      }
-      if (f === 'menggantung' || f === 'pending') {
-        return item.status === 'menggantung' || item.rawStatus === 'pending';
-      }
-      if (f === 'gagal' || f === 'expired') {
-        return item.status === 'gagal' || item.rawStatus === 'expired';
-      }
-      return item.status === f;
-    });
+    if (f !== 'semua' && f !== 'all') {
+      list = list.filter(item => {
+        if (f === 'berhasil' || f === 'settlement') {
+          return item.status === 'berhasil' || item.rawStatus === 'settlement';
+        }
+        if (f === 'menggantung' || f === 'pending') {
+          return item.status === 'menggantung' || item.rawStatus === 'pending';
+        }
+        if (f === 'gagal' || f === 'expired') {
+          return item.status === 'gagal' || item.rawStatus === 'expired';
+        }
+        return item.status === f;
+      });
+    }
+
+    if (this.reconcileDateRange && this.reconcileDateRange !== 'all') {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const yesterdayStart = todayStart - 86400000;
+      const last7DaysStart = todayStart - (7 * 86400000);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+      list = list.filter(item => {
+        const itemTime = Number(item.timestamp || item.time || (item.createdAt ? new Date(item.createdAt).getTime() : 0));
+        if (!itemTime) return true;
+        if (this.reconcileDateRange === 'today') return itemTime >= todayStart;
+        if (this.reconcileDateRange === 'yesterday') return itemTime >= yesterdayStart && itemTime < todayStart;
+        if (this.reconcileDateRange === 'last7days') return itemTime >= last7DaysStart;
+        if (this.reconcileDateRange === 'month') return itemTime >= monthStart;
+        return true;
+      });
+    }
+
+    return list;
   },
 
   /**
@@ -3024,10 +3060,10 @@ window.kasirApp = () => ({
     // Timeout safety 5 detik agar state loading tidak gantung
     const invTimeout = setTimeout(() => {
       if (this.loadingStates && this.loadingStates.inventory) {
-        console.warn('Inventory loading timeout 10s, unlocking loading state');
+        console.warn('Inventory loading timeout 5s, unlocking loading state');
         this.loadingStates.inventory = false;
       }
-    }, 10000);
+    }, 5000);
 
     try {
       if (this._fbDb && this._fbOnValue && this._fbRef) {
@@ -3055,9 +3091,16 @@ window.kasirApp = () => ({
 
       const res = await fetch('/inventory');
       if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json.data) && json.data.length > 0) {
-          this.inventoryList = json.data;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          try {
+            const json = await res.json();
+            if (Array.isArray(json.data) && json.data.length > 0) {
+              this.inventoryList = json.data;
+            }
+          } catch (jsonErr) {
+            console.warn('Gagal parse JSON dari /inventory:', jsonErr);
+          }
         }
       }
 
@@ -3284,7 +3327,16 @@ window.kasirApp = () => ({
 
   openEditStockModal(item) {
     if (!item) return;
-    this.selectedStockItem = item;
+    this.selectedStockItem = {
+      id: item.id || '',
+      name: item.name || '',
+      category: item.category || 'Bahan Baku',
+      stock: Number(item.stock || item.stok || 0),
+      minStock: Number(item.minStock || 0),
+      unit: item.unit || 'unit',
+      purchasePrice: item.purchasePrice !== undefined ? Number(item.purchasePrice) : 0,
+      isCountable: item.isCountable !== false
+    };
     this.newStockValue = Number(item.stock || item.stok || 0);
     this.stockChangeReason = 'Penyesuaian stok harian';
     this.editStockModal = true;

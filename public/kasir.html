@@ -26,6 +26,16 @@
     });
 
     // Error Shield: Hanya log error nyata, hindari log noise undefined
+    (function() {
+      const origWarn = console.warn;
+      console.warn = function(...args) {
+        if (args && args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+          return;
+        }
+        origWarn.apply(console, args);
+      };
+    })();
+
     window.addEventListener('error', function(event) {
       if (event && event.message && event.message !== 'Script error.' && !event.message.includes('ResizeObserver loop')) {
         console.error('🔴 REAL ERROR:', event.message, event.filename || '-', event.lineno || '-', event.error || '');
@@ -219,6 +229,11 @@
     // Inventory state
     inventoryList: [],
     inventorySearch: '',
+    editStockModal: false,
+    selectedStockItem: { id: '', name: '', stock: 0, minStock: 0, unit: 'unit', purchasePrice: 0, isCountable: true },
+    newStockValue: 0,
+    stockChangeReason: '',
+    editPurchasePrice: 0,
     
     // Laporan state
     todayTotalRevenue: 2450000,
@@ -997,7 +1012,7 @@
             <select 
               x-model="reconcileDateRange"
               class="min-h-[44px] px-3.5 rounded-xl border border-stone-300 bg-stone-50 text-xs font-bold text-stone-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="today">Hari Ini (18 Sep 2026)</option>
+              <option value="today">Hari Ini</option>
               <option value="yesterday">Kemarin</option>
               <option value="last7days">7 Hari Terakhir</option>
               <option value="month">Bulan Ini</option>
@@ -3236,7 +3251,7 @@
 
         <button 
           type="button" 
-          @click="hapusItemInventory(selectedStockItem.id); editStockModal = false"
+          @click="if (selectedStockItem && selectedStockItem.id) { hapusItemInventory(selectedStockItem.id); } editStockModal = false"
           class="w-full min-h-[40px] rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
           <i class="fa-solid fa-trash text-xs"></i>
           <span>Hapus Item dari Inventori</span>

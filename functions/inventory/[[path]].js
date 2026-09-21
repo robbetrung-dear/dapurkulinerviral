@@ -28,11 +28,6 @@ export async function onRequest(context) {
   // Ekstrak path setelah /inventory/
   const fullPath = url.pathname.replace(/^\/inventory\/?/, '');
   const parts = fullPath.split('/').filter(Boolean);
-  
-  // ✅ Fix: kalau path kosong, serve static HTML
-  if (parts.length === 0) {
-    return context.next();
-  }
 
   try {
     // 1. GET /inventory — Ambil daftar semua item inventory
