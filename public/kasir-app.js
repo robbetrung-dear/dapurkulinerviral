@@ -130,6 +130,7 @@ window.kasirApp = () => ({
   pendingReconcile: 0,
   reconciliationList: [],
   reconciliationFilter: 'all',
+      reconcileDateRange: 'today',
   reconcileFilter: 'semua',
   selectedOrders: [],
   selectedReconcileIds: [],
