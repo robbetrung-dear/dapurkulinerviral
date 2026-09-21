@@ -3053,11 +3053,22 @@ window.kasirApp = () => ({
         }
       }
 
-      const res = await fetch('/inventory');
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json.data) && json.data.length > 0) {
-          this.inventoryList = json.data;
+            try {
+        const res = await fetch('/inventory');
+        if (res.ok) {
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const json = await res.json();
+            if (Array.isArray(json.data) && json.data.length > 0) {
+              this.inventoryList = json.data;
+            }
+          } else {
+            console.warn('[INV] Response bukan JSON, skip');
+          }
+        }
+      } catch (fetchErr) {
+        console.warn('[INV] Fetch error:', fetchErr.message);
+      }
         }
       }
 
