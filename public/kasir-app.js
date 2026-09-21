@@ -595,14 +595,14 @@ window.kasirApp = () => ({
     // Timeout safety 5 detik: jangan sampai loading spinner stuck selamanya
     const menuTimeout = setTimeout(() => {
       if (this.isLoadingMenu) {
-        console.warn('Firebase menu listener timeout 5s, using fallback menu');
+        console.warn('Firebase menu listener timeout 10s, using fallback menu');
         if (!this.menuList || this.menuList.length === 0) {
           this.menuList = fallbackMenu;
         }
         this.syncCategoriesWithMainStore();
         this.isLoadingMenu = false;
       }
-    }, 5000);
+    }, 10000);
 
     if (this._fbDb && this._fbOnValue && this._fbRef) {
       try {
@@ -3024,10 +3024,10 @@ window.kasirApp = () => ({
     // Timeout safety 5 detik agar state loading tidak gantung
     const invTimeout = setTimeout(() => {
       if (this.loadingStates && this.loadingStates.inventory) {
-        console.warn('Inventory loading timeout 5s, unlocking loading state');
+        console.warn('Inventory loading timeout 10s, unlocking loading state');
         this.loadingStates.inventory = false;
       }
-    }, 5000);
+    }, 10000);
 
     try {
       if (this._fbDb && this._fbOnValue && this._fbRef) {
