@@ -172,56 +172,38 @@
       format: 'pdf'
     },
 
-    // 14 Akun COA Predefined
-    coaList: [
-      { code: '1001', name: 'Kas di Tangan (Cash on Hand)', type: 'Aset', initialBalance: 3500000, currentBalance: 4850000 },
-      { code: '1002', name: 'Kas di Bank (BCA Operasional)', type: 'Aset', initialBalance: 25000000, currentBalance: 38450000 },
-      { code: '1003', name: 'Piutang Usaha / Catering', type: 'Aset', initialBalance: 1200000, currentBalance: 1850000 },
-      { code: '1004', name: 'Persediaan Bahan Baku (Stok)', type: 'Aset', initialBalance: 6500000, currentBalance: 5200000 },
-      { code: '1005', name: 'Peralatan & Mesin Dapur', type: 'Aset', initialBalance: 15000000, currentBalance: 15000000 },
-      { code: '2001', name: 'Hutang Dagang / Supplier', type: 'Kewajiban', initialBalance: 4500000, currentBalance: 3200000 },
-      { code: '2002', name: 'Hutang Beban & Operasional', type: 'Kewajiban', initialBalance: 850000, currentBalance: 650000 },
-      { code: '3001', name: 'Modal Pemilik', type: 'Ekuitas', initialBalance: 45000000, currentBalance: 45000000 },
-      { code: '3002', name: 'Laba Ditahan', type: 'Ekuitas', initialBalance: 850000, currentBalance: 850000 },
-      { code: '3003', name: 'Prive Pemilik', type: 'Ekuitas', initialBalance: 0, currentBalance: 2500000 },
-      { code: '4001', name: 'Pendapatan Penjualan POS', type: 'Pendapatan', initialBalance: 0, currentBalance: 28400000 },
-      { code: '4002', name: 'Pendapatan Pesanan Catering', type: 'Pendapatan', initialBalance: 0, currentBalance: 7800000 },
-      { code: '5001', name: 'Harga Pokok Penjualan (HPP)', type: 'Beban', initialBalance: 0, currentBalance: 14200000 },
-      { code: '6001', name: 'Beban Gaji Karyawan', type: 'Beban', initialBalance: 0, currentBalance: 5500000 },
-      { code: '6002', name: 'Beban Sewa Tempat & Outlet', type: 'Beban', initialBalance: 0, currentBalance: 2500000 },
-      { code: '6003', name: 'Beban Listrik, Air & Gas', type: 'Beban', initialBalance: 0, currentBalance: 1350000 },
-      { code: '6004', name: 'Beban Marketing & Iklan', type: 'Beban', initialBalance: 0, currentBalance: 850000 },
-      { code: '6005', name: 'Beban Operasional & Kurir', type: 'Beban', initialBalance: 0, currentBalance: 650000 }
-    ],
+    coaList: [],
+    jurnalList: [],
+    exportHistory: [],
 
-    // Data Jurnal Contoh
-    jurnalList: [
-      { id: 'JRN-20260918-001', date: '2026-09-18', noEntry: 'JE-0901', desc: 'Penerimaan Penjualan Harian Kasir POS', debitCode: '1001', debitName: 'Kas di Tangan', debitAmount: 2450000, creditCode: '4001', creditName: 'Pendapatan Penjualan POS', creditAmount: 2450000, ref: 'SHIFT-0918-01', proof: '' },
-      { id: 'JRN-20260918-002', date: '2026-09-18', noEntry: 'JE-0902', desc: 'Setor Tunai Kasir ke Rekening Bank BCA', debitCode: '1002', debitName: 'Kas di Bank', debitAmount: 2000000, creditCode: '1001', creditName: 'Kas di Tangan', creditAmount: 2000000, ref: 'SETOR-BCA-88', proof: '' },
-      { id: 'JRN-20260917-001', date: '2026-09-17', noEntry: 'JE-0903', desc: 'Pembelian Bahan Baku Ayam & Daging Segar', debitCode: '5001', debitName: 'Harga Pokok Penjualan (HPP)', debitAmount: 1350000, creditCode: '1001', creditName: 'Kas di Tangan', creditAmount: 1350000, ref: 'INV-SUPP-841', proof: '' },
-      { id: 'JRN-20260916-001', date: '2026-09-16', noEntry: 'JE-0904', desc: 'Pembayaran Tagihan Listrik & Token Outlet', debitCode: '6003', debitName: 'Beban Listrik, Air & Gas', debitAmount: 650000, creditCode: '1002', creditName: 'Kas di Bank', creditAmount: 650000, ref: 'PLN-TRX-0916', proof: '' },
-      { id: 'JRN-20260915-001', date: '2026-09-15', noEntry: 'JE-0905', desc: 'Pelunasan Piutang Catering Syukuran PT ABC', debitCode: '1002', debitName: 'Kas di Bank', debitAmount: 3500000, creditCode: '1003', creditName: 'Piutang Usaha / Catering', creditAmount: 3500000, ref: 'CAT-PAID-042', proof: '' }
-    ],
+    // Summary Metrics (Default 0)
+    summary: {
+      totalAset: 0,
+      totalKewajiban: 0,
+      totalEkuitas: 0,
+      labaBulanIni: 0,
+      kas: 0,
+      bank: 0,
+      piutang: 0,
+      hutang: 0
+    },
 
-    // Riwayat Export
-    exportHistory: [
-      { date: '2026-09-18 10:15', report: 'Laporan Laba Rugi', period: 'Sep 2026', format: 'PDF', status: 'Selesai' },
-      { date: '2026-09-17 18:30', report: 'Jurnal Umum Lengkap', period: 'Sep 2026', format: 'CSV', status: 'Selesai' },
-      { date: '2026-09-15 09:00', report: 'Neraca Keuangan', period: 'Agu 2026', format: 'PDF', status: 'Selesai' }
-    ],
-
-    // Summary Metrics
     get summaryMetrics() {
       return {
-        totalAset: 65350000,
-        totalKewajiban: 3850000,
-        totalEkuitas: 48350000,
-        labaBulanIni: 11150000,
-        kasDiTangan: 4850000,
-        kasDiBank: 38450000,
-        piutang: 1850000,
-        hutangSupplier: 3200000
+        totalAset: this.summary?.totalAset || 0,
+        totalKewajiban: this.summary?.totalKewajiban || 0,
+        totalEkuitas: this.summary?.totalEkuitas || 0,
+        labaBulanIni: this.summary?.labaBulanIni || 0,
+        kasDiTangan: this.summary?.kas || 0,
+        kasDiBank: this.summary?.bank || 0,
+        piutang: this.summary?.piutang || 0,
+        hutangSupplier: this.summary?.hutang || 0
       };
+    },
+
+    get isDatabaseEmpty() {
+      const s = this.summaryMetrics;
+      return s.totalAset === 0 && s.totalKewajiban === 0 && s.totalEkuitas === 0 && s.labaBulanIni === 0;
     },
 
     // Formatter Rupiah Helper
@@ -246,9 +228,6 @@
     setTab(tab) {
       this.activeTab = tab;
       this.mobileMenuOpen = false;
-      if (tab === 'dashboard') {
-        this.$nextTick(() => { if (typeof this.initCashFlowChart === 'function') this.initCashFlowChart(); });
-      }
     },
 
     logoutAdmin() {
@@ -487,7 +466,15 @@
         <!-- Header Section Dashboard -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-stone-200">
           <div>
-            <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Ringkasan Eksekutif Keuangan</h2>
+            <div class="flex items-center gap-2.5">
+              <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Ringkasan Eksekutif Keuangan</h2>
+              <template x-if="isDatabaseEmpty">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  Belum ada data / Database masih kosong
+                </span>
+              </template>
+            </div>
             <p class="text-xs sm:text-sm text-stone-500 font-medium">Status kesehatan neraca, likuiditas kas, dan profitabilitas bisnis.</p>
           </div>
 

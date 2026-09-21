@@ -178,7 +178,20 @@ async function fetchLedgerAccount(dbUrl, accCode, bulan, apiKey) {
   try {
     const url = `${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${auth}`;
     const res = await fetch(url);
-    const data = await res.json();
+    let data = await res.json();
+    if (!data && accCode.length === 3) {
+      const altCode = accCode === '101' ? '1001' : accCode === '102' ? '1002' : accCode === '103' ? '1003' : accCode === '105' ? '1004' : accCode === '201' ? '2001' : accCode === '301' ? '3001' : accCode === '401' ? '4001' : accCode === '402' ? '4002' : accCode === '501' ? '5001' : accCode === '601' ? '6001' : null;
+      if (altCode) {
+        const altRes = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(altCode)}/${encodeURIComponent(bulan)}.json${auth}`);
+        data = await altRes.json();
+      }
+    } else if (!data && accCode.length === 4) {
+      const altCode = accCode === '1001' ? '101' : accCode === '1002' ? '102' : accCode === '1003' ? '103' : accCode === '1004' ? '105' : accCode === '2001' ? '201' : null;
+      if (altCode) {
+        const altRes = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(altCode)}/${encodeURIComponent(bulan)}.json${auth}`);
+        data = await altRes.json();
+      }
+    }
     return data || { opening: 0, debit: 0, credit: 0, closing: 0 };
   } catch (e) {
     console.warn(`Fetch ledger ${accCode} error:`, e.message);
@@ -248,6 +261,13 @@ async function calculateSummaryFromLedger(dbUrl, bulan, apiKey) {
   // Saldo kas/bank
   const saldoKas = Number(acc101.closing) || 0;
   const saldoBank = Number(acc102.closing) || 0;
+  const piutang = Number(acc103.closing) || 0;
+  const hutangSupplier = Number(acc201.closing) || 0;
+
+  // Total Aset: kas + bank + piutang + persediaan
+  const totalAset = saldoKas + saldoBank + piutang + persediaanAkhir;
+  const totalKewajiban = hutangSupplier;
+  const totalEkuitas = (Number(acc301.closing) || 0) + (Number(acc302.closing) || 0) + labaBersih;
 
   const status = labaBersih >= 0 ? "PROFIT" : "LOSS";
 
@@ -281,6 +301,11 @@ async function calculateSummaryFromLedger(dbUrl, bulan, apiKey) {
     persediaanAkhir,
     saldoKas,
     saldoBank,
+    piutang,
+    hutangSupplier,
+    totalAset,
+    totalKewajiban,
+    totalEkuitas,
     status,
     updatedAt: Date.now()
   };
