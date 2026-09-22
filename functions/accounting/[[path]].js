@@ -675,6 +675,80 @@ export async function onRequest(context) {
       return jsonResponse({ success: true, bulan, data: list });
     }
 
+    // =======================================================================
+    // REBUILD LEDGER — hapus ledger lama & rebuild dari journals
+    // GET /accounting/rebuild-ledger/{bulan}
+    // ⚠️ Jalankan SEKALI saja untuk cleanup data lama
+    // =======================================================================
+    if (parts[0] === 'rebuild-ledger') {
+      const now = new Date();
+      const bulan = parts[1] || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      console.log(`[REBUILD] Mulai rebuild ledger untuk ${bulan}...`);
+
+      const report = { bulan, deleted: [], journalsRebuilt: 0, errors: [] };
+
+      // 1. Hapus semua ledger bulan ini (baik 3-digit maupun 4-digit)
+      try {
+        const allLedgerRes = await fetch(`${dbUrl}/accounting/ledger.json${authParam}`);
+        const allLedger = await allLedgerRes.json();
+        if (allLedger && typeof allLedger === 'object') {
+          for (const code of Object.keys(allLedger)) {
+            if (allLedger[code] && allLedger[code][bulan]) {
+              const delRes = await fetch(
+                `${dbUrl}/accounting/ledger/${encodeURIComponent(code)}/${encodeURIComponent(bulan)}.json${authParam}`,
+                { method: 'DELETE' }
+              );
+              if (delRes.ok) {
+                report.deleted.push(code);
+                console.log(`[REBUILD] ✅ Hapus ledger ${code}/${bulan}`);
+              } else {
+                report.errors.push(`Gagal hapus ledger ${code}: HTTP ${delRes.status}`);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        report.errors.push(`Scan ledger error: ${e.message}`);
+      }
+
+      // 2. Baca semua jurnal bulan ini & posting ulang ke ledger
+      try {
+        const jRes = await fetch(`${dbUrl}/accounting/journal/${bulan}.json${authParam}`);
+        const journals = await jRes.json();
+
+        if (journals && typeof journals === 'object') {
+          for (const [jid, entry] of Object.entries(journals)) {
+            if (!entry || !Array.isArray(entry.lines)) continue;
+            if (entry.status === 'rejected') continue;
+            try {
+              await updateLedgerAfterApprove(dbUrl, bulan, entry.lines, apiKey, jid);
+              report.journalsRebuilt++;
+              console.log(`[REBUILD] ✅ Posting ulang jurnal ${jid} (${entry.noEntry || '-'})`);
+            } catch (e) {
+              report.errors.push(`Posting ${jid} error: ${e.message}`);
+            }
+          }
+        }
+      } catch (e) {
+        report.errors.push(`Scan journal error: ${e.message}`);
+      }
+
+      // 3. Refresh summary
+      let newSummary = null;
+      try {
+        newSummary = await updateSummaryAfterApprove(dbUrl, bulan, apiKey);
+      } catch (e) {
+        report.errors.push(`Refresh summary error: ${e.message}`);
+      }
+
+      return jsonResponse({
+        success: true,
+        message: `Rebuild selesai. ${report.journalsRebuilt} jurnal diposting ulang, ${report.deleted.length} ledger lama dihapus.`,
+        ...report,
+        summary: newSummary
+      });
+    }
+
     return jsonResponse({ success: false, error: `Endpoint /accounting/${fullPath} tidak ditemukan` }, 404);
 
   } catch (err) {
