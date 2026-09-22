@@ -4883,7 +4883,21 @@ window.kasirApp = () => ({
   }
   
   // Helper: nama akun dari COA
+    // Helper: normalize 3-digit → 4-digit
+  const normalizeAcc = (c) => {
+    const s = String(c || '').trim();
+    const map = {
+      '101':'1001','102':'1002','103':'1003','105':'1004','106':'1005',
+      '201':'2001','202':'2002','301':'3001','302':'3002','303':'3003',
+      '401':'4001','402':'4002','501':'5001',
+      '601':'6001','602':'6002','603':'6003','604':'6004','605':'6005','606':'6006'
+    };
+    return map[s] || s;
+  };
+  
+  // Helper: nama akun dari COA
   const getAccName = (code) => {
+    const norm = normalizeAcc(code);
     const map = {
       '1001': 'Kas & Bank', '1002': 'Bank BCA', '1003': 'Piutang Usaha',
       '1004': 'Persediaan Bahan Baku', '1005': 'Peralatan Dapur',
@@ -4894,20 +4908,16 @@ window.kasirApp = () => ({
       '6001': 'Beban Gaji', '6002': 'Beban Sewa', '6003': 'Beban Listrik',
       '6004': 'Beban Marketing', '6005': 'Beban Operasional'
     };
-    return map[String(code)] || ('Akun ' + code);
+    return map[norm] || ('Akun ' + norm);
   };
   
-  return list.map(j => {
-    const lines = Array.isArray(j.lines) ? j.lines : [];
-    const dLine = lines.find(l => Number(l.debit) > 0);
-    const cLine = lines.find(l => Number(l.credit) > 0);
-    return {
+      return {
       date: j.date || '-',
       ref: j.noEntry || j.ref || j.id || '-',
       desc: j.desc || '-',
-      debitAccount: dLine ? `${dLine.acc} - ${getAccName(dLine.acc)}` : '-',
+      debitAccount: dLine ? `${normalizeAcc(dLine.acc)} - ${getAccName(dLine.acc)}` : '-',
       debitAmount: Number(dLine?.debit) || 0,
-      creditAccount: cLine ? `${cLine.acc} - ${getAccName(cLine.acc)}` : '-',
+      creditAccount: cLine ? `${normalizeAcc(cLine.acc)} - ${getAccName(cLine.acc)}` : '-',
       creditAmount: Number(cLine?.credit) || 0,
       status: j.status || 'approved'
     };
