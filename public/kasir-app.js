@@ -307,15 +307,18 @@ window.kasirApp = () => ({
   approvalFilter: 'all',  // all | pending | approved | rejected
   approvalSearch: '',
 
-  // State accounting summary (P&L Ledger Realtime)
-  accountingSummaryData: null,  // hasil fetch terakhir
-  accountingSummaryLoading: false,
-  accountingSummaryLastFetch: 0,
-  accountingSummaryError: null,
+  // State accounting summary (P&L, Ledger Realtime)
+    accountingSummaryData: null,
+    accountingSummaryLoading: false,
+    accountingSummaryLastFetch: 0,
+    accountingSummaryError: null,
+    coaListBackend: [],
+    coaListBackendLoading: false,
+    accountingJournalList: [],
 
-  // Inventory Modals & Recipe State
-  editStockModal: false,
-  selectedStockItem: {
+    // Inventory Modals & Recipe State
+    editStockModal: false,
+    selectedStockItem: {
     id: '',
     name: '',
     stock: 0,
@@ -444,6 +447,7 @@ window.kasirApp = () => ({
     this.loadPrinterConfig();
     this.loadAccountingSummary(true);
     await this.loadJournalList();
+    await this.loadCOAListFromBackend(); 
 
     // 6. Muat Inventory Realtime, Resep Bahan Baku & Riwayat Shift (BAGIAN 3)
     this.loadInventory();
@@ -5371,7 +5375,68 @@ if (res.ok) {
       console.error('Error load journal list:', err);
     }
   },
+      async loadCOAListFromBackend() {
+      try {
+        this.coaListBackendLoading = true;
+        const res = await fetch('/accounting/coa');
+        if (!res.ok) {
+          console.warn('[KASIR-COA] HTTP', res.status);
+          this.coaListBackendLoading = false;
+          return;
+        }
+        const json = await res.json();
+        
+        if (json.success && json.data) {
+          let list = [];
+          if (Array.isArray(json.data)) {
+            list = json.data;
+          } else {
+            list = Object.entries(json.data).map(([code, v]) => ({
+              code,
+              name: v.n || v.name || code,
+              type: v.t || v.type || 'Aset'
+            }));
+          }
+          
+          const summary = this.accountingSummaryData || {};
+          const saldoMap = {
+            '1001': Number(summary.saldoKas) || 0,
+            '1002': Number(summary.saldoBank) || 0,
+            '1003': Number(summary.piutang) || 0,
+            '1004': Number(summary.persediaanAkhir) || 0,
+            '1005': 0,
+            '2001': Number(summary.hutangSupplier) || 0,
+            '2002': Number(summary.hutangBeban) || 0,
+            '3001': Number(summary.modalPemilik) || 0,
+            '3002': Number(summary.labaDitahan) || 0,
+            '3003': Number(summary.prive) || 0,
+            '4001': Number(summary.pendapatan?.penjualanPos) || 0,
+            '4002': Number(summary.pendapatan?.penjualanCatering) || 0,
+            '5001': Number(summary.hpp?.totalHpp) || 0,
+            '6001': Number(summary.beban?.gaji) || 0,
+            '6002': Number(summary.beban?.sewa) || 0,
+            '6003': Number(summary.beban?.utilitas) || 0,
+            '6004': Number(summary.beban?.marketing) || 0,
+            '6005': Number(summary.beban?.operasional) || 0
+          };
+          
+          list.forEach(item => {
+            item.saldo = saldoMap[item.code] || 0;
+          });
+          
+          list.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+          
+          this.coaListBackend = list;
+          console.log(`[KASIR-COA] Loaded ${list.length} accounts`);
+        }
+      } catch (err) {
+        console.error('[KASIR-COA] Fetch error:', err);
+      } finally {
+        this.coaListBackendLoading = false;
+      }
+    },
 
+    filteredApprovals() {
   filteredApprovals() {
     let list = Array.isArray(this.pendingApprovals) ? this.pendingApprovals : [];
     if (this.approvalFilter && this.approvalFilter !== 'all') {
