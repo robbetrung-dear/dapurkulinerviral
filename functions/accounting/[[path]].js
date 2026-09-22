@@ -733,12 +733,19 @@ export async function onRequest(context) {
         report.errors.push(`Scan journal error: ${e.message}`);
       }
 
-      // 3. Refresh summary
+      // 3. Refresh summary — non-critical, tapi log error-nya
       let newSummary = null;
       try {
-        newSummary = await updateSummaryAfterApprove(dbUrl, bulan, apiKey);
+        newSummary = await calculateSummaryFromLedger(dbUrl, bulan, apiKey);
+        // Simpan ke cache (fire-and-forget, tidak block response)
+        fetch(`${dbUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${authParam}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newSummary)
+        }).catch(e => console.warn('[REBUILD] Cache save skipped:', e.message));
       } catch (e) {
-        report.errors.push(`Refresh summary error: ${e.message}`);
+        report.errors.push(`Summary calculation warning: ${e.message} (dashboard tetap OK karena /summary dihitung fresh)`);
+        console.error('[REBUILD] Summary calc error:', e);
       }
 
       return jsonResponse({
