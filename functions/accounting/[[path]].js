@@ -451,6 +451,121 @@ export async function onRequest(context) {
       }
 
       // === POST — Buat jurnal baru ===
+      // === POST /accounting/journal/pos — Jurnal otomatis dari POS (Revenue + HPP) ===
+      if (method === 'POST' && parts[1] === 'pos') {
+        const body = await request.json().catch(() => ({}));
+        const orderId = String(body.orderId || '').trim();
+        const dateStr = body.date || new Date().toISOString().split('T')[0];
+        const pm = String(body.pm || 'cash').toLowerCase();
+        const total = toNum(body.total);
+        const items = Array.isArray(body.items) ? body.items : [];
+
+        if (!orderId || total <= 0) {
+          return jsonResponse({ success: false, error: 'orderId dan total wajib diisi' }, 400);
+        }
+
+        const bulan = dateStr.substring(0, 7);
+
+        // 1. Tentukan akun debit (Kas/Bank)
+        const isBank = pm.includes('qris') || pm.includes('transfer') || pm.includes('bank')
+                    || pm.includes('ewallet') || pm.includes('gopay') || pm.includes('ovo') || pm.includes('dana');
+        const debitAcc = isBank ? '1002' : '1001';
+
+        // 2. Jurnal Revenue
+        const revId = `JRN-${dateStr.replace(/-/g, '')}-REV-${Date.now().toString().slice(-4)}`;
+        const revEntry = {
+          noEntry: `POS-REV-${orderId.slice(-6)}`,
+          date: dateStr,
+          timestamp: Date.now(),
+          category: 'pendapatan',
+          desc: `Penjualan POS #${orderId} (${pm.toUpperCase()})`,
+          ref: orderId,
+          status: 'approved',
+          lines: [
+            { acc: debitAcc, debit: total, credit: 0 },
+            { acc: '4001', debit: 0, credit: total }
+          ],
+          total,
+          createdAt: Date.now()
+        };
+
+        await fetch(`${dbUrl}/accounting/journal/${bulan}/${revId}.json${authParam}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(revEntry)
+        });
+        await updateLedgerAfterApprove(dbUrl, bulan, revEntry.lines, apiKey, revId);
+
+        // 3. Hitung HPP dari resep × qty × harga beli
+        let totalHpp = 0;
+        const hppDetails = [];
+        for (const it of items) {
+          const menuId = it.id || it.menuId;
+          const qty = toNum(it.qty) || 1;
+          if (!menuId) continue;
+
+          // Baca resep menu
+          try {
+            const rRes = await fetch(`${dbUrl}/recipes/${encodeURIComponent(menuId)}.json${authParam}`);
+            const recipe = await rRes.json();
+            if (!recipe || !Array.isArray(recipe.ingredients)) continue;
+
+            for (const ing of recipe.ingredients) {
+              const invId = ing.itemId;
+              const ingAmt = toNum(ing.amount);
+              if (!invId || ingAmt <= 0) continue;
+
+              // Baca harga beli bahan
+              const invRes = await fetch(`${dbUrl}/inventory/${encodeURIComponent(invId)}.json${authParam}`);
+              const inv = await invRes.json();
+              if (!inv) continue;
+              const price = toNum(inv.purchasePrice || inv.hargaBeli);
+              const itemHpp = ingAmt * qty * price;
+              totalHpp += itemHpp;
+              hppDetails.push({ ing: inv.name || invId, cost: itemHpp });
+            }
+          } catch (e) {
+            console.warn(`[POS-JOURNAL] Resep ${menuId} error:`, e.message);
+          }
+        }
+
+        totalHpp = Math.round(totalHpp);
+
+        // 4. Jurnal HPP (kalau ada biaya bahan)
+        let hppId = null;
+        if (totalHpp > 0) {
+          hppId = `JRN-${dateStr.replace(/-/g, '')}-HPP-${Date.now().toString().slice(-4)}`;
+          const hppEntry = {
+            noEntry: `POS-HPP-${orderId.slice(-6)}`,
+            date: dateStr,
+            timestamp: Date.now(),
+            category: 'pembelian',
+            desc: `HPP Penjualan #${orderId}`,
+            ref: orderId,
+            status: 'approved',
+            lines: [
+              { acc: '5001', debit: totalHpp, credit: 0 },
+              { acc: '1004', debit: 0, credit: totalHpp }
+            ],
+            total: totalHpp,
+            createdAt: Date.now()
+          };
+
+          await fetch(`${dbUrl}/accounting/journal/${bulan}/${hppId}.json${authParam}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(hppEntry)
+          });
+          await updateLedgerAfterApprove(dbUrl, bulan, hppEntry.lines, apiKey, hppId);
+        }
+
+        // 5. Refresh summary
+        await updateSummaryAfterApprove(dbUrl, bulan, apiKey);
+
+        return jsonResponse({
+          success: true,
+          message: `Jurnal POS tersimpan. Revenue: ${total}, HPP: ${totalHpp}`,
+          revId, hppId, totalRev: total, totalHpp, hppDetails
+        }, 201);
+      }
       if (method === 'POST') {
         const body = await request.json().catch(() => ({}));
 
