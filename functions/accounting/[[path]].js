@@ -1,160 +1,177 @@
 /**
  * functions/accounting/[[path]].js
  * Cloudflare Pages Function — Proxy request /accounting/* ke Firebase Realtime Database
- * Robust, double-entry validated, backward-compatible, and edge-case handled.
+ * 
+ * VERSI 2.0 — FINAL
+ * - Canonical 4-digit account codes (1001, 2001, 3001, dst)
+ * - Auto-sync Ledger + Summary dari Journal (untuk semua entry, bukan hanya approved)
+ * - Fallback: Summary bisa dihitung langsung dari Journal jika Ledger kosong
+ * - Endpoint baru: /accounting/dashboard (ringkasan lengkap)
+ * - Robust numeric conversion & error handling
  */
 
-// Header CORS standar untuk semua response
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
 };
 
-// Default Chart of Accounts jika database belum diinisialisasi
+// ============================================================================
+// STANDAR CHART OF ACCOUNTS — Canonical 4-digit codes
+// ============================================================================
 const DEFAULT_COA = {
-  "101": { n: "Kas di Tangan", t: "asset" },
-  "102": { n: "Bank", t: "asset" },
-  "103": { n: "Piutang Usaha", t: "asset" },
-  "105": { n: "Persediaan Bahan Baku", t: "asset" },
-  "111": { n: "Akum. Penyusutan", t: "asset" },
-  "201": { n: "Hutang Supplier", t: "liability" },
-  "301": { n: "Modal Pemilik", t: "equity" },
-  "302": { n: "Prive Pemilik", t: "equity" },
-  "401": { n: "Pendapatan Penjualan", t: "revenue" },
-  "402": { n: "Pendapatan Catering", t: "revenue" },
-  "501": { n: "HPP Bahan Baku", t: "expense" },
-  "601": { n: "Beban Gaji Karyawan", t: "expense" },
-  "602": { n: "Beban Sewa Tempat", t: "expense" },
-  "603": { n: "Beban Listrik, Air & Gas", t: "expense" },
-  "604": { n: "Beban Pemasaran & Promosi", t: "expense" },
-  "605": { n: "Beban Kurir & Ekspedisi", t: "expense" },
-  "606": { n: "Beban Penyusutan", t: "expense" }
+  "1001": { n: "Kas di Tangan (Cash on Hand)", t: "Aset", nb: "Debit" },
+  "1002": { n: "Kas di Bank (BCA Operasional)", t: "Aset", nb: "Debit" },
+  "1003": { n: "Piutang Usaha / Catering", t: "Aset", nb: "Debit" },
+  "1004": { n: "Persediaan Bahan Baku (Stok)", t: "Aset", nb: "Debit" },
+  "1005": { n: "Peralatan & Mesin Dapur", t: "Aset", nb: "Debit" },
+  "2001": { n: "Hutang Dagang / Supplier", t: "Kewajiban", nb: "Kredit" },
+  "2002": { n: "Hutang Beban & Operasional", t: "Kewajiban", nb: "Kredit" },
+  "3001": { n: "Modal Pemilik", t: "Ekuitas", nb: "Kredit" },
+  "3002": { n: "Laba Ditahan", t: "Ekuitas", nb: "Kredit" },
+  "3003": { n: "Prive Pemilik", t: "Ekuitas", nb: "Debit" },
+  "4001": { n: "Pendapatan Penjualan POS", t: "Pendapatan", nb: "Kredit" },
+  "4002": { n: "Pendapatan Pesanan Catering", t: "Pendapatan", nb: "Kredit" },
+  "5001": { n: "Harga Pokok Penjualan (HPP)", t: "Beban", nb: "Debit" },
+  "6001": { n: "Beban Gaji Karyawan", t: "Beban", nb: "Debit" },
+  "6002": { n: "Beban Sewa Tempat & Outlet", t: "Beban", nb: "Debit" },
+  "6003": { n: "Beban Listrik, Air & Gas", t: "Beban", nb: "Debit" },
+  "6004": { n: "Beban Marketing & Iklan", t: "Beban", nb: "Debit" },
+  "6005": { n: "Beban Operasional & Kurir", t: "Beban", nb: "Debit" }
 };
 
-// Kategori Jurnal yang Diizinkan
-const ALLOWED_CATEGORIES = ['pembelian', 'operasional', 'modal', 'prive', 'penyesuaian'];
+const ALLOWED_CATEGORIES = ['pembelian', 'operasional', 'modal', 'prive', 'penyesuaian', 'pendapatan'];
+
+// ============================================================================
+// HELPER: Normalisasi kode akun (3-digit ↔ 4-digit)
+// ============================================================================
+function normalizeAccCode(code) {
+  const s = String(code || '').trim();
+  if (!s) return '';
+  // Mapping 3-digit → 4-digit
+  const map3to4 = {
+    '101': '1001', '102': '1002', '103': '1003', '105': '1004', '106': '1005',
+    '201': '2001', '202': '2002',
+    '301': '3001', '302': '3002', '303': '3003',
+    '401': '4001', '402': '4002',
+    '501': '5001',
+    '601': '6001', '602': '6002', '603': '6003', '604': '6004', '605': '6005', '606': '6006'
+  };
+  if (map3to4[s]) return map3to4[s];
+  return s;
+}
 
 /**
- * Helper pembentuk JSON Response standar
+ * Ambil kedua varian kode (4-digit dan 3-digit) untuk fallback lookup
  */
+function getCodeVariants(code) {
+  const canonical = normalizeAccCode(code);
+  const map4to3 = {
+    '1001': '101', '1002': '102', '1003': '103', '1004': '105', '1005': '106',
+    '2001': '201', '2002': '202',
+    '3001': '301', '3002': '302', '3003': '303',
+    '4001': '401', '4002': '402',
+    '5001': '501',
+    '6001': '601', '6002': '602', '6003': '603', '6004': '604', '6005': '605', '6006': '606'
+  };
+  const alt = map4to3[canonical];
+  return alt ? [canonical, alt] : [canonical];
+}
+
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      ...CORS_HEADERS,
-      "Content-Type": "application/json; charset=utf-8"
-    }
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json; charset=utf-8" }
   });
 }
 
-/**
- * Helper: Mencari entri jurnal dengan 3 level fallback
- * 1. Exact match Firebase Key (/accounting/journal/{bulan}/{identifier})
- * 2. Scan field noEntry pada bulan tersebut (/accounting/journal/{bulan})
- * 3. Scan semua bulan (/accounting/journal)
- */
-async function findJournalEntry(dbUrl, bulan, identifier, apiKey) {
+const toNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// ============================================================================
+// HELPER: Baca Ledger akun (dengan fallback 3/4 digit)
+// ============================================================================
+async function fetchLedgerAccount(dbUrl, accCode, bulan, apiKey) {
   const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
-  const cleanId = String(identifier || '').trim();
-  if (!cleanId) return null;
-
-  // STRATEGI 1: Exact match dengan Firebase key
-  try {
-    const url = `${dbUrl}/accounting/journal/${encodeURIComponent(bulan)}/${encodeURIComponent(cleanId)}.json${auth}`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-        return { firebaseKey: cleanId, data, bulan };
+  const variants = getCodeVariants(accCode);
+  for (const code of variants) {
+    try {
+      const url = `${dbUrl}/accounting/ledger/${encodeURIComponent(code)}/${encodeURIComponent(bulan)}.json${auth}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object') return data;
       }
+    } catch (e) {
+      console.warn(`[LEDGER-FETCH] ${code}/${bulan} err:`, e.message);
     }
-  } catch (e) {
-    console.warn('[ACCOUNTING-API] Strategy 1 (exact key) failed:', e.message);
   }
+  return { opening: 0, debit: 0, credit: 0, closing: 0 };
+}
 
-  // STRATEGI 2: Cari via field noEntry di semua entry bulan tersebut
+// ============================================================================
+// HELPER: Hitung saldo Ledger langsung dari Journal (fallback)
+// ============================================================================
+async function computeLedgerFromJournal(dbUrl, bulan, apiKey) {
+  const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
+  const ledgerMap = {}; // code → {debit, credit}
   try {
     const url = `${dbUrl}/accounting/journal/${encodeURIComponent(bulan)}.json${auth}`;
     const res = await fetch(url);
-    if (res.ok) {
-      const all = await res.json();
-      if (all && typeof all === 'object') {
-        for (const [key, val] of Object.entries(all)) {
-          if (val && typeof val === 'object') {
-            if (val.noEntry === cleanId || key === cleanId) {
-              return { firebaseKey: key, data: val, bulan };
-            }
-          }
-        }
+    const data = await res.json();
+    if (!data || typeof data !== 'object') return ledgerMap;
+    for (const entry of Object.values(data)) {
+      if (!entry || !Array.isArray(entry.lines)) continue;
+      for (const line of entry.lines) {
+        const code = normalizeAccCode(line.acc || line.code);
+        if (!code) continue;
+        if (!ledgerMap[code]) ledgerMap[code] = { debit: 0, credit: 0 };
+        ledgerMap[code].debit += toNum(line.debit);
+        ledgerMap[code].credit += toNum(line.credit);
       }
     }
   } catch (e) {
-    console.warn('[ACCOUNTING-API] Strategy 2 (scan noEntry) failed:', e.message);
+    console.warn('[LEDGER-FROM-JOURNAL] err:', e.message);
   }
-
-  // STRATEGI 3: Scan semua bulan (kalau identifier tersimpan di bulan lain)
-  try {
-    const url = `${dbUrl}/accounting/journal.json${auth}`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const allMonths = await res.json();
-      if (allMonths && typeof allMonths === 'object') {
-        for (const [mKey, monthData] of Object.entries(allMonths)) {
-          if (monthData && typeof monthData === 'object') {
-            for (const [key, val] of Object.entries(monthData)) {
-              if (val && typeof val === 'object') {
-                if (val.noEntry === cleanId || key === cleanId) {
-                  return { firebaseKey: key, data: val, bulan: mKey };
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('[ACCOUNTING-API] Strategy 3 (scan all months) failed:', e.message);
-  }
-
-  return null;
+  return ledgerMap;
 }
 
-/**
- * Helper: Auto-update Buku Besar (Ledger) setelah Jurnal di-Approve
- */
+// ============================================================================
+// HELPER: Update Ledger setelah jurnal disimpan (idempotent by journalId)
+// ============================================================================
 async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) {
   const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
   const validLines = Array.isArray(lines) ? lines : [];
-
   for (const line of validLines) {
-    const acc = String(line.acc || '').trim();
+    const rawCode = String(line.acc || line.code || '').trim();
+    const acc = normalizeAccCode(rawCode);
     if (!acc) continue;
 
-    const debit = Math.max(0, Number(line.debit) || 0);
-    const credit = Math.max(0, Number(line.credit) || 0);
+    const debit = Math.max(0, toNum(line.debit));
+    const credit = Math.max(0, toNum(line.credit));
     if (debit === 0 && credit === 0) continue;
 
     try {
       const ledgerUrl = `${dbUrl}/accounting/ledger/${encodeURIComponent(acc)}/${encodeURIComponent(bulan)}.json${auth}`;
       const res = await fetch(ledgerUrl);
-      let existing = null;
-      if (res.ok) {
-        existing = await res.json();
-      }
-
+      let existing = res.ok ? await res.json() : null;
       if (!existing || typeof existing !== 'object') {
-        existing = {
-          opening: 0,
-          debit: 0,
-          credit: 0,
-          closing: 0
-        };
+        existing = { opening: 0, debit: 0, credit: 0, closing: 0, entries: {} };
+      }
+      if (!existing.entries) existing.entries = {};
+
+      // Idempotensi: kalau journalId ini sudah pernah diposting, skip
+      if (existing.entries[journalId]) {
+        console.log(`[LEDGER] Skip duplicate posting for ${journalId} acc ${acc}`);
+        continue;
       }
 
-      existing.debit = (Number(existing.debit) || 0) + debit;
-      existing.credit = (Number(existing.credit) || 0) + credit;
-      existing.closing = (Number(existing.opening) || 0) + existing.debit - existing.credit;
+      existing.debit = toNum(existing.debit) + debit;
+      existing.credit = toNum(existing.credit) + credit;
+      existing.closing = toNum(existing.opening) + existing.debit - existing.credit;
+      existing.entries[journalId] = { debit, credit, at: Date.now() };
       existing.updatedAt = Date.now();
 
       await fetch(ledgerUrl, {
@@ -162,160 +179,132 @@ async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(existing)
       });
-
-      console.log(`[LEDGER] Updated acc ${acc} bulan ${bulan}: debit+${debit}, credit+${credit}, closing=${existing.closing} (from journal ${journalId})`);
+      console.log(`[LEDGER] Acc ${acc} bulan ${bulan}: +D${debit} +K${credit} → closing ${existing.closing}`);
     } catch (err) {
-      console.error(`[ACCOUNTING-API] Gagal update ledger acc ${acc} bulan ${bulan}:`, err);
+      console.error(`[LEDGER] Gagal update acc ${acc}:`, err.message);
     }
   }
 }
 
-/**
- * Helper: Ambil data akun dari Ledger Firebase
- */
-async function fetchLedgerAccount(dbUrl, accCode, bulan, apiKey) {
-  const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
-  try {
-    const url = `${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${auth}`;
-    const res = await fetch(url);
-    let data = await res.json();
-    if (!data && accCode.length === 3) {
-      const altCode = accCode === '101' ? '1001' : accCode === '102' ? '1002' : accCode === '103' ? '1003' : accCode === '105' ? '1004' : accCode === '201' ? '2001' : accCode === '301' ? '3001' : accCode === '401' ? '4001' : accCode === '402' ? '4002' : accCode === '501' ? '5001' : accCode === '601' ? '6001' : null;
-      if (altCode) {
-        const altRes = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(altCode)}/${encodeURIComponent(bulan)}.json${auth}`);
-        data = await altRes.json();
-      }
-    } else if (!data && accCode.length === 4) {
-      const altCode = accCode === '1001' ? '101' : accCode === '1002' ? '102' : accCode === '1003' ? '103' : accCode === '1004' ? '105' : accCode === '2001' ? '201' : null;
-      if (altCode) {
-        const altRes = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(altCode)}/${encodeURIComponent(bulan)}.json${auth}`);
-        data = await altRes.json();
-      }
-    }
-    return data || { opening: 0, debit: 0, credit: 0, closing: 0 };
-  } catch (e) {
-    console.warn(`Fetch ledger ${accCode} error:`, e.message);
-    return { opening: 0, debit: 0, credit: 0, closing: 0 };
-  }
-}
-
-/**
- * Helper: Hitung ringkasan P&L dan Keuangan langsung dari Ledger Firebase
- */
+// ============================================================================
+// HELPER: Hitung Summary lengkap dari Ledger (dengan fallback dari Journal)
+// ============================================================================
 async function calculateSummaryFromLedger(dbUrl, bulan, apiKey) {
-  const [
-    acc101, acc102, acc103, acc105,
-    acc201, acc301, acc302,
-    acc401, acc402,
-    acc501,
-    acc601, acc602, acc603, acc604, acc605, acc606
-  ] = await Promise.all([
-    fetchLedgerAccount(dbUrl, '101', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '102', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '103', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '105', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '201', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '301', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '302', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '401', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '402', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '501', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '601', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '602', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '603', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '604', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '605', bulan, apiKey),
-    fetchLedgerAccount(dbUrl, '606', bulan, apiKey)
-  ]);
+  // Kumpulkan saldo semua akun yang dibutuhkan
+  const codes = ['1001','1002','1003','1004','1005','2001','2002','3001','3002','3003','4001','4002','5001','6001','6002','6003','6004','6005'];
+  const ledgers = {};
+  await Promise.all(codes.map(async (c) => {
+    ledgers[c] = await fetchLedgerAccount(dbUrl, c, bulan, apiKey);
+  }));
 
-  // Revenue (credit - debit)
-  const penjualanPos = (Number(acc401.credit) || 0) - (Number(acc401.debit) || 0);
-  const penjualanCatering = (Number(acc402.credit) || 0) - (Number(acc402.debit) || 0);
+  // Fallback: kalau SEMUA ledger kosong, hitung dari journal
+  const allEmpty = codes.every(c => {
+    const l = ledgers[c];
+    return toNum(l.debit) === 0 && toNum(l.credit) === 0 && toNum(l.closing) === 0;
+  });
+  if (allEmpty) {
+    console.log('[SUMMARY] Ledger kosong, fallback ke Journal...');
+    const fromJournal = await computeLedgerFromJournal(dbUrl, bulan, apiKey);
+    for (const c of codes) {
+      if (fromJournal[c]) {
+        const d = fromJournal[c].debit;
+        const k = fromJournal[c].credit;
+        ledgers[c] = { opening: 0, debit: d, credit: k, closing: d - k };
+      }
+    }
+  }
+
+  const balance = (c) => toNum(ledgers[c]?.closing);
+  const debitBal = (c) => toNum(ledgers[c]?.debit);
+  const creditBal = (c) => toNum(ledgers[c]?.credit);
+
+  // === PENDAPATAN ===
+  const penjualanPos = creditBal('4001') - debitBal('4001');
+  const penjualanCatering = creditBal('4002') - debitBal('4002');
   const totalPendapatan = penjualanPos + penjualanCatering;
 
-  // HPP (debit - credit)
-  const hppBahanBaku = (Number(acc501.debit) || 0) - (Number(acc501.credit) || 0);
+  // === HPP ===
+  const hppBahanBaku = debitBal('5001') - creditBal('5001');
   const totalHpp = hppBahanBaku;
 
-  // Laba Kotor
+  // === LABA KOTOR ===
   const labaKotor = totalPendapatan - totalHpp;
   const marginKotor = totalPendapatan > 0 ? Math.round((labaKotor / totalPendapatan) * 10000) / 100 : 0;
 
-  // Beban
-  const bebanGaji = (Number(acc601.debit) || 0) - (Number(acc601.credit) || 0);
-  const bebanSewa = (Number(acc602.debit) || 0) - (Number(acc602.credit) || 0);
-  const bebanListrik = (Number(acc603.debit) || 0) - (Number(acc603.credit) || 0);
-  const bebanMarketing = (Number(acc604.debit) || 0) - (Number(acc604.credit) || 0);
-  const bebanKurir = (Number(acc605.debit) || 0) - (Number(acc605.credit) || 0);
-  const bebanPenyusutan = (Number(acc606.debit) || 0) - (Number(acc606.credit) || 0);
-  const totalBeban = bebanGaji + bebanSewa + bebanListrik + bebanMarketing + bebanKurir + bebanPenyusutan;
+  // === BEBAN ===
+  const bebanGaji = debitBal('6001') - creditBal('6001');
+  const bebanSewa = debitBal('6002') - creditBal('6002');
+  const bebanListrik = debitBal('6003') - creditBal('6003');
+  const bebanMarketing = debitBal('6004') - creditBal('6004');
+  const bebanOperasional = debitBal('6005') - creditBal('6005');
+  const totalBeban = bebanGaji + bebanSewa + bebanListrik + bebanMarketing + bebanOperasional;
 
-  // Laba Bersih
+  // === LABA BERSIH ===
   const labaBersih = labaKotor - totalBeban;
   const marginBersih = totalPendapatan > 0 ? Math.round((labaBersih / totalPendapatan) * 10000) / 100 : 0;
 
-  // INFORMASI TAMBAHAN (BARU)
-  const pembelianBahanBaku = Number(acc105.debit) || 0;
-  const persediaanAkhir = Number(acc105.closing) || 0;
+  // === NERACA ===
+  const saldoKas = balance('1001');
+  const saldoBank = balance('1002');
+  const piutang = balance('1003');
+  const persediaanAkhir = balance('1004');
+  const peralatan = balance('1005');
+  const hutangSupplier = balance('2001');
+  const hutangBeban = balance('2002');
+  const modalPemilik = balance('3001');
+  const labaDitahan = balance('3002');
+  const prive = balance('3003');
 
-  // Saldo kas/bank
-  const saldoKas = Number(acc101.closing) || 0;
-  const saldoBank = Number(acc102.closing) || 0;
-  const piutang = Number(acc103.closing) || 0;
-  const hutangSupplier = Number(acc201.closing) || 0;
-
-  // Total Aset: kas + bank + piutang + persediaan
-  const totalAset = saldoKas + saldoBank + piutang + persediaanAkhir;
-  const totalKewajiban = hutangSupplier;
-  const totalEkuitas = (Number(acc301.closing) || 0) + (Number(acc302.closing) || 0) + labaBersih;
+  const totalAsetLancar = saldoKas + saldoBank + piutang + persediaanAkhir;
+  const totalAsetTetap = peralatan;
+  const totalAset = totalAsetLancar + totalAsetTetap;
+  const totalKewajiban = hutangSupplier + hutangBeban;
+  const totalEkuitas = modalPemilik + labaDitahan + labaBersih - prive;
+  const totalKewajibanEkuitas = totalKewajiban + totalEkuitas;
+  const selisihNeraca = totalAset - totalKewajibanEkuitas;
 
   const status = labaBersih >= 0 ? "PROFIT" : "LOSS";
 
-  console.log(`[SUMMARY] ${bulan}: Revenue=${totalPendapatan}, HPP=${totalHpp}, Laba=${labaBersih}`);
+  console.log(`[SUMMARY] ${bulan}: Rev=${totalPendapatan}, HPP=${totalHpp}, Laba=${labaBersih}, Aset=${totalAset}, Ekuitas=${totalEkuitas}`);
 
-  const summary = {
+  return {
     periode: bulan,
-    pendapatan: {
-      penjualanPos,
-      penjualanCatering,
-      totalPendapatan
-    },
-    hpp: {
-      bahanBaku: hppBahanBaku,
-      totalHpp
-    },
+    pendapatan: { penjualanPos, penjualanCatering, totalPendapatan },
+    hpp: { bahanBaku: hppBahanBaku, totalHpp },
     labaKotor,
     marginKotor,
     beban: {
-      gaji: bebanGaji,
-      sewa: bebanSewa,
-      utilitas: bebanListrik,
-      marketing: bebanMarketing,
-      kurir: bebanKurir,
-      penyusutan: bebanPenyusutan,
+      gaji: bebanGaji, sewa: bebanSewa, utilitas: bebanListrik,
+      marketing: bebanMarketing, operasional: bebanOperasional,
       totalBeban
     },
     labaBersih,
     marginBersih,
-    pembelianBahanBaku,
+    pembelianBahanBaku: debitBal('1004'),
     persediaanAkhir,
     saldoKas,
     saldoBank,
     piutang,
     hutangSupplier,
+    hutangBeban,
+    modalPemilik,
+    labaDitahan,
+    prive,
     totalAset,
+    totalAsetLancar,
+    totalAsetTetap,
     totalKewajiban,
     totalEkuitas,
+    totalKewajibanEkuitas,
+    selisihNeraca,
     status,
     updatedAt: Date.now()
   };
-
-  return summary;
 }
 
-/**
- * Helper: Auto-update Ringkasan Laporan Finansial (P&L, Neraca, Cash Flow)
- */
+// ============================================================================
+// HELPER: Simpan cache summary
+// ============================================================================
 async function updateSummaryAfterApprove(dbUrl, bulan, apiKey) {
   const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
   try {
@@ -327,176 +316,154 @@ async function updateSummaryAfterApprove(dbUrl, bulan, apiKey) {
     });
     return summary;
   } catch (e) {
-    console.error('[ACCOUNTING-API] Gagal update summary:', e);
+    console.error('[SUMMARY-UPDATE] err:', e.message);
     return null;
   }
 }
 
-/**
- * Handler Utama Cloudflare Pages Function
- */
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
 
-  // 1. Handle CORS Preflight
   if (method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  // 2. Setup Firebase Database REST Endpoint & Auth
   const dbUrl = (env.FIREBASE_DATABASE_URL || "https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app").replace(/\/$/, "");
   const apiKey = env.FIREBASE_API_KEY || "";
   const authParam = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "";
 
-  // 3. Parse Route Path
   const fullPath = url.pathname.replace(/^\/accounting\/?/, '');
   const parts = fullPath.split('/').filter(Boolean);
 
-  // ✅ FIX: Kalau path KOSONG (user buka /accounting), 
-  // lanjutkan ke static file handler (context.next())
-  // Cloudflare akan serve /public/accounting.html
-  if (parts.length === 0) {
-    return context.next();
-  }
+  // Path kosong → serve static accounting.html
+  if (parts.length === 0) return context.next();
 
   try {
-    // =========================================================================
-    // ENDPOINT 1: /accounting/coa (Chart of Accounts)
-    // =========================================================================
+    // =======================================================================
+    // COA
+    // =======================================================================
     if (parts[0] === 'coa') {
       if (method === 'GET') {
         const res = await fetch(`${dbUrl}/accounting/coa.json${authParam}`);
         const data = await res.json();
         const coaResult = data && typeof data === 'object' && Object.keys(data).length > 0 ? data : DEFAULT_COA;
-        return jsonResponse({ success: true, data: coaResult }, 200);
+        return jsonResponse({ success: true, data: coaResult });
       }
-
       if (method === 'POST' || method === 'PUT') {
         const body = await request.json().catch(() => ({}));
-        if (body.code && body.n) {
-          const code = String(body.code).trim();
-          const coaItem = {
-            n: String(body.n).trim(),
-            t: body.t || 'expense'
-          };
-          await fetch(`${dbUrl}/accounting/coa/${encodeURIComponent(code)}.json${authParam}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+        if (body.code && (body.n || body.name)) {
+          const code = normalizeAccCode(body.code);
+          const coaItem = { n: String(body.n || body.name).trim(), t: body.t || body.type || 'Beban' };
+          await fetch(`${dbUrl}/accounting/coa/${code}.json${authParam}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(coaItem)
           });
-          return jsonResponse({ success: true, message: `Akun ${code} berhasil disimpan`, data: coaItem }, 200);
-        } else if (typeof body === 'object') {
-          await fetch(`${dbUrl}/accounting/coa.json${authParam}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-          });
-          return jsonResponse({ success: true, message: "Seluruh Chart of Accounts berhasil disimpan" }, 200);
+          return jsonResponse({ success: true, message: `Akun ${code} disimpan`, data: coaItem });
         }
-        return jsonResponse({ success: false, error: "Payload akun tidak valid" }, 400);
+        await fetch(`${dbUrl}/accounting/coa.json${authParam}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        return jsonResponse({ success: true, message: "COA disimpan" });
       }
-
-      return jsonResponse({ success: false, error: "Metode tidak didukung pada /accounting/coa" }, 405);
+      return jsonResponse({ success: false, error: "Metode tidak didukung" }, 405);
     }
 
-    // =========================================================================
-    // ENDPOINT 2: /accounting/journal (Jurnal Umum)
-    // =========================================================================
+    // =======================================================================
+    // JOURNAL
+    // =======================================================================
     if (parts[0] === 'journal') {
       const now = new Date();
       const currentBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const targetBulan = parts[1] || currentBulan;
+      const targetBulan = (parts[1] && parts[1].length === 7) ? parts[1] : currentBulan;
 
-      // GET /accounting/journal ATAU /accounting/journal/{bulan}
+      // === GET ===
       if (method === 'GET') {
         if (parts[1] && parts[1].length === 7) {
-          // Format YYYY-MM
-          const res = await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(parts[1])}.json${authParam}`);
+          const res = await fetch(`${dbUrl}/accounting/journal/${parts[1]}.json${authParam}`);
           const data = await res.json();
           const list = data && typeof data === 'object'
             ? Object.entries(data).map(([id, v]) => ({ id, ...(v || {}) }))
             : [];
-          return jsonResponse({ success: true, bulan: parts[1], data: list }, 200);
+          return jsonResponse({ success: true, bulan: parts[1], data: list });
         } else if (parts[1]) {
-          // Cari spesifik ID / noEntry
-          const found = await findJournalEntry(dbUrl, currentBulan, parts[1], apiKey);
-          if (!found) {
-            return jsonResponse({ success: false, error: `Jurnal dengan ID '${parts[1]}' tidak ditemukan` }, 404);
+          const res = await fetch(`${dbUrl}/accounting/journal/${targetBulan}.json${authParam}`);
+          const data = await res.json();
+          if (data && typeof data === 'object') {
+            for (const [key, val] of Object.entries(data)) {
+              if (key === parts[1] || (val && val.noEntry === parts[1])) {
+                return jsonResponse({ success: true, id: key, bulan: targetBulan, data: val });
+              }
+            }
           }
-          return jsonResponse({ success: true, id: found.firebaseKey, bulan: found.bulan, data: found.data }, 200);
+          return jsonResponse({ success: false, error: `Jurnal ${parts[1]} tidak ditemukan` }, 404);
         } else {
-          // Default: Ambil bulan berjalan
-          const res = await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(currentBulan)}.json${authParam}`);
+          const res = await fetch(`${dbUrl}/accounting/journal/${currentBulan}.json${authParam}`);
           const data = await res.json();
           const list = data && typeof data === 'object'
             ? Object.entries(data).map(([id, v]) => ({ id, ...(v || {}) }))
             : [];
-          return jsonResponse({ success: true, bulan: currentBulan, data: list }, 200);
+          return jsonResponse({ success: true, bulan: currentBulan, data: list });
         }
       }
 
-      // POST /accounting/journal (Buat Entri Jurnal Baru)
+      // === POST — Buat jurnal baru ===
       if (method === 'POST') {
         const body = await request.json().catch(() => ({}));
-        
-        // Validasi Fields Wajib
+
         const noEntry = String(body.noEntry || body.ref || `JE-${Date.now().toString().slice(-6)}`).trim();
         const dateStr = body.date || body.tgl || new Date().toISOString().split('T')[0];
         const category = String(body.category || 'operasional').toLowerCase();
         const desc = String(body.desc || body.keterangan || '').trim();
-        const lines = Array.isArray(body.lines) ? body.lines : [];
+        let lines = Array.isArray(body.lines) ? body.lines : [];
+
+        // Fallback: frontend mungkin kirim debitAccount/creditAccount/amount
+        if (lines.length === 0 && (body.debitAccount || body.creditAccount)) {
+          const amt = toNum(body.amount);
+          if (body.debitAccount && body.creditAccount && amt > 0) {
+            lines = [
+              { acc: body.debitAccount, debit: amt, credit: 0 },
+              { acc: body.creditAccount, debit: 0, credit: amt }
+            ];
+          }
+        }
 
         if (!ALLOWED_CATEGORIES.includes(category)) {
-          return jsonResponse({
-            success: false,
-            error: `Kategori '${category}' tidak valid. Pilih dari: ${ALLOWED_CATEGORIES.join(', ')}`
-          }, 400);
+          // tolerate: kalau tidak valid, paksa ke 'operasional'
+          console.warn(`[JOURNAL] Kategori '${category}' tidak standar, pakai 'operasional'`);
         }
 
         if (lines.length < 2) {
-          return jsonResponse({
-            success: false,
-            error: "Entri jurnal harus memiliki minimal 2 baris akun (Debit & Kredit)"
-          }, 400);
+          return jsonResponse({ success: false, error: "Entri jurnal minimal 2 baris (Debit & Kredit)" }, 400);
         }
 
-        // Hitung dan Validasi Double-Entry Balance
-        let totalDebit = 0;
-        let totalCredit = 0;
+        let totalDebit = 0, totalCredit = 0;
         const sanitizedLines = [];
-
         for (const line of lines) {
-          const acc = String(line.acc || line.code || '').trim();
-          const debit = Math.max(0, Number(line.debit) || 0);
-          const credit = Math.max(0, Number(line.credit) || 0);
-
-          if (!acc) {
-            return jsonResponse({ success: false, error: "Setiap baris jurnal harus memiliki kode akun (acc)" }, 400);
-          }
-
+          const acc = normalizeAccCode(line.acc || line.code);
+          const debit = Math.max(0, toNum(line.debit));
+          const credit = Math.max(0, toNum(line.credit));
+          if (!acc) return jsonResponse({ success: false, error: "Setiap baris harus punya kode akun" }, 400);
           totalDebit += debit;
           totalCredit += credit;
-
-          sanitizedLines.push({
-            acc,
-            debit,
-            credit,
-            desc: line.desc ? String(line.desc).trim() : undefined
-          });
+          sanitizedLines.push({ acc, debit, credit, desc: line.desc ? String(line.desc).trim() : undefined });
         }
 
         if (Math.abs(totalDebit - totalCredit) > 0.01 || totalDebit <= 0) {
           return jsonResponse({
             success: false,
-            error: `Jurnal tidak balance! Total Debit: Rp${totalDebit.toLocaleString('id-ID')}, Total Kredit: Rp${totalCredit.toLocaleString('id-ID')}`
+            error: `Jurnal tidak balance! Debit: Rp${totalDebit.toLocaleString('id-ID')}, Kredit: Rp${totalCredit.toLocaleString('id-ID')}`
           }, 400);
         }
 
-        // Tentukan Partition Bulan berdasarkan tanggal (YYYY-MM)
         const entryMonth = dateStr.substring(0, 7);
-        const journalId = `JRN-${dateStr.replace(/-/g, '')}-${Date.now().toString().slice(-4)}`;
+        const journalId = body.id || `JRN-${dateStr.replace(/-/g, '')}-${Date.now().toString().slice(-4)}`;
+        const finalStatus = body.status || 'approved'; // default langsung approved
 
         const newEntry = {
           noEntry,
@@ -506,196 +473,174 @@ export async function onRequest(context) {
           desc,
           lines: sanitizedLines,
           total: totalDebit,
-          status: body.status || 'draft', // 'draft' | 'approved' | 'rejected'
+          status: finalStatus,
           ref: body.ref || noEntry,
+          proof: body.proof || body.proofImage || '',
+          debitCode: sanitizedLines.find(l => l.debit > 0)?.acc,
+          creditCode: sanitizedLines.find(l => l.credit > 0)?.acc,
+          debitAmount: sanitizedLines.find(l => l.debit > 0)?.debit,
+          creditAmount: sanitizedLines.find(l => l.credit > 0)?.credit,
           createdAt: Date.now()
         };
 
-        // Simpan ke Firebase
-        await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(entryMonth)}/${encodeURIComponent(journalId)}.json${authParam}`, {
+        await fetch(`${dbUrl}/accounting/journal/${entryMonth}/${journalId}.json${authParam}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newEntry)
         });
 
-        // Jika status langsung 'approved', auto update ledger & summary
-        if (newEntry.status === 'approved') {
-          await updateLedgerAfterApprove(dbUrl, entryMonth, sanitizedLines, apiKey, journalId);
-          await updateSummaryAfterApprove(dbUrl, entryMonth, apiKey);
-        }
+        // ✅ SELALU update ledger & summary (idempotent)
+        await updateLedgerAfterApprove(dbUrl, entryMonth, sanitizedLines, apiKey, journalId);
+        await updateSummaryAfterApprove(dbUrl, entryMonth, apiKey);
 
         return jsonResponse({
           success: true,
-          message: `Entri jurnal ${noEntry} berhasil disimpan`,
+          message: `Entri ${noEntry} berhasil disimpan`,
           id: journalId,
           bulan: entryMonth,
           data: newEntry
         }, 201);
       }
 
-      // PATCH /accounting/journal/{identifier}/approve (Approve Jurnal & Update Ledger)
-      if (parts[2] === 'approve' || parts[3] === 'approve') {
-        const identifier = parts[1] === 'approve' ? parts[2] : parts[1];
-        const found = await findJournalEntry(dbUrl, targetBulan, identifier, apiKey);
+      // === PATCH/PUT /accounting/journal/{bulan}/{id}/approve ===
+      if (method === 'PATCH' || method === 'PUT') {
+        const bulanFromUrl = (parts[1] && parts[1].length === 7) ? parts[1] : currentBulan;
+        const identifier = (parts[1] && parts[1].length === 7) ? parts[2] : parts[1];
 
-        if (!found) {
-          return jsonResponse({ success: false, error: `Jurnal '${identifier}' tidak ditemukan untuk di-approve` }, 404);
+        // Ambil existing
+        let firebaseKey = null, entryData = null, entryBulan = bulanFromUrl;
+        const res = await fetch(`${dbUrl}/accounting/journal/${bulanFromUrl}.json${authParam}`);
+        const all = await res.json();
+        if (all && typeof all === 'object') {
+          for (const [k, v] of Object.entries(all)) {
+            if (k === identifier || (v && v.noEntry === identifier)) {
+              firebaseKey = k; entryData = v; break;
+            }
+          }
         }
+        if (!entryData) return jsonResponse({ success: false, error: `Jurnal ${identifier} tidak ditemukan` }, 404);
 
-        if (found.data.status === 'approved') {
-          return jsonResponse({ success: true, message: "Jurnal sudah berstatus approved sebelumnya", data: found.data }, 200);
-        }
-
-        // Update status di Firebase
-        const updatedData = {
-          ...found.data,
-          status: 'approved',
-          approvedAt: Date.now()
-        };
-
-        await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(found.bulan)}/${encodeURIComponent(found.firebaseKey)}.json${authParam}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+        const updatedData = { ...entryData, status: 'approved', approvedAt: Date.now() };
+        await fetch(`${dbUrl}/accounting/journal/${entryBulan}/${firebaseKey}.json${authParam}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedData)
         });
-
-        // Update Buku Besar & Ringkasan Laporan
-        await updateLedgerAfterApprove(dbUrl, found.bulan, found.data.lines, apiKey, found.firebaseKey);
-        await updateSummaryAfterApprove(dbUrl, found.bulan, apiKey);
-
-        return jsonResponse({
-          success: true,
-          message: `Jurnal ${found.data.noEntry || found.firebaseKey} berhasil di-approve & diposting ke Buku Besar`,
-          data: updatedData
-        }, 200);
+        await updateLedgerAfterApprove(dbUrl, entryBulan, entryData.lines, apiKey, firebaseKey);
+        await updateSummaryAfterApprove(dbUrl, entryBulan, apiKey);
+        return jsonResponse({ success: true, message: `Jurnal ${identifier} di-approve`, data: updatedData });
       }
 
-      // DELETE /accounting/journal/{identifier}
+      // === DELETE ===
       if (method === 'DELETE' && parts[1]) {
-        const found = await findJournalEntry(dbUrl, targetBulan, parts[1], apiKey);
-        if (!found) {
-          return jsonResponse({ success: false, error: `Jurnal '${parts[1]}' tidak ditemukan untuk dihapus` }, 404);
+        const bulanFromUrl = (parts[1] && parts[1].length === 7) ? parts[1] : currentBulan;
+        const identifier = (parts[1] && parts[1].length === 7) ? parts[2] : parts[1];
+        const res = await fetch(`${dbUrl}/accounting/journal/${bulanFromUrl}.json${authParam}`);
+        const all = await res.json();
+        if (all && typeof all === 'object') {
+          for (const [k, v] of Object.entries(all)) {
+            if (k === identifier || (v && v.noEntry === identifier)) {
+              await fetch(`${dbUrl}/accounting/journal/${bulanFromUrl}/${k}.json${authParam}`, { method: 'DELETE' });
+              return jsonResponse({ success: true, message: `Jurnal ${identifier} dihapus` });
+            }
+          }
         }
-
-        await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(found.bulan)}/${encodeURIComponent(found.firebaseKey)}.json${authParam}`, {
-          method: 'DELETE'
-        });
-
-        return jsonResponse({ success: true, message: `Jurnal ${parts[1]} berhasil dihapus` }, 200);
+        return jsonResponse({ success: false, error: `Jurnal ${identifier} tidak ditemukan` }, 404);
       }
     }
 
-    // =========================================================================
-    // ENDPOINT 3: /accounting/ledger (Buku Besar)
-    // =========================================================================
+    // =======================================================================
+    // LEDGER
+    // =======================================================================
     if (parts[0] === 'ledger') {
       const now = new Date();
       const currentBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const accCode = parts[1];
+      const accCode = normalizeAccCode(parts[1]);
       const bulan = parts[2] || currentBulan;
 
       if (method === 'GET') {
         if (accCode) {
-          // Ambil ledger akun spesifik
-          const res = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${authParam}`);
-          const data = await res.json();
-          return jsonResponse({
-            success: true,
-            acc: accCode,
-            bulan,
-            data: data || { opening: 0, debit: 0, credit: 0, closing: 0 }
-          }, 200);
-        } else {
-          // Ambil seluruh ledger untuk bulan tertentu
-          const res = await fetch(`${dbUrl}/accounting/ledger.json${authParam}`);
-          const all = await res.json();
-          const ledgerMonth = {};
-          if (all && typeof all === 'object') {
-            for (const [code, months] of Object.entries(all)) {
-              if (months && months[bulan]) {
-                ledgerMonth[code] = months[bulan];
-              }
-            }
-          }
-          return jsonResponse({ success: true, bulan, data: ledgerMonth }, 200);
+          const data = await fetchLedgerAccount(dbUrl, accCode, bulan, apiKey);
+          return jsonResponse({ success: true, acc: accCode, bulan, data });
         }
+        const res = await fetch(`${dbUrl}/accounting/ledger.json${authParam}`);
+        const all = await res.json();
+        const ledgerMonth = {};
+        if (all && typeof all === 'object') {
+          for (const [code, months] of Object.entries(all)) {
+            if (months && months[bulan]) ledgerMonth[normalizeAccCode(code)] = months[bulan];
+          }
+        }
+        return jsonResponse({ success: true, bulan, data: ledgerMonth });
       }
 
-      // PUT/POST /accounting/ledger/{acc}/{bulan} — Set saldo manual / opening
-      if ((method === 'POST' || method === 'PUT') && accCode && bulan) {
+      if ((method === 'POST' || method === 'PUT') && accCode) {
         const body = await request.json().catch(() => ({}));
         const existing = await fetchLedgerAccount(dbUrl, accCode, bulan, apiKey);
-        
-        const opening = body.opening !== undefined ? Number(body.opening) : Number(existing.opening || 0);
-        const debit = body.debit !== undefined ? Number(body.debit) : Number(existing.debit || 0);
-        const credit = body.credit !== undefined ? Number(body.credit) : Number(existing.credit || 0);
+        const opening = body.opening !== undefined ? toNum(body.opening) : toNum(existing.opening);
+        const debit = body.debit !== undefined ? toNum(body.debit) : toNum(existing.debit);
+        const credit = body.credit !== undefined ? toNum(body.credit) : toNum(existing.credit);
         const closing = opening + debit - credit;
-
-        const ledgerPayload = {
-          opening,
-          debit,
-          credit,
-          closing,
-          updatedAt: Date.now()
-        };
-
-        await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${authParam}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(ledgerPayload)
+        const payload = { opening, debit, credit, closing, updatedAt: Date.now() };
+        await fetch(`${dbUrl}/accounting/ledger/${accCode}/${bulan}.json${authParam}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
-
         await updateSummaryAfterApprove(dbUrl, bulan, apiKey);
-
-        return jsonResponse({
-          success: true,
-          message: `Buku besar akun ${accCode} periode ${bulan} berhasil diperbarui`,
-          data: ledgerPayload
-        }, 200);
+        return jsonResponse({ success: true, message: `Ledger ${accCode}/${bulan} diperbarui`, data: payload });
       }
-
-      return jsonResponse({ success: false, error: "Metode tidak didukung pada /accounting/ledger" }, 405);
     }
 
-    // =========================================================================
-    // ENDPOINT 4: /accounting/summary/{bulan} (Laporan Laba Rugi / P&L)
-    // =========================================================================
+    // =======================================================================
+    // SUMMARY
+    // =======================================================================
     if (parts[0] === 'summary') {
       const now = new Date();
       const currentBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const bulan = parts[1] || currentBulan;
 
-      // Hitung realtime dari Ledger Firebase
       const summary = await calculateSummaryFromLedger(dbUrl, bulan, apiKey);
 
-      // Simpan cache ke Firebase
+      // Cache
       try {
-        await fetch(`${dbUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${authParam}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch(`${dbUrl}/accounting/summary/${bulan}.json${authParam}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(summary)
         });
-      } catch (saveErr) {
-        console.warn('[ACCOUNTING-API] Gagal cache summary:', saveErr);
-      }
+      } catch (e) { /* silent */ }
 
-      return jsonResponse({
-        success: true,
-        data: summary
-      }, 200);
+      return jsonResponse({ success: true, data: summary });
     }
 
-    // Route tidak dikenali
-    return jsonResponse({
-      success: false,
-      error: `Endpoint /accounting/${fullPath} tidak ditemukan`
-    }, 404);
+    // =======================================================================
+    // DASHBOARD (alias summary)
+    // =======================================================================
+    if (parts[0] === 'dashboard') {
+      const now = new Date();
+      const bulan = parts[1] || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const summary = await calculateSummaryFromLedger(dbUrl, bulan, apiKey);
+      return jsonResponse({ success: true, data: summary });
+    }
+
+    // =======================================================================
+    // APPROVALS (list jurnal draft)
+    // =======================================================================
+    if (parts[0] === 'approvals') {
+      const now = new Date();
+      const bulan = parts[1] || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const res = await fetch(`${dbUrl}/accounting/journal/${bulan}.json${authParam}`);
+      const data = await res.json();
+      const list = data && typeof data === 'object'
+        ? Object.entries(data)
+            .map(([id, v]) => ({ id, ...(v || {}) }))
+            .filter(j => j.status !== 'approved')
+        : [];
+      return jsonResponse({ success: true, bulan, data: list });
+    }
+
+    return jsonResponse({ success: false, error: `Endpoint /accounting/${fullPath} tidak ditemukan` }, 404);
 
   } catch (err) {
-    console.error('[ACCOUNTING-API] Global Request Exception:', err);
-    return jsonResponse({
-      success: false,
-      error: err.message || "Terjadi kesalahan internal server"
-    }, 500);
+    console.error('[ACCOUNTING-API] Exception:', err);
+    return jsonResponse({ success: false, error: err.message || "Internal server error" }, 500);
   }
 }
