@@ -598,8 +598,21 @@ window.accountingApp = function() {
 
     /**
      * Hitung ulang seluruh saldo akun berjalan berdasarkan mutasi seluruh jurnal
+     * (DENGAN normalisasi kode akun 3-digit → 4-digit)
      */
     recalculateAllAccountBalances() {
+      // Helper normalize 3-digit → 4-digit
+      const normalizeAcc = (c) => {
+        const s = String(c || '').trim();
+        const map = {
+          '101':'1001','102':'1002','103':'1003','105':'1004','106':'1005',
+          '201':'2001','202':'2002','301':'3001','302':'3002','303':'3003',
+          '401':'4001','402':'4002','501':'5001',
+          '601':'6001','602':'6002','603':'6003','604':'6004','605':'6005','606':'6006'
+        };
+        return map[s] || s;
+      };
+
       const totalsByAcc = {};
 
       // Inisialisasi dari saldo awal
@@ -612,11 +625,11 @@ window.accountingApp = function() {
         };
       });
 
-      // Akumulasikan semua mutasi jurnal real
+      // Akumulasikan semua mutasi jurnal real (dengan normalize)
       this.jurnalList.forEach(j => {
-        if (Array.isArray(j.lines)) {
+        if (Array.isArray(j.lines) && j.lines.length > 0) {
           j.lines.forEach(l => {
-            const code = String(l.acc || l.code || '');
+            const code = normalizeAcc(l.acc || l.code || '');
             const dAmt = Number(l.debit) || 0;
             const cAmt = Number(l.credit) || 0;
             if (totalsByAcc[code]) {
@@ -625,8 +638,9 @@ window.accountingApp = function() {
             }
           });
         } else {
-          const dCode = j.debitCode;
-          const cCode = j.creditCode;
+          // Fallback untuk jurnal lama yang tidak punya `lines`
+          const dCode = normalizeAcc(j.debitCode);
+          const cCode = normalizeAcc(j.creditCode);
           const dAmt = Number(j.debitAmount) || 0;
           const cAmt = Number(j.creditAmount) || 0;
 
