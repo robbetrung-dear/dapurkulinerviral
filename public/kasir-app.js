@@ -1658,14 +1658,11 @@ window.kasirApp = () => ({
     }
 
     // =====================================================================
-    // 8.5. HOOK AKUNTANSI — catat jurnal otomatis (fire-and-forget)
-    // Kirim ke /accounting/journal TANPA memblokir alur POS
+    // 8.5. HOOK AKUNTANSI — kirim POS ke backend (Revenue + HPP otomatis)
     // =====================================================================
     try {
-      // Ambil nilai dari parameter method simpanTransaksi()
       const _acctTxId = (typeof txId !== 'undefined' && txId)
-                        ? txId
-                        : ('T' + Date.now());
+                        ? txId : ('T' + Date.now());
       const _acctMethod = (typeof method !== 'undefined' && method)
                           ? method
                           : (this.selectedPaymentMethod || this.paymentMethod || 'cash');
@@ -1673,40 +1670,22 @@ window.kasirApp = () => ({
                          ? Number(orderData.total)
                          : (this.getCartGrandTotal ? this.getCartGrandTotal() : 0);
       const _acctItems = (typeof orderData !== 'undefined' && orderData && Array.isArray(orderData.items))
-                         ? orderData.items
-                         : (Array.isArray(this.cart) ? this.cart.slice() : []);
+                         ? orderData.items.map(i => ({ id: i.id, qty: i.qty, price: i.price }))
+                         : (Array.isArray(this.cart)
+                            ? this.cart.map(i => ({ id: i.id, qty: i.qty, price: i.price }))
+                            : []);
 
-      // Tentukan akun DEBIT berdasarkan metode pembayaran
-      // 1001 = Kas di Tangan (tunai), 1002 = Kas di Bank (qris/transfer/ewallet)
-      const _pmLower = String(_acctMethod).toLowerCase();
-      const _debitAcc = (_pmLower.includes('qris')
-                      || _pmLower.includes('transfer')
-                      || _pmLower.includes('bank')
-                      || _pmLower.includes('ewallet')
-                      || _pmLower.includes('gopay')
-                      || _pmLower.includes('ovo')
-                      || _pmLower.includes('dana')
-                      || _pmLower.includes('shopeepay'))
-                      ? '1002' : '1001';
-      const _creditAcc = '4001'; // Pendapatan Penjualan POS
-
-      // Hanya catat untuk checkout reguler (bukan rekonsiliasi, karena rekonsiliasi sudah punya order asli)
       if (_acctTotal > 0 && !isReconciliation) {
-        const _acctDate = new Date().toISOString().slice(0, 10);
         const _acctBody = {
-          date: _acctDate,
-          category: 'pendapatan',
-          desc: `Penjualan POS #${_acctTxId} (${String(_acctMethod).toUpperCase()})`,
-          ref: _acctTxId,
-          status: 'approved',
-          lines: [
-            { acc: _debitAcc, debit: _acctTotal, credit: 0 },
-            { acc: _creditAcc, debit: 0, credit: _acctTotal }
-          ]
+          orderId: _acctTxId,
+          date: new Date().toISOString().slice(0, 10),
+          pm: _acctMethod,
+          total: _acctTotal,
+          items: _acctItems
         };
 
-        // Fire-and-forget: JANGAN await
-        fetch('/accounting/journal', {
+        // Fire-and-forget
+        fetch('/accounting/journal/pos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(_acctBody)
@@ -1714,15 +1693,15 @@ window.kasirApp = () => ({
         .then(r => r.json())
         .then(j => {
           if (j.success) {
-            console.log('[KASIR→ACCT] ✅ Jurnal tersimpan:', j.id, '| Total:', _acctTotal);
+            console.log('[KASIR→ACCT] ✅ Revenue:', j.totalRev, '| HPP:', j.totalHpp);
           } else {
-            console.warn('[KASIR→ACCT] ⚠️ Backend menolak:', j.error);
+            console.warn('[KASIR→ACCT] ⚠️', j.error);
           }
         })
-        .catch(e => console.warn('[KASIR→ACCT] ❌ Network error:', e.message));
+        .catch(e => console.warn('[KASIR→ACCT] ❌', e.message));
       }
     } catch (acctErr) {
-      console.warn('[KASIR→ACCT] Hook exception (non-fatal):', acctErr);
+      console.warn('[KASIR→ACCT] Hook exception:', acctErr);
     }
     // =====================================================================
     // END HOOK AKUNTANSI
