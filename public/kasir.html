@@ -2097,21 +2097,78 @@
             </div>
           </div>
 
-          <!-- TAMPILAN C: CHART OF ACCOUNTS (COA) -->
-          <div x-show="accountingTab === 'coa'" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Aset & Kas -->
-              <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
-                <h5 class="font-extrabold text-xs uppercase text-emerald-800 flex items-center gap-1.5">
-                  <i class="fa-solid fa-vault"></i> 100 - ASET LANCAR &amp; KAS
-                </h5>
-                <ul class="text-xs space-y-1 font-mono text-stone-700">
-                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200"><span>101 - Kas Dapur &amp; Bank QRIS</span> <strong class="text-emerald-700" x-text="formatRupiah(getAccountingSummary().totalRev)"></strong></li>
-                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
-  <span>103 - Persediaan Bahan Baku (BOM)</span>
-  <strong class="text-emerald-700" x-text="formatRupiah((getAccountingSummary && getAccountingSummary().persediaanAkhir) || 0)">Rp 0</strong></li>
-                </ul>
-              </div>
+    <!-- TAMPILAN C: CHART OF ACCOUNTS (COA) - Real dari Backend -->
+    <div x-show="accountingTab === 'coa'" class="space-y-4">
+      
+      <!-- Loading Indicator -->
+      <div x-show="coaListBackendLoading" class="text-center py-8 text-stone-400 text-sm">
+        <i class="fa-solid fa-spinner fa-spin mr-2"></i>Memuat bagan akun...
+      </div>
+
+      <!-- Grid Akun (dinamis dari backend) -->
+      <div x-show="!coaListBackendLoading" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Aset & Kas (1000-series) -->
+        <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+          <h5 class="font-extrabold text-xs uppercase text-emerald-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-vault"></i> 1000 - ASET LANCAR & KAS
+          </h5>
+          <ul class="text-xs space-y-1 font-mono text-stone-700">
+            <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('1'))" :key="acc.code">
+              <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                <span x-text="acc.code + ' - ' + acc.name"></span>
+                <strong class="text-emerald-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+              </li>
+            </template>
+          </ul>
+        </div>
+
+        <!-- Pendapatan & HPP (4000 & 5000) -->
+        <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+          <h5 class="font-extrabold text-xs uppercase text-amber-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-file-invoice"></i> 4000 & 5000 - PENDAPATAN & HPP
+          </h5>
+          <ul class="text-xs space-y-1 font-mono text-stone-700">
+            <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('4') || String(a.code).startsWith('5'))" :key="acc.code">
+              <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                <span x-text="acc.code + ' - ' + acc.name"></span>
+                <strong class="text-emerald-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+              </li>
+            </template>
+          </ul>
+        </div>
+
+        <!-- Kewajiban & Ekuitas (2000 & 3000) -->
+        <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+          <h5 class="font-extrabold text-xs uppercase text-rose-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-scale-balanced"></i> 2000 & 3000 - KEWAJIBAN & EKUITAS
+          </h5>
+          <ul class="text-xs space-y-1 font-mono text-stone-700">
+            <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('2') || String(a.code).startsWith('3'))" :key="acc.code">
+              <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                <span x-text="acc.code + ' - ' + acc.name"></span>
+                <strong class="text-rose-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+              </li>
+            </template>
+          </ul>
+        </div>
+
+        <!-- Beban Operasional (6000-series) -->
+        <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+          <h5 class="font-extrabold text-xs uppercase text-orange-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-receipt"></i> 6000 - BEBAN OPERASIONAL
+          </h5>
+          <ul class="text-xs space-y-1 font-mono text-stone-700">
+            <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('6'))" :key="acc.code">
+              <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                <span x-text="acc.code + ' - ' + acc.name"></span>
+                <strong class="text-orange-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </div>
+    </div>
 
               <!-- Pendapatan & HPP -->
               <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
