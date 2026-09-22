@@ -906,16 +906,21 @@
                 </tr>
 
                 <!-- Mutasi Jurnal yang relevan dengan ledgerAkun -->
-                <template x-for="j in jurnalList.filter(j => j.debitCode === ledgerAkun || j.creditCode === ledgerAkun)" :key="j.id">
-                  <tr class="hover:bg-stone-50/70 transition">
-                    <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-800" x-text="j.date"></td>
-                    <td class="py-3.5 px-4 font-mono text-brand-700 font-bold" x-text="j.noEntry"></td>
-                    <td class="py-3.5 px-6 font-bold text-stone-900" x-text="j.desc"></td>
-                    <td class="py-3.5 px-4 text-right font-mono" :class="j.debitCode === ledgerAkun ? 'font-bold text-emerald-700' : 'text-stone-300'" x-text="j.debitCode === ledgerAkun ? formatRupiah(j.debitAmount) : '-'"></td>
-                    <td class="py-3.5 px-4 text-right font-mono" :class="j.creditCode === ledgerAkun ? 'font-bold text-rose-700' : 'text-stone-300'" x-text="j.creditCode === ledgerAkun ? formatRupiah(j.creditAmount) : '-'"></td>
-                    <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-black text-stone-900" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).currentBalance || 0)"></td>
-                  </tr>
-                </template>
+                <template x-for="tx in ledgerData.transactions" :key="tx.ref + tx.date + Math.random()">
+  <tr class="hover:bg-stone-50/70 transition">
+    <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-800" x-text="tx.date"></td>
+    <td class="py-3.5 px-4 font-mono text-brand-700 font-bold" x-text="tx.ref"></td>
+    <td class="py-3.5 px-6 font-bold text-stone-900" x-text="tx.desc"></td>
+    <td class="py-3.5 px-4 text-right font-mono" 
+        :class="tx.debit > 0 ? 'font-bold text-emerald-700' : 'text-stone-300'"
+        x-text="tx.debit > 0 ? formatRupiah(tx.debit) : '-'"></td>
+    <td class="py-3.5 px-4 text-right font-mono"
+        :class="tx.credit > 0 ? 'font-bold text-rose-700' : 'text-stone-300'"
+        x-text="tx.credit > 0 ? formatRupiah(tx.credit) : '-'"></td>
+    <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-black text-stone-900"
+        x-text="formatRupiah(tx.runningBalance)"></td>
+  </tr>
+</template>
               </tbody>
             </table>
           </div>
