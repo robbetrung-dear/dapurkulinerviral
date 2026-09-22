@@ -932,26 +932,41 @@ async tambahJurnalManual() {
         let totalCredit = 0;
         const transactions = [];
 
-        const relatedJournals = (this.jurnalList || [])
-          .filter(j => {
-            if (j.debitCode === targetAcc || j.creditCode === targetAcc) return true;
-            if (Array.isArray(j.lines)) {
-              return j.lines.some(l => String(l.acc || l.code) === targetAcc);
-            }
-            return false;
-          })
+        // Helper: normalize 3-digit → 4-digit
+const normalizeAcc = (code) => {
+  const s = String(code || '').trim();
+  const map = {
+    '101':'1001','102':'1002','103':'1003','105':'1004','106':'1005',
+    '201':'2001','202':'2002','301':'3001','302':'3002','303':'3003',
+    '401':'4001','402':'4002','501':'5001',
+    '601':'6001','602':'6002','603':'6003','604':'6004','605':'6005','606':'6006'
+  };
+  return map[s] || s;
+};
+
+const targetNorm = normalizeAcc(targetAcc);
+
+const relatedJournals = (this.jurnalList || [])
+  .filter(j => {
+    if (normalizeAcc(j.debitCode) === targetNorm) return true;
+    if (normalizeAcc(j.creditCode) === targetNorm) return true;
+    if (Array.isArray(j.lines)) {
+      return j.lines.some(l => normalizeAcc(l.acc || l.code) === targetNorm);
+    }
+    return false;
+  })
           .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
         relatedJournals.forEach(j => {
           let dAmt = 0;
           let cAmt = 0;
 
-          if (j.debitCode === targetAcc) dAmt += Number(j.debitAmount) || 0;
-          if (j.creditCode === targetAcc) cAmt += Number(j.creditAmount) || 0;
+          if (normalizeAcc(j.debitCode) === targetNorm) dAmt += Number(j.debitAmount) || 0;
+if (normalizeAcc(j.creditCode) === targetNorm) cAmt += Number(j.creditAmount) || 0;
 
-          if (Array.isArray(j.lines)) {
-            j.lines.forEach(l => {
-              if (String(l.acc || l.code) === targetAcc) {
+if (Array.isArray(j.lines)) {
+  j.lines.forEach(l => {
+    if (normalizeAcc(l.acc || l.code) === targetNorm) {
                 dAmt += Number(l.debit) || 0;
                 cAmt += Number(l.credit) || 0;
               }
