@@ -42,6 +42,25 @@ const DEFAULT_COA = {
 
 const ALLOWED_CATEGORIES = ['pembelian', 'operasional', 'modal', 'prive', 'penyesuaian', 'pendapatan'];
 
+// Mapping tipe akun (untuk kalkulasi closing yang benar)
+const ACCOUNT_TYPES = {
+  '1001': 'Aset', '1002': 'Aset', '1003': 'Aset', '1004': 'Aset', '1005': 'Aset',
+  '2001': 'Kewajiban', '2002': 'Kewajiban',
+  '3001': 'Ekuitas', '3002': 'Ekuitas', '3003': 'Prive',
+  '4001': 'Pendapatan', '4002': 'Pendapatan',
+  '5001': 'Beban',
+  '6001': 'Beban', '6002': 'Beban', '6003': 'Beban', '6004': 'Beban', '6005': 'Beban', '6006': 'Beban'
+};
+
+function getAccountType(code) {
+  return ACCOUNT_TYPES[normalizeAccCode(code)] || 'Aset';
+}
+
+function isDebitNormal(code) {
+  const t = getAccountType(code);
+  return t === 'Aset' || t === 'Beban' || t === 'Prive';
+}
+
 // ============================================================================
 // HELPER: Normalisasi kode akun (3-digit ↔ 4-digit)
 // ============================================================================
@@ -96,21 +115,35 @@ const toNum = (v) => {
 async function fetchLedgerAccount(dbUrl, accCode, bulan, apiKey) {
   const auth = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : '';
   const variants = getCodeVariants(accCode);
+  const merged = { opening: 0, debit: 0, credit: 0, closing: 0, _variants: [] };
+
+  // MERGE semua varian (1001 & 101, dst) — jangan early return
   for (const code of variants) {
     try {
       const url = `${dbUrl}/accounting/ledger/${encodeURIComponent(code)}/${encodeURIComponent(bulan)}.json${auth}`;
       const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && typeof data === 'object') return data;
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        merged.opening += toNum(data.opening);
+        merged.debit += toNum(data.debit);
+        merged.credit += toNum(data.credit);
+        merged._variants.push(code);
       }
     } catch (e) {
       console.warn(`[LEDGER-FETCH] ${code}/${bulan} err:`, e.message);
     }
   }
-  return { opening: 0, debit: 0, credit: 0, closing: 0 };
-}
 
+  // Hitung closing dari opening+mutasi, berdasarkan tipe akun
+  if (isDebitNormal(accCode)) {
+    merged.closing = merged.opening + merged.debit - merged.credit;
+  } else {
+    merged.closing = merged.opening + merged.credit - merged.debit;
+  }
+
+  return merged;
+}
 // ============================================================================
 // HELPER: Hitung saldo Ledger langsung dari Journal (fallback)
 // ============================================================================
@@ -170,7 +203,12 @@ async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) 
 
       existing.debit = toNum(existing.debit) + debit;
       existing.credit = toNum(existing.credit) + credit;
-      existing.closing = toNum(existing.opening) + existing.debit - existing.credit;
+      // Closing: type-aware (Aset/Beban/Prive → debit-normal; sisanya kredit-normal)
+      if (isDebitNormal(acc)) {
+        existing.closing = toNum(existing.opening) + existing.debit - existing.credit;
+      } else {
+        existing.closing = toNum(existing.opening) + existing.credit - existing.debit;
+      }
       existing.entries[journalId] = { debit, credit, at: Date.now() };
       existing.updatedAt = Date.now();
 
