@@ -43,29 +43,6 @@ const DEFAULT_COA = [
   { code: '6005', name: 'Beban Operasional & Kurir', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 0 }
 ];
 
-// Mapping alias akun 3-digit (POS Kasir) dan 4-digit (Akuntansi)
-const CODE_MAP = {
-  '101': '1001', '1001': '101',
-  '102': '1002', '1002': '102',
-  '103': '1003', '1003': '103',
-  '105': '1004', '1004': '105',
-  '106': '1005', '1005': '106',
-  '201': '2001', '2001': '201',
-  '202': '2002', '2002': '202',
-  '301': '3001', '3001': '301',
-  '302': '3003', '3003': '302',
-  '303': '3002', '3002': '303',
-  '401': '4001', '4001': '401',
-  '402': '4002', '4002': '402',
-  '501': '5001', '5001': '501',
-  '601': '6001', '6001': '601',
-  '602': '6002', '6002': '602',
-  '603': '6003', '6003': '603',
-  '604': '6004', '6004': '604',
-  '605': '6005', '6005': '605',
-  '606': '6006', '6006': '606'
-};
-
 // Tidak ada dummy journals (array kosong murni)
 const DEFAULT_JOURNALS = [];
 
@@ -458,20 +435,15 @@ window.accountingApp = function() {
      * Getter Metrics untuk Dashboard UI
      */
     get summaryMetrics() {
-      const getVal = (v1, v2) => {
-        if (v1 !== undefined && v1 !== null && !isNaN(Number(v1))) return Number(v1);
-        if (v2 !== undefined && v2 !== null && !isNaN(Number(v2))) return Number(v2);
-        return 0;
-      };
       return {
-        totalAset: getVal(this.summary?.totalAset, this.laporanData.balanceSheet?.totalAset),
-        totalKewajiban: getVal(this.summary?.totalKewajiban, this.laporanData.balanceSheet?.totalKewajiban),
-        totalEkuitas: getVal(this.summary?.totalEkuitas, this.laporanData.balanceSheet?.totalEkuitas),
-        labaBulanIni: getVal(this.summary?.labaBulanIni ?? this.summary?.labaBersih, this.laporanData.pl?.labaBersih),
-        kasDiTangan: getVal(this.summary?.kas ?? this.summary?.saldoKas, this.laporanData.balanceSheet?.kas),
-        kasDiBank: getVal(this.summary?.bank ?? this.summary?.saldoBank, this.laporanData.balanceSheet?.bank),
-        piutang: getVal(this.summary?.piutang, this.laporanData.balanceSheet?.piutang),
-        hutangSupplier: getVal(this.summary?.hutang ?? this.summary?.hutangSupplier, this.laporanData.balanceSheet?.hutangSupplier)
+        totalAset: Number(this.summary?.totalAset) ?? Number(this.laporanData.balanceSheet?.totalAset) ?? 0,
+        totalKewajiban: Number(this.summary?.totalKewajiban) ?? Number(this.laporanData.balanceSheet?.totalKewajiban) ?? 0,
+        totalEkuitas: Number(this.summary?.totalEkuitas) ?? Number(this.laporanData.balanceSheet?.totalEkuitas) ?? 0,
+        labaBulanIni: Number(this.summary?.labaBulanIni) ?? Number(this.laporanData.pl?.labaBersih) ?? 0,
+        kasDiTangan: Number(this.summary?.kas) ?? Number(this.laporanData.balanceSheet?.kas) ?? 0,
+        kasDiBank: Number(this.summary?.bank) ?? Number(this.laporanData.balanceSheet?.bank) ?? 0,
+        piutang: Number(this.summary?.piutang) ?? Number(this.laporanData.balanceSheet?.piutang) ?? 0,
+        hutangSupplier: Number(this.summary?.hutang) ?? Number(this.laporanData.balanceSheet?.hutangSupplier) ?? 0
       };
     },
 
@@ -505,25 +477,9 @@ window.accountingApp = function() {
           const res = await fetch('/accounting/coa');
           if (res.ok) {
             const json = await res.json();
-            if (json && json.success && json.data) {
-              if (Array.isArray(json.data) && json.data.length > 0) {
-                loadedCoa = json.data;
-              } else if (typeof json.data === 'object' && Object.keys(json.data).length > 0) {
-                // Map object format { "101": { n: "Kas", t: "asset" } } to array format
-                const typeMap = { asset: 'Aset', liability: 'Kewajiban', equity: 'Ekuitas', revenue: 'Pendapatan', expense: 'Beban' };
-                const normalMap = { asset: 'Debit', liability: 'Kredit', equity: 'Kredit', revenue: 'Kredit', expense: 'Debit' };
-                loadedCoa = Object.entries(json.data).map(([code, item]) => ({
-                  code,
-                  name: item.n || item.name || `Akun ${code}`,
-                  type: typeMap[item.t] || item.type || 'Aset',
-                  normalBalance: normalMap[item.t] || (code.startsWith('2') || code.startsWith('3') || code.startsWith('4') ? 'Kredit' : 'Debit'),
-                  initialBalance: Number(item.initialBalance) || 0,
-                  currentBalance: Number(item.currentBalance) || 0
-                }));
-              }
-              if (loadedCoa && loadedCoa.length > 0) {
-                console.log(`[ACCT-APP] Loaded ${loadedCoa.length} COA accounts from API`);
-              }
+            if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+              loadedCoa = json.data;
+              console.log(`[ACCT-APP] Loaded ${loadedCoa.length} COA accounts from API`);
             }
           }
         } catch (err) {
@@ -653,46 +609,33 @@ window.accountingApp = function() {
         };
       });
 
-      const addToAcc = (rawCode, dAmt, cAmt) => {
-        const c = String(rawCode || '').trim();
-        if (totalsByAcc[c]) {
-          totalsByAcc[c].debit += dAmt;
-          totalsByAcc[c].credit += cAmt;
-        }
-        const mapped = CODE_MAP[c];
-        if (mapped && totalsByAcc[mapped]) {
-          totalsByAcc[mapped].debit += dAmt;
-          totalsByAcc[mapped].credit += cAmt;
-        }
-      };
-
-      // Akumulasikan semua mutasi jurnal real (hanya yang tidak ditolak)
+      // Akumulasikan semua mutasi jurnal real
       this.jurnalList.forEach(j => {
-        if (j.status === 'rejected') return;
-
         if (Array.isArray(j.lines)) {
           j.lines.forEach(l => {
-            const raw = String(l.acc || l.code || '');
+            const code = String(l.acc || l.code || '');
             const dAmt = Number(l.debit) || 0;
             const cAmt = Number(l.credit) || 0;
-            addToAcc(raw, dAmt, cAmt);
+            if (totalsByAcc[code]) {
+              totalsByAcc[code].debit += dAmt;
+              totalsByAcc[code].credit += cAmt;
+            }
           });
         } else {
           const dCode = j.debitCode;
           const cCode = j.creditCode;
           const dAmt = Number(j.debitAmount) || 0;
           const cAmt = Number(j.creditAmount) || 0;
-          addToAcc(dCode, dAmt, 0);
-          addToAcc(cCode, 0, cAmt);
+
+          if (totalsByAcc[dCode]) totalsByAcc[dCode].debit += dAmt;
+          if (totalsByAcc[cCode]) totalsByAcc[cCode].credit += cAmt;
         }
       });
 
-      // Update current balance per akun dan simpan total mutasi debit & kredit
+      // Update current balance per akun
       this.coaList.forEach(acc => {
         const stat = totalsByAcc[acc.code];
         if (stat) {
-          acc.totalDebit = stat.debit;
-          acc.totalCredit = stat.credit;
           acc.currentBalance = hitungSaldo(stat.initial, stat.debit, stat.credit, stat.type);
         }
       });
@@ -1243,40 +1186,33 @@ window.accountingApp = function() {
     /**
      * 6C. Laporan Neraca (Balance Sheet - Aset = Kewajiban + Ekuitas)
      */
-    async loadNeraca(bulan) {
+        async loadNeraca(bulan) {
       const getBal = (code) => {
         const f = this.coaList.find(c => c.code === code);
         return f ? Number(f.currentBalance) || 0 : 0;
       };
 
-      const kas = getBal('1001') || getBal('101') || (this.summary?.saldoKas !== undefined ? Number(this.summary.saldoKas) : (this.summary?.kas !== undefined ? Number(this.summary.kas) : 0));
-      const bank = getBal('1002') || getBal('102') || (this.summary?.saldoBank !== undefined ? Number(this.summary.saldoBank) : (this.summary?.bank !== undefined ? Number(this.summary.bank) : 0));
-      const piutang = getBal('1003') || getBal('103') || (this.summary?.piutang !== undefined ? Number(this.summary.piutang) : 0);
-      const persediaan = getBal('1004') || getBal('105') || (this.summary?.persediaanAkhir !== undefined ? Number(this.summary.persediaanAkhir) : 0);
+      // Prioritas: summary (dari endpoint) → fallback: COA lokal
+      const kas = Number(this.summary?.kas ?? getBal('1001') ?? getBal('101') ?? 0);
+      const bank = Number(this.summary?.bank ?? getBal('1002') ?? getBal('102') ?? 0);
+      const piutang = Number(this.summary?.piutang ?? getBal('1003') ?? getBal('103') ?? 0);
+      const persediaan = Number(this.summary?.persediaanAkhir ?? getBal('1004') ?? getBal('105') ?? 0);
       const totalAsetLancar = kas + bank + piutang + persediaan;
 
       const peralatan = getBal('1005') || getBal('106') || 0;
       const totalAsetTetap = peralatan;
-      const totalAset = (this.summary?.totalAset !== undefined && this.summary?.totalAset !== null && !isNaN(Number(this.summary.totalAset)))
-        ? Number(this.summary.totalAset)
-        : (totalAsetLancar + totalAsetTetap);
+      const totalAset = Number(this.summary?.totalAset ?? (totalAsetLancar + totalAsetTetap));
 
-      const hutangSupplier = getBal('2001') || getBal('201') || (this.summary?.hutangSupplier !== undefined ? Number(this.summary.hutangSupplier) : (this.summary?.hutang !== undefined ? Number(this.summary.hutang) : 0));
+      const hutangSupplier = Number(this.summary?.hutang ?? getBal('2001') ?? getBal('201') ?? 0);
       const hutangBeban = getBal('2002') || 0;
-      const totalKewajiban = (this.summary?.totalKewajiban !== undefined && this.summary?.totalKewajiban !== null && !isNaN(Number(this.summary.totalKewajiban)))
-        ? Number(this.summary.totalKewajiban)
-        : (hutangSupplier + hutangBeban);
+      const totalKewajiban = Number(this.summary?.totalKewajiban ?? (hutangSupplier + hutangBeban));
 
       const modalPemilik = getBal('3001') || getBal('301') || 0;
       const labaDitahan = getBal('3002') || getBal('302') || 0;
-      const labaBerjalan = (this.laporanData.pl.labaBersih !== undefined && !isNaN(Number(this.laporanData.pl.labaBersih)))
-        ? Number(this.laporanData.pl.labaBersih)
-        : ((this.summary?.labaBersih !== undefined ? Number(this.summary.labaBersih) : Number(this.summary?.labaBulanIni)) || 0);
+      const labaBerjalan = Number(this.laporanData.pl.labaBersih) || Number(this.summary?.labaBulanIni) || 0;
       const prive = getBal('3003') || 0;
 
-      const totalEkuitas = (this.summary?.totalEkuitas !== undefined && this.summary?.totalEkuitas !== null && !isNaN(Number(this.summary.totalEkuitas)))
-        ? Number(this.summary.totalEkuitas)
-        : (modalPemilik + labaDitahan + labaBerjalan - prive);
+      const totalEkuitas = Number(this.summary?.totalEkuitas ?? (modalPemilik + labaDitahan + labaBerjalan - prive));
       const totalKewajibanEkuitas = totalKewajiban + totalEkuitas;
 
       const selisih = Math.abs(totalAset - totalKewajibanEkuitas);
@@ -1595,29 +1531,6 @@ window.accountingApp = function() {
      */
     async exportExcel(type, bulan) {
       await this.exportCSV(type, bulan);
-    },
-
-    /**
-     * Handler Utama Ekspor Data dari Form UI
-     */
-    async handleExportData(form) {
-      const type = form?.report || this.exportForm?.report || 'pl';
-      const format = form?.format || this.exportForm?.format || 'pdf';
-      const bulan = form?.period || this.exportForm?.period || this.bulanAktif;
-
-      this.showToast(`Memproses ekspor laporan ${type.toUpperCase()} (${format.toUpperCase()})...`, 'info');
-      try {
-        if (format === 'pdf') {
-          await this.generatePDFReport(type, bulan);
-        } else if (format === 'excel') {
-          await this.exportExcel(type, bulan);
-        } else {
-          await this.exportCSV(type, bulan);
-        }
-      } catch (err) {
-        console.error('[ACCT-APP] handleExportData error:', err);
-        this.showToast('Gagal memproses ekspor: ' + (err.message || err), 'error');
-      }
     },
 
     /**
