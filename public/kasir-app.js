@@ -431,6 +431,7 @@ window.kasirApp = () => ({
     this.listenMenuItems();
     this.loadPrinterConfig();
     this.loadAccountingSummary(true);
+    await this.loadJournalList();
 
     // 6. Muat Inventory Realtime, Resep Bahan Baku & Riwayat Shift (BAGIAN 3)
     this.loadInventory();
@@ -4874,39 +4875,44 @@ window.kasirApp = () => ({
   },
 
   getAccountingJournal() {
-    const today = new Date().toLocaleDateString('id-ID');
-    const summary = this.getAccountingSummary();
-
-    return [
-      {
-        date: today,
-        ref: 'JU-001',
-        desc: 'Penerimaan Penjualan Kasir POS (Tunai / QRIS)',
-        debitAccount: '101 - Kas & Bank',
-        debitAmount: summary.totalRev,
-        creditAccount: '401 - Pendapatan Penjualan',
-        creditAmount: summary.totalRev
-      },
-      {
-        date: today,
-        ref: 'JU-002',
-        desc: 'Pengakuan HPP Bahan Baku Terpakai Penjualan',
-        debitAccount: '501 - Harga Pokok Penjualan (HPP)',
-        debitAmount: summary.totalCOGS,
-        creditAccount: '103 - Persediaan Bahan Baku',
-        creditAmount: summary.totalCOGS
-      },
-      {
-        date: today,
-        ref: 'JU-003',
-        desc: 'Pengakuan Beban Operasional Dapur & Utility',
-        debitAccount: '601 - Beban Operasional & Listrik',
-        debitAmount: summary.totalOpEx,
-        creditAccount: '101 - Kas & Bank',
-        creditAmount: summary.totalOpEx
-      }
-    ];
-  },
+  // Ambil dari state yang sudah di-load dari backend
+  const list = Array.isArray(this.accountingJournalList) ? this.accountingJournalList : [];
+  
+  if (list.length === 0) {
+    return []; // Tidak ada dummy — kosong jika backend belum respond
+  }
+  
+  // Helper: nama akun dari COA
+  const getAccName = (code) => {
+    const map = {
+      '1001': 'Kas & Bank', '1002': 'Bank BCA', '1003': 'Piutang Usaha',
+      '1004': 'Persediaan Bahan Baku', '1005': 'Peralatan Dapur',
+      '2001': 'Hutang Supplier', '2002': 'Hutang Beban',
+      '3001': 'Modal Pemilik', '3002': 'Laba Ditahan', '3003': 'Prive Pemilik',
+      '4001': 'Pendapatan Penjualan POS', '4002': 'Pendapatan Catering',
+      '5001': 'HPP Bahan Baku',
+      '6001': 'Beban Gaji', '6002': 'Beban Sewa', '6003': 'Beban Listrik',
+      '6004': 'Beban Marketing', '6005': 'Beban Operasional'
+    };
+    return map[String(code)] || ('Akun ' + code);
+  };
+  
+  return list.map(j => {
+    const lines = Array.isArray(j.lines) ? j.lines : [];
+    const dLine = lines.find(l => Number(l.debit) > 0);
+    const cLine = lines.find(l => Number(l.credit) > 0);
+    return {
+      date: j.date || '-',
+      ref: j.noEntry || j.ref || j.id || '-',
+      desc: j.desc || '-',
+      debitAccount: dLine ? `${dLine.acc} - ${getAccName(dLine.acc)}` : '-',
+      debitAmount: Number(dLine?.debit) || 0,
+      creditAccount: cLine ? `${cLine.acc} - ${getAccName(cLine.acc)}` : '-',
+      creditAmount: Number(cLine?.credit) || 0,
+      status: j.status || 'approved'
+    };
+  });
+},
 
   // -------------------------------------------------------------------------
   // 14.8.1 INPUT JURNAL MANUAL, DOUBLE-ENTRY, APPROVAL & AUTO-UPDATE LEDGER
