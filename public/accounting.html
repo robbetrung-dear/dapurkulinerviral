@@ -865,18 +865,22 @@
         </div>
 
         <!-- Info Saldo Ringkas Akun Terpilih -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-            <span class="text-xs text-stone-500 font-bold uppercase">Saldo Awal Bulan</span>
-            <div class="text-xl font-extrabold text-stone-900 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).initialBalance || 0)"></div>
+            <span class="text-xs text-stone-500 font-bold uppercase">Saldo Awal</span>
+            <div class="text-lg sm:text-xl font-extrabold text-stone-900 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).initialBalance || 0)"></div>
           </div>
           <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-            <span class="text-xs text-emerald-600 font-bold uppercase">Total Mutasi Debit</span>
-            <div class="text-xl font-extrabold text-emerald-700 font-mono mt-1">Rp 4.450.000</div>
+            <span class="text-xs text-emerald-600 font-bold uppercase">Total Debit</span>
+            <div class="text-lg sm:text-xl font-extrabold text-emerald-700 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).totalDebit || 0)"></div>
+          </div>
+          <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+            <span class="text-xs text-rose-600 font-bold uppercase">Total Kredit</span>
+            <div class="text-lg sm:text-xl font-extrabold text-rose-700 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).totalCredit || 0)"></div>
           </div>
           <div class="p-4 rounded-2xl bg-white border border-brand-200 shadow-xs bg-brand-50/30">
-            <span class="text-xs text-brand-700 font-bold uppercase">Saldo Akhir Berjalan</span>
-            <div class="text-xl font-extrabold text-brand-800 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).currentBalance || 0)"></div>
+            <span class="text-xs text-brand-700 font-bold uppercase">Saldo Akhir</span>
+            <div class="text-lg sm:text-xl font-extrabold text-brand-800 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).currentBalance || 0)"></div>
           </div>
         </div>
 
@@ -1002,15 +1006,15 @@
                 <div class="pl-4 pr-2 space-y-1.5">
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Pendapatan Penjualan Kasir POS</span>
-                    <span class="font-mono font-bold">Rp 28.400.000</span>
+                    <span class="font-mono font-bold text-emerald-700" x-text="formatRupiah(laporanData.pl.pendapatanPOS)"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Pendapatan Pesanan Catering & Event</span>
-                    <span class="font-mono font-bold">Rp 7.800.000</span>
+                    <span class="font-mono font-bold text-emerald-700" x-text="formatRupiah(laporanData.pl.pendapatanCatering)"></span>
                   </div>
                   <div class="flex justify-between py-2 text-stone-900 font-extrabold">
                     <span>TOTAL PENDAPATAN USAHA</span>
-                    <span class="font-mono text-emerald-700">Rp 36.200.000</span>
+                    <span class="font-mono text-emerald-700" x-text="formatRupiah(laporanData.pl.totalPendapatan)"></span>
                   </div>
                 </div>
               </div>
@@ -1023,11 +1027,11 @@
                 <div class="pl-4 pr-2 space-y-1.5">
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Biaya Bahan Baku & Daging Segar</span>
-                    <span class="font-mono font-bold text-rose-700">(Rp 14.200.000)</span>
+                    <span class="font-mono font-bold text-rose-700" x-text="'(' + formatRupiah(laporanData.pl.hpp) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-2 text-brand-800 font-black text-base border-y-2 border-stone-200">
                     <span>LABA KOTOR (GROSS PROFIT)</span>
-                    <span class="font-mono">Rp 22.000.000</span>
+                    <span class="font-mono" x-text="formatRupiah(laporanData.pl.labaKotor)"></span>
                   </div>
                 </div>
               </div>
@@ -1040,27 +1044,27 @@
                 <div class="pl-4 pr-2 space-y-1.5">
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Gaji Karyawan & Kasir</span>
-                    <span class="font-mono text-rose-700">(Rp 5.500.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.pl.bebanGaji) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Sewa Tempat Outlet</span>
-                    <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.pl.bebanSewa) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Listrik, Air & Tabung Gas</span>
-                    <span class="font-mono text-rose-700">(Rp 1.350.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.pl.bebanListrik) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Marketing & Promosi Sosial Media</span>
-                    <span class="font-mono text-rose-700">(Rp 850.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.pl.bebanMarketing) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Biaya Kurir & Packaging Box</span>
-                    <span class="font-mono text-rose-700">(Rp 650.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.pl.bebanOperasional) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-2 text-stone-900 font-extrabold">
                     <span>TOTAL BEBAN OPERASIONAL</span>
-                    <span class="font-mono text-rose-700">(Rp 10.850.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.pl.totalBeban) + ')'"></span>
                   </div>
                 </div>
               </div>
@@ -1068,7 +1072,7 @@
               <!-- Total Laba Bersih -->
               <div class="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-300 flex items-center justify-between text-base sm:text-lg font-black text-emerald-900">
                 <span>LABA BERSIH (NET PROFIT)</span>
-                <span class="font-mono text-xl sm:text-2xl text-emerald-700">Rp 11.150.000</span>
+                <span class="font-mono text-xl sm:text-2xl" :class="laporanData.pl.labaBersih >= 0 ? 'text-emerald-700' : 'text-rose-700'" x-text="formatRupiah(laporanData.pl.labaBersih)"></span>
               </div>
 
             </div>
@@ -1084,23 +1088,23 @@
                 <div class="pl-4 pr-2 space-y-1.5">
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Penerimaan Kas dari Pelanggan</span>
-                    <span class="font-mono font-bold text-emerald-700">Rp 35.550.000</span>
+                    <span class="font-mono font-bold text-emerald-700" x-text="formatRupiah(laporanData.cashFlow.penerimaanPelanggan)"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Pembayaran Kas ke Supplier Bahan</span>
-                    <span class="font-mono text-rose-700">(Rp 15.500.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.cashFlow.pembayaranSupplier) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Pembayaran Gaji Karyawan</span>
-                    <span class="font-mono text-rose-700">(Rp 5.500.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.cashFlow.pembayaranGaji) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Pembayaran Operasional & Utilitas</span>
-                    <span class="font-mono text-rose-700">(Rp 5.350.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.cashFlow.pembayaranOperasional) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-2 text-stone-900 font-extrabold">
                     <span>KAS BERSIH DARI OPERASI</span>
-                    <span class="font-mono text-emerald-700">Rp 9.200.000</span>
+                    <span class="font-mono font-bold" :class="laporanData.cashFlow.kasBersihOperasi >= 0 ? 'text-emerald-700' : 'text-rose-700'" x-text="formatRupiah(laporanData.cashFlow.kasBersihOperasi)"></span>
                   </div>
                 </div>
               </div>
@@ -1113,11 +1117,11 @@
                 <div class="pl-4 pr-2 space-y-1.5">
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Pembelian Peralatan Mesin Penggorengan & Kasir</span>
-                    <span class="font-mono text-rose-700">(Rp 1.500.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.cashFlow.pembelianPeralatan) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-2 text-stone-900 font-extrabold">
                     <span>KAS BERSIH DARI INVESTASI</span>
-                    <span class="font-mono text-rose-700">(Rp 1.500.000)</span>
+                    <span class="font-mono font-bold" :class="laporanData.cashFlow.kasBersihInvestasi >= 0 ? 'text-emerald-700' : 'text-rose-700'" x-text="formatRupiah(laporanData.cashFlow.kasBersihInvestasi)"></span>
                   </div>
                 </div>
               </div>
@@ -1130,15 +1134,15 @@
                 <div class="pl-4 pr-2 space-y-1.5">
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Setoran Tambahan Modal Pemilik</span>
-                    <span class="font-mono font-bold text-stone-400">Rp 0</span>
+                    <span class="font-mono font-bold text-emerald-700" x-text="formatRupiah(laporanData.cashFlow.setoranModal)"></span>
                   </div>
                   <div class="flex justify-between py-1 border-b border-stone-100">
                     <span>Prive / Pengambilan Pribadi Pemilik</span>
-                    <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                    <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.cashFlow.prive) + ')'"></span>
                   </div>
                   <div class="flex justify-between py-2 text-stone-900 font-extrabold">
                     <span>KAS BERSIH DARI PENDANAAN</span>
-                    <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                    <span class="font-mono font-bold" :class="laporanData.cashFlow.kasBersihPendanaan >= 0 ? 'text-emerald-700' : 'text-rose-700'" x-text="formatRupiah(laporanData.cashFlow.kasBersihPendanaan)"></span>
                   </div>
                 </div>
               </div>
@@ -1147,15 +1151,15 @@
               <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2 font-mono">
                 <div class="flex justify-between text-stone-700 font-bold">
                   <span>KENAIKAN (PENURUNAN) KAS BERSIH</span>
-                  <span class="text-emerald-700">Rp 5.200.000</span>
+                  <span :class="laporanData.cashFlow.kenaikanKas >= 0 ? 'text-emerald-700' : 'text-rose-700'" x-text="formatRupiah(laporanData.cashFlow.kenaikanKas)"></span>
                 </div>
                 <div class="flex justify-between text-stone-500">
                   <span>SALDO KAS & BANK AWAL PERIODE</span>
-                  <span>Rp 38.100.000</span>
+                  <span x-text="formatRupiah(laporanData.cashFlow.kasAwal)"></span>
                 </div>
                 <div class="flex justify-between text-stone-900 font-black text-base pt-2 border-t border-stone-200">
                   <span>SALDO KAS & BANK AKHIR PERIODE</span>
-                  <span class="text-brand-700 text-lg">Rp 43.300.000</span>
+                  <span class="text-brand-700 text-lg" x-text="formatRupiah(laporanData.cashFlow.kasAkhir)"></span>
                 </div>
               </div>
 
@@ -1177,23 +1181,23 @@
                     <span class="text-xs font-bold text-stone-500 uppercase">Aset Lancar:</span>
                     <div class="flex justify-between py-1 border-b border-stone-100">
                       <span>Kas di Tangan</span>
-                      <span class="font-mono font-bold">Rp 4.850.000</span>
+                      <span class="font-mono font-bold" x-text="formatRupiah(laporanData.balanceSheet.kas)"></span>
                     </div>
                     <div class="flex justify-between py-1 border-b border-stone-100">
                       <span>Kas di Bank (BCA)</span>
-                      <span class="font-mono font-bold">Rp 38.450.000</span>
+                      <span class="font-mono font-bold" x-text="formatRupiah(laporanData.balanceSheet.bank)"></span>
                     </div>
                     <div class="flex justify-between py-1 border-b border-stone-100">
                       <span>Piutang Usaha</span>
-                      <span class="font-mono font-bold">Rp 1.850.000</span>
+                      <span class="font-mono font-bold" x-text="formatRupiah(laporanData.balanceSheet.piutang)"></span>
                     </div>
                     <div class="flex justify-between py-1 border-b border-stone-100">
                       <span>Persediaan Bahan Baku</span>
-                      <span class="font-mono font-bold">Rp 5.200.000</span>
+                      <span class="font-mono font-bold" x-text="formatRupiah(laporanData.balanceSheet.persediaan)"></span>
                     </div>
                     <div class="flex justify-between py-1.5 font-bold text-stone-900">
                       <span>TOTAL ASET LANCAR</span>
-                      <span class="font-mono">Rp 50.350.000</span>
+                      <span class="font-mono" x-text="formatRupiah(laporanData.balanceSheet.totalAsetLancar)"></span>
                     </div>
                   </div>
 
@@ -1202,14 +1206,14 @@
                     <span class="text-xs font-bold text-stone-500 uppercase">Aset Tetap:</span>
                     <div class="flex justify-between py-1 border-b border-stone-100">
                       <span>Peralatan & Mesin Dapur</span>
-                      <span class="font-mono font-bold">Rp 15.000.000</span>
+                      <span class="font-mono font-bold" x-text="formatRupiah(laporanData.balanceSheet.peralatan)"></span>
                     </div>
                   </div>
 
                   <!-- TOTAL ASET -->
                   <div class="p-3.5 rounded-xl bg-blue-100/70 border border-blue-300 flex justify-between font-black text-blue-950 text-base">
                     <span>TOTAL ASET</span>
-                    <span class="font-mono text-blue-800">Rp 65.350.000</span>
+                    <span class="font-mono text-blue-800" x-text="formatRupiah(laporanData.balanceSheet.totalAset)"></span>
                   </div>
                 </div>
 
@@ -1224,15 +1228,15 @@
                     <div class="pl-2 space-y-1.5">
                       <div class="flex justify-between py-1 border-b border-stone-100">
                         <span>Hutang Supplier / Dagang</span>
-                        <span class="font-mono font-bold">Rp 3.200.000</span>
+                        <span class="font-mono font-bold text-rose-700" x-text="formatRupiah(laporanData.balanceSheet.hutangSupplier)"></span>
                       </div>
                       <div class="flex justify-between py-1 border-b border-stone-100">
                         <span>Hutang Biaya Operasional</span>
-                        <span class="font-mono font-bold">Rp 650.000</span>
+                        <span class="font-mono font-bold text-rose-700" x-text="formatRupiah(laporanData.balanceSheet.hutangBeban)"></span>
                       </div>
                       <div class="flex justify-between py-1.5 font-bold text-stone-900">
                         <span>TOTAL KEWAJIBAN</span>
-                        <span class="font-mono text-red-700">Rp 3.850.000</span>
+                        <span class="font-mono text-red-700" x-text="formatRupiah(laporanData.balanceSheet.totalKewajiban)"></span>
                       </div>
                     </div>
                   </div>
@@ -1245,23 +1249,23 @@
                     <div class="pl-2 space-y-1.5">
                       <div class="flex justify-between py-1 border-b border-stone-100">
                         <span>Modal Awal Pemilik</span>
-                        <span class="font-mono font-bold">Rp 45.000.000</span>
+                        <span class="font-mono font-bold" x-text="formatRupiah(laporanData.balanceSheet.modalPemilik)"></span>
                       </div>
                       <div class="flex justify-between py-1 border-b border-stone-100">
                         <span>Laba Ditahan Periode Lalu</span>
-                        <span class="font-mono font-bold">Rp 850.000</span>
+                        <span class="font-mono font-bold" x-text="formatRupiah(laporanData.balanceSheet.labaDitahan)"></span>
                       </div>
                       <div class="flex justify-between py-1 border-b border-stone-100">
                         <span>Laba Bersih Periode Berjalan</span>
-                        <span class="font-mono font-bold text-emerald-700">Rp 11.150.000</span>
+                        <span class="font-mono font-bold" :class="laporanData.balanceSheet.labaBerjalan >= 0 ? 'text-emerald-700' : 'text-rose-700'" x-text="formatRupiah(laporanData.balanceSheet.labaBerjalan)"></span>
                       </div>
                       <div class="flex justify-between py-1 border-b border-stone-100">
                         <span>Prive Pemilik</span>
-                        <span class="font-mono text-rose-700">(Rp 2.500.000)</span>
+                        <span class="font-mono text-rose-700" x-text="'(' + formatRupiah(laporanData.balanceSheet.prive) + ')'"></span>
                       </div>
                       <div class="flex justify-between py-1.5 font-bold text-stone-900">
                         <span>TOTAL EKUITAS</span>
-                        <span class="font-mono text-green-700">Rp 54.500.000</span>
+                        <span class="font-mono text-green-700" x-text="formatRupiah(laporanData.balanceSheet.totalEkuitas)"></span>
                       </div>
                     </div>
                   </div>
@@ -1269,13 +1273,14 @@
                   <!-- TOTAL KEWAJIBAN + EKUITAS (MATCH ASET) -->
                   <div class="p-3.5 rounded-xl bg-stone-900 text-white flex justify-between font-black text-base shadow-sm">
                     <span>TOTAL KEWAJIBAN + EKUITAS</span>
-                    <span class="font-mono text-emerald-400">Rp 65.350.000</span>
+                    <span class="font-mono text-emerald-400" x-text="formatRupiah(laporanData.balanceSheet.totalKewajibanEkuitas)"></span>
                   </div>
 
                   <!-- Balance Indicator -->
-                  <div class="text-center text-xs font-bold text-emerald-600 flex items-center justify-center gap-1.5">
-                    <i class="fa-solid fa-circle-check"></i>
-                    <span>Neraca Seimbang (Balance: Total Aset = Total Kewajiban + Ekuitas)</span>
+                  <div class="text-center text-xs font-bold flex items-center justify-center gap-1.5"
+                       :class="laporanData.balanceSheet.isBalance ? 'text-emerald-600' : 'text-amber-600'">
+                    <i class="fa-solid" :class="laporanData.balanceSheet.isBalance ? 'fa-circle-check' : 'fa-triangle-exclamation'"></i>
+                    <span x-text="laporanData.balanceSheet.isBalance ? 'Neraca Seimbang (Balance: Total Aset = Total Kewajiban + Ekuitas)' : ('Neraca Selisih: ' + formatRupiah(laporanData.balanceSheet.selisih))"></span>
                   </div>
 
                 </div>
@@ -1585,13 +1590,7 @@
             <div class="pt-2">
               <button 
                 type="button" 
-                @click="
-                  if (typeof handleExportData === 'function') {
-                    handleExportData(exportForm);
-                  } else {
-                    alert('Membuat dan mengunduh berkas laporan ' + exportForm.format.toUpperCase() + '...');
-                  }
-                "
+                @click="handleExportData(exportForm)"
                 class="w-full h-11 rounded-xl bg-stone-900 hover:bg-black text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-xs">
                 <i class="fa-solid fa-download text-xs"></i>
                 <span>GENERATE & DOWNLOAD</span>

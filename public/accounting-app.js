@@ -43,6 +43,29 @@ const DEFAULT_COA = [
   { code: '6005', name: 'Beban Operasional & Kurir', type: 'Beban', normalBalance: 'Debit', initialBalance: 0, currentBalance: 0 }
 ];
 
+// Mapping alias akun 3-digit (POS Kasir) dan 4-digit (Akuntansi)
+const CODE_MAP = {
+  '101': '1001', '1001': '101',
+  '102': '1002', '1002': '102',
+  '103': '1003', '1003': '103',
+  '105': '1004', '1004': '105',
+  '106': '1005', '1005': '106',
+  '201': '2001', '2001': '201',
+  '202': '2002', '2002': '202',
+  '301': '3001', '3001': '301',
+  '302': '3003', '3003': '302',
+  '303': '3002', '3002': '303',
+  '401': '4001', '4001': '401',
+  '402': '4002', '4002': '402',
+  '501': '5001', '5001': '501',
+  '601': '6001', '6001': '601',
+  '602': '6002', '6002': '602',
+  '603': '6003', '6003': '603',
+  '604': '6004', '6004': '604',
+  '605': '6005', '6005': '605',
+  '606': '6006', '6006': '606'
+};
+
 // Tidak ada dummy journals (array kosong murni)
 const DEFAULT_JOURNALS = [];
 
@@ -609,36 +632,52 @@ window.accountingApp = function() {
         };
       });
 
-      // Akumulasikan semua mutasi jurnal real
+      const addToAcc = (rawCode, dAmt, cAmt) => {
+        const c = String(rawCode || '').trim();
+        if (totalsByAcc[c]) {
+          totalsByAcc[c].debit += dAmt;
+          totalsByAcc[c].credit += cAmt;
+        }
+        const mapped = CODE_MAP[c];
+        if (mapped && totalsByAcc[mapped]) {
+          totalsByAcc[mapped].debit += dAmt;
+          totalsByAcc[mapped].credit += cAmt;
+        }
+      };
+
+      // Akumulasikan semua mutasi jurnal real (hanya yang tidak ditolak)
       this.jurnalList.forEach(j => {
+        if (j.status === 'rejected') return;
+
         if (Array.isArray(j.lines)) {
           j.lines.forEach(l => {
-            const code = String(l.acc || l.code || '');
+            const raw = String(l.acc || l.code || '');
             const dAmt = Number(l.debit) || 0;
             const cAmt = Number(l.credit) || 0;
-            if (totalsByAcc[code]) {
-              totalsByAcc[code].debit += dAmt;
-              totalsByAcc[code].credit += cAmt;
-            }
+            addToAcc(raw, dAmt, cAmt);
           });
         } else {
           const dCode = j.debitCode;
           const cCode = j.creditCode;
           const dAmt = Number(j.debitAmount) || 0;
           const cAmt = Number(j.creditAmount) || 0;
-
-          if (totalsByAcc[dCode]) totalsByAcc[dCode].debit += dAmt;
-          if (totalsByAcc[cCode]) totalsByAcc[cCode].credit += cAmt;
+          addToAcc(dCode, dAmt, 0);
+          addToAcc(cCode, 0, cAmt);
         }
       });
 
-      // Update current balance per akun
+      // Update current balance per akun dan simpan total mutasi debit & kredit
       this.coaList.forEach(acc => {
         const stat = totalsByAcc[acc.code];
         if (stat) {
+          acc.totalDebit = stat.debit;
+          acc.totalCredit = stat.credit;
           acc.currentBalance = hitungSaldo(stat.initial, stat.debit, stat.credit, stat.type);
         }
       });
+
+      // Sinkronkan laporan keuangan dengan mutasi terkini
+      this.generateFinancialReports();
     },
 
     // ------------------------------------------------------------------------
@@ -1530,6 +1569,29 @@ window.accountingApp = function() {
      */
     async exportExcel(type, bulan) {
       await this.exportCSV(type, bulan);
+    },
+
+    /**
+     * Handler Utama Ekspor Data dari Form UI
+     */
+    async handleExportData(form) {
+      const type = form?.report || this.exportForm?.report || 'pl';
+      const format = form?.format || this.exportForm?.format || 'pdf';
+      const bulan = form?.period || this.exportForm?.period || this.bulanAktif;
+
+      this.showToast(`Memproses ekspor laporan ${type.toUpperCase()} (${format.toUpperCase()})...`, 'info');
+      try {
+        if (format === 'pdf') {
+          await this.generatePDFReport(type, bulan);
+        } else if (format === 'excel') {
+          await this.exportExcel(type, bulan);
+        } else {
+          await this.exportCSV(type, bulan);
+        }
+      } catch (err) {
+        console.error('[ACCT-APP] handleExportData error:', err);
+        this.showToast('Gagal memproses ekspor: ' + (err.message || err), 'error');
+      }
     },
 
     /**

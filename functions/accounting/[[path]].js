@@ -33,7 +33,7 @@ const DEFAULT_COA = {
 };
 
 // Kategori Jurnal yang Diizinkan
-const ALLOWED_CATEGORIES = ['pembelian', 'operasional', 'modal', 'prive', 'penyesuaian'];
+const ALLOWED_CATEGORIES = ['pembelian', 'operasional', 'modal', 'prive', 'penyesuaian', 'penjualan'];
 
 /**
  * Helper pembentuk JSON Response standar
@@ -154,7 +154,14 @@ async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) 
 
       existing.debit = (Number(existing.debit) || 0) + debit;
       existing.credit = (Number(existing.credit) || 0) + credit;
-      existing.closing = (Number(existing.opening) || 0) + existing.debit - existing.credit;
+      // Normal balance: Kewajiban (2), Modal/Ekuitas (3 non-prive), Pendapatan (4) bertambah di Kredit
+      // Aset (1), Prive (302/3002/3003), HPP (5), Beban (6) bertambah di Debit
+      const isKreditNormal = acc.startsWith('2') || (acc.startsWith('3') && acc !== '302' && acc !== '3002' && acc !== '3003') || acc.startsWith('4');
+      if (isKreditNormal) {
+        existing.closing = (Number(existing.opening) || 0) + existing.credit - existing.debit;
+      } else {
+        existing.closing = (Number(existing.opening) || 0) + existing.debit - existing.credit;
+      }
       existing.updatedAt = Date.now();
 
       await fetch(ledgerUrl, {
@@ -267,7 +274,7 @@ async function calculateSummaryFromLedger(dbUrl, bulan, apiKey) {
   // Total Aset: kas + bank + piutang + persediaan
   const totalAset = saldoKas + saldoBank + piutang + persediaanAkhir;
   const totalKewajiban = hutangSupplier;
-  const totalEkuitas = (Number(acc301.closing) || 0) + (Number(acc302.closing) || 0) + labaBersih;
+  const totalEkuitas = (Number(acc301.closing) || 0) - (Number(acc302.closing) || 0) + labaBersih;
 
   const status = labaBersih >= 0 ? "PROFIT" : "LOSS";
 
@@ -402,6 +409,39 @@ export async function onRequest(context) {
     }
 
     // =========================================================================
+    // ENDPOINT 2A: /accounting/approvals (Daftar Approval Jurnal POS & Akuntansi)
+    // =========================================================================
+    if (parts[0] === 'approvals') {
+      if (method === 'GET') {
+        const res = await fetch(`${dbUrl}/accounting/journal.json${authParam}`);
+        const allJournals = await res.json();
+        const approvals = [];
+        if (allJournals && typeof allJournals === 'object') {
+          for (const [bulanKey, monthEntries] of Object.entries(allJournals)) {
+            if (monthEntries && typeof monthEntries === 'object') {
+              for (const [eId, entry] of Object.entries(monthEntries)) {
+                approvals.push({
+                  entryId: eId,
+                  id: eId,
+                  bulan: bulanKey,
+                  month: bulanKey,
+                  ...(entry || {})
+                });
+              }
+            }
+          }
+        }
+        approvals.sort((a, b) => (b.createdAt || b.timestamp || b.t || 0) - (a.createdAt || a.timestamp || a.t || 0));
+        return jsonResponse({
+          success: true,
+          count: approvals.length,
+          data: approvals
+        }, 200);
+      }
+      return jsonResponse({ success: false, error: "Metode tidak didukung pada /accounting/approvals" }, 405);
+    }
+
+    // =========================================================================
     // ENDPOINT 2: /accounting/journal (Jurnal Umum)
     // =========================================================================
     if (parts[0] === 'journal') {
@@ -533,41 +573,86 @@ export async function onRequest(context) {
         }, 201);
       }
 
-      // PATCH /accounting/journal/{identifier}/approve (Approve Jurnal & Update Ledger)
-      if (parts[2] === 'approve' || parts[3] === 'approve') {
-        const identifier = parts[1] === 'approve' ? parts[2] : parts[1];
-        const found = await findJournalEntry(dbUrl, targetBulan, identifier, apiKey);
+      // PATCH /accounting/journal/:bulan/:entryId ATAU /accounting/journal/:entryId/approve
+      if (method === 'PATCH') {
+        const body = await request.json().catch(() => ({}));
+        let targetMonth = currentBulan;
+        let identifier = '';
+
+        if (parts[1] && parts[1].length === 7 && parts[2]) {
+          targetMonth = parts[1];
+          identifier = parts[2];
+        } else if (parts[1] === 'approve' && parts[2]) {
+          identifier = parts[2];
+        } else if (parts[2] === 'approve' && parts[1]) {
+          identifier = parts[1];
+        } else if (parts[1]) {
+          identifier = parts[1];
+        }
+
+        const found = await findJournalEntry(dbUrl, targetMonth, identifier, apiKey);
 
         if (!found) {
-          return jsonResponse({ success: false, error: `Jurnal '${identifier}' tidak ditemukan untuk di-approve` }, 404);
+          return jsonResponse({ success: false, error: `Jurnal '${identifier}' tidak ditemukan untuk diproses` }, 404);
         }
 
-        if (found.data.status === 'approved') {
-          return jsonResponse({ success: true, message: "Jurnal sudah berstatus approved sebelumnya", data: found.data }, 200);
+        const action = body.action || (parts[2] === 'approve' || parts[3] === 'approve' ? 'approve' : 'approve');
+        const approver = body.approvedBy || body.name || 'Finance / Kasir';
+
+        if (action === 'approve') {
+          if (found.data.status === 'approved') {
+            return jsonResponse({ success: true, message: "Jurnal sudah berstatus approved sebelumnya", data: found.data }, 200);
+          }
+
+          // Update status di Firebase
+          const updatedData = {
+            ...found.data,
+            status: 'approved',
+            approvedBy: approver,
+            approvedAt: Date.now(),
+            rejectedReason: null
+          };
+
+          await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(found.bulan)}/${encodeURIComponent(found.firebaseKey)}.json${authParam}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedData)
+          });
+
+          // Update Buku Besar & Ringkasan Laporan
+          await updateLedgerAfterApprove(dbUrl, found.bulan, found.data.lines, apiKey, found.firebaseKey);
+          await updateSummaryAfterApprove(dbUrl, found.bulan, apiKey);
+
+          return jsonResponse({
+            success: true,
+            message: `Jurnal ${found.data.noEntry || found.firebaseKey} berhasil di-approve & diposting ke Buku Besar`,
+            entryId: found.firebaseKey,
+            data: updatedData
+          }, 200);
+        } else if (action === 'reject') {
+          const updatedData = {
+            ...found.data,
+            status: 'rejected',
+            approvedBy: approver,
+            rejectedReason: body.rejectedReason || 'Ditolak oleh finance',
+            rejectedAt: Date.now()
+          };
+
+          await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(found.bulan)}/${encodeURIComponent(found.firebaseKey)}.json${authParam}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedData)
+          });
+
+          return jsonResponse({
+            success: true,
+            message: `Jurnal ${found.data.noEntry || found.firebaseKey} berhasil ditolak`,
+            entryId: found.firebaseKey,
+            data: updatedData
+          }, 200);
+        } else {
+          return jsonResponse({ success: false, error: `Action '${action}' tidak valid` }, 400);
         }
-
-        // Update status di Firebase
-        const updatedData = {
-          ...found.data,
-          status: 'approved',
-          approvedAt: Date.now()
-        };
-
-        await fetch(`${dbUrl}/accounting/journal/${encodeURIComponent(found.bulan)}/${encodeURIComponent(found.firebaseKey)}.json${authParam}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedData)
-        });
-
-        // Update Buku Besar & Ringkasan Laporan
-        await updateLedgerAfterApprove(dbUrl, found.bulan, found.data.lines, apiKey, found.firebaseKey);
-        await updateSummaryAfterApprove(dbUrl, found.bulan, apiKey);
-
-        return jsonResponse({
-          success: true,
-          message: `Jurnal ${found.data.noEntry || found.firebaseKey} berhasil di-approve & diposting ke Buku Besar`,
-          data: updatedData
-        }, 200);
       }
 
       // DELETE /accounting/journal/{identifier}
