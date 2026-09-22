@@ -314,7 +314,7 @@ window.kasirApp = () => ({
     accountingSummaryError: null,
     coaListBackend: [],
     coaListBackendLoading: false,
-    accountingJournalList: [],
+    
 
     // Inventory Modals & Recipe State
     editStockModal: false,
@@ -5437,7 +5437,6 @@ if (res.ok) {
     },
 
     filteredApprovals() {
-  filteredApprovals() {
     let list = Array.isArray(this.pendingApprovals) ? this.pendingApprovals : [];
     if (this.approvalFilter && this.approvalFilter !== 'all') {
       list = list.filter(a => a.status === this.approvalFilter);
