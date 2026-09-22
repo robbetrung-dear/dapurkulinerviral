@@ -2107,7 +2107,9 @@
                 </h5>
                 <ul class="text-xs space-y-1 font-mono text-stone-700">
                   <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200"><span>101 - Kas Dapur &amp; Bank QRIS</span> <strong class="text-emerald-700" x-text="formatRupiah(getAccountingSummary().totalRev)"></strong></li>
-                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200"><span>103 - Persediaan Bahan Baku (BOM)</span> <strong>IDR 3.450.000</strong></li>
+                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+  <span>103 - Persediaan Bahan Baku (BOM)</span>
+  <strong class="text-emerald-700" x-text="formatRupiah((getAccountingSummary && getAccountingSummary().persediaanAkhir) || 0)">Rp 0</strong></li>
                 </ul>
               </div>
 
