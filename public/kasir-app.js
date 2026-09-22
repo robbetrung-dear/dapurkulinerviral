@@ -4874,56 +4874,58 @@ window.kasirApp = () => ({
     };
   },
 
-  getAccountingJournal() {
-  // Ambil dari state yang sudah di-load dari backend
-  const list = Array.isArray(this.accountingJournalList) ? this.accountingJournalList : [];
-  
-  if (list.length === 0) {
-    return []; // Tidak ada dummy — kosong jika backend belum respond
-  }
-  
-  // Helper: nama akun dari COA
+    getAccountingJournal() {
+    // Ambil dari state yang sudah di-load dari backend
+    const list = Array.isArray(this.accountingJournalList) ? this.accountingJournalList : [];
+    
+    if (list.length === 0) {
+      return []; // Tidak ada dummy — kosong jika backend belum respond
+    }
+    
     // Helper: normalize 3-digit → 4-digit
-  const normalizeAcc = (c) => {
-    const s = String(c || '').trim();
-    const map = {
-      '101':'1001','102':'1002','103':'1003','105':'1004','106':'1005',
-      '201':'2001','202':'2002','301':'3001','302':'3002','303':'3003',
-      '401':'4001','402':'4002','501':'5001',
-      '601':'6001','602':'6002','603':'6003','604':'6004','605':'6005','606':'6006'
+    const normalizeAcc = (c) => {
+      const s = String(c || '').trim();
+      const map = {
+        '101':'1001','102':'1002','103':'1003','105':'1004','106':'1005',
+        '201':'2001','202':'2002','301':'3001','302':'3002','303':'3003',
+        '401':'4001','402':'4002','501':'5001',
+        '601':'6001','602':'6002','603':'6003','604':'6004','605':'6005','606':'6006'
+      };
+      return map[s] || s;
     };
-    return map[s] || s;
-  };
-  
-  // Helper: nama akun dari COA
-  const getAccName = (code) => {
-    const norm = normalizeAcc(code);
-    const map = {
-      '1001': 'Kas & Bank', '1002': 'Bank BCA', '1003': 'Piutang Usaha',
-      '1004': 'Persediaan Bahan Baku', '1005': 'Peralatan Dapur',
-      '2001': 'Hutang Supplier', '2002': 'Hutang Beban',
-      '3001': 'Modal Pemilik', '3002': 'Laba Ditahan', '3003': 'Prive Pemilik',
-      '4001': 'Pendapatan Penjualan POS', '4002': 'Pendapatan Catering',
-      '5001': 'HPP Bahan Baku',
-      '6001': 'Beban Gaji', '6002': 'Beban Sewa', '6003': 'Beban Listrik',
-      '6004': 'Beban Marketing', '6005': 'Beban Operasional'
+    
+    // Helper: nama akun dari COA
+    const getAccName = (code) => {
+      const norm = normalizeAcc(code);
+      const map = {
+        '1001': 'Kas & Bank', '1002': 'Bank BCA', '1003': 'Piutang Usaha',
+        '1004': 'Persediaan Bahan Baku', '1005': 'Peralatan Dapur',
+        '2001': 'Hutang Supplier', '2002': 'Hutang Beban',
+        '3001': 'Modal Pemilik', '3002': 'Laba Ditahan', '3003': 'Prive Pemilik',
+        '4001': 'Pendapatan Penjualan POS', '4002': 'Pendapatan Catering',
+        '5001': 'HPP Bahan Baku',
+        '6001': 'Beban Gaji', '6002': 'Beban Sewa', '6003': 'Beban Listrik',
+        '6004': 'Beban Marketing', '6005': 'Beban Operasional'
+      };
+      return map[norm] || ('Akun ' + norm);
     };
-    return map[norm] || ('Akun ' + norm);
-  };
-  
+    
+    return list.map(j => {
+      const lines = Array.isArray(j.lines) ? j.lines : [];
+      const dLine = lines.find(l => Number(l.debit) > 0);
+      const cLine = lines.find(l => Number(l.credit) > 0);
       return {
-      date: j.date || '-',
-      ref: j.noEntry || j.ref || j.id || '-',
-      desc: j.desc || '-',
-      debitAccount: dLine ? `${normalizeAcc(dLine.acc)} - ${getAccName(dLine.acc)}` : '-',
-      debitAmount: Number(dLine?.debit) || 0,
-      creditAccount: cLine ? `${normalizeAcc(cLine.acc)} - ${getAccName(cLine.acc)}` : '-',
-      creditAmount: Number(cLine?.credit) || 0,
-      status: j.status || 'approved'
-    };
-  });
-},
-
+        date: j.date || '-',
+        ref: j.noEntry || j.ref || j.id || '-',
+        desc: j.desc || '-',
+        debitAccount: dLine ? `${normalizeAcc(dLine.acc)} - ${getAccName(dLine.acc)}` : '-',
+        debitAmount: Number(dLine?.debit) || 0,
+        creditAccount: cLine ? `${normalizeAcc(cLine.acc)} - ${getAccName(cLine.acc)}` : '-',
+        creditAmount: Number(cLine?.credit) || 0,
+        status: j.status || 'approved'
+      };
+    });
+  },
   // -------------------------------------------------------------------------
   // 14.8.1 INPUT JURNAL MANUAL, DOUBLE-ENTRY, APPROVAL & AUTO-UPDATE LEDGER
   // -------------------------------------------------------------------------
