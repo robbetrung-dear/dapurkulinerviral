@@ -21,6 +21,10 @@ window.kasirApp = () => ({
   // 1. STATE DASAR & NAVIGASI
   // =========================================================================
   activeTab: 'transaksi',
+  // Filter Rekonsiliasi
+  reconcileDateRange: 'today',           // ← TAMBAHKAN INI
+  reconcileFilter: 'semua',              // ← pastikan ada
+  reconciliationFilter: 'semua',         // ← pastikan ada
   mobileMenuOpen: false,
 
   // Sesi Kasir & Jam Realtime
@@ -311,7 +315,15 @@ window.kasirApp = () => ({
 
   // Inventory Modals & Recipe State
   editStockModal: false,
-  selectedStockItem: null,
+  selectedStockItem: {
+    id: '',
+    name: '',
+    stock: 0,
+    minStock: 0,
+    unit: 'kg',
+    purchasePrice: 0,
+    isCountable: true
+  },
   newStockValue: 0,
   stockChangeReason: '',
   addInventoryModal: false,
@@ -3106,12 +3118,17 @@ window.kasirApp = () => ({
       }
 
       const res = await fetch('/inventory');
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json.data) && json.data.length > 0) {
-          this.inventoryList = json.data;
-        }
-      }
+if (res.ok) {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const json = await res.json();
+    if (Array.isArray(json.data) && json.data.length > 0) {
+      this.inventoryList = json.data;
+    }
+  } else {
+    console.warn('[INVENTORY] Endpoint /inventory returned non-JSON (likely 404). Using Firebase/local fallback.');
+  }
+}
 
       // Restore dari localStorage jika kosong
       if (!this.inventoryList || this.inventoryList.length === 0) {
