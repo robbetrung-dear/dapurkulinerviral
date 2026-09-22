@@ -957,40 +957,42 @@ const relatedJournals = (this.jurnalList || [])
   })
           .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
-        relatedJournals.forEach(j => {
-          let dAmt = 0;
-          let cAmt = 0;
+       relatedJournals.forEach(j => {
+  let dAmt = 0;
+  let cAmt = 0;
 
-          if (normalizeAcc(j.debitCode) === targetNorm) dAmt += Number(j.debitAmount) || 0;
-if (normalizeAcc(j.creditCode) === targetNorm) cAmt += Number(j.creditAmount) || 0;
+  // Hitung HANYA dari `lines` (source of truth), hindari double-count
+  if (Array.isArray(j.lines) && j.lines.length > 0) {
+    j.lines.forEach(l => {
+      if (normalizeAcc(l.acc || l.code) === targetNorm) {
+        dAmt += Number(l.debit) || 0;
+        cAmt += Number(l.credit) || 0;
+      }
+    });
+  } else {
+    // Fallback untuk jurnal lama yang tidak punya `lines` array
+    if (normalizeAcc(j.debitCode) === targetNorm) dAmt += Number(j.debitAmount) || 0;
+    if (normalizeAcc(j.creditCode) === targetNorm) cAmt += Number(j.creditAmount) || 0;
+  }
 
-if (Array.isArray(j.lines)) {
-  j.lines.forEach(l => {
-    if (normalizeAcc(l.acc || l.code) === targetNorm) {
-                dAmt += Number(l.debit) || 0;
-                cAmt += Number(l.credit) || 0;
-              }
-            });
-          }
+  totalDebit += dAmt;
+  totalCredit += cAmt;
 
-          totalDebit += dAmt;
-          totalCredit += cAmt;
+  if (accObj.type === 'Aset' || accObj.type === 'Beban' || accObj.type === 'Prive') {
+    runningBalance += (dAmt - cAmt);
+  } else {
+    runningBalance += (cAmt - dAmt);
+  }
 
-          if (accObj.type === 'Aset' || accObj.type === 'Beban' || accObj.type === 'Prive') {
-            runningBalance += (dAmt - cAmt);
-          } else {
-            runningBalance += (cAmt - dAmt);
-          }
-
-          transactions.push({
-            date: j.date || formatDate(j.timestamp),
-            ref: j.ref || j.noEntry || j.id || '-',
-            desc: j.desc || j.keterangan || '-',
-            debit: dAmt,
-            credit: cAmt,
-            runningBalance: runningBalance
-          });
-        });
+  transactions.push({
+    date: j.date || formatDate(j.timestamp),
+    ref: j.ref || j.noEntry || j.id || '-',
+    desc: j.desc || j.keterangan || '-',
+    debit: dAmt,
+    credit: cAmt,
+    runningBalance: runningBalance
+  });
+});
 
         // Prioritas: closing dari server (angka teroturitas), tapi debit/credit
         // dan transactions hitung ulang dari jurnal lokal untuk konsistensi UI
