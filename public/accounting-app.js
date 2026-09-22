@@ -992,25 +992,18 @@ if (Array.isArray(j.lines)) {
           });
         });
 
-        if (serverLedger) {
-          this.ledgerData = {
-            account: accObj,
-            openingBalance: Number(serverLedger.opening) || 0,
-            totalDebit: Number(serverLedger.debit) || totalDebit,
-            totalCredit: Number(serverLedger.credit) || totalCredit,
-            closingBalance: Number(serverLedger.closing) || runningBalance,
-            transactions: transactions
-          };
-        } else {
-          this.ledgerData = {
-            account: accObj,
-            openingBalance: openingBal,
-            totalDebit: totalDebit,
-            totalCredit: totalCredit,
-            closingBalance: runningBalance,
-            transactions: transactions
-          };
-        }
+        // Prioritas: closing dari server (angka teroturitas), tapi debit/credit
+        // dan transactions hitung ulang dari jurnal lokal untuk konsistensi UI
+        this.ledgerData = {
+          account: accObj,
+          openingBalance: openingBal,
+          totalDebit: totalDebit,
+          totalCredit: totalCredit,
+          closingBalance: serverLedger
+            ? Number(serverLedger.closing) || runningBalance
+            : runningBalance,
+          transactions: transactions
+        };
       } catch (err) {
         console.error(`[ACCT-APP] Error loadLedger acc ${targetAcc}:`, err);
         this.showToast(`Gagal memuat Buku Besar akun ${targetAcc}`, 'error');
