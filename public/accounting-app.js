@@ -351,15 +351,18 @@ window.accountingApp = function() {
           const hutang = Number(d.hutangSupplier) || 0;
 
           this.summary = {
-            totalAset,
-            totalKewajiban,
-            totalEkuitas,
-            labaBulanIni,
-            kas,
-            bank,
-            piutang,
-            hutang
-          };
+  totalAset: Number(d.totalAset) || 0,
+  totalKewajiban: Number(d.totalKewajiban) || 0,
+  totalEkuitas: Number(d.totalEkuitas) || 0,
+  labaBulanIni: Number(d.labaBersih) || 0,
+  kas: Number(d.saldoKas) || 0,
+  bank: Number(d.saldoBank) || 0,
+  piutang: Number(d.piutang) || 0,
+  hutang: Number(d.hutangSupplier) || 0,
+  persediaanAkhir: Number(d.persediaanAkhir) || 0,
+  totalAsetLancar: Number(d.totalAsetLancar) || 0,
+  totalAsetTetap: Number(d.totalAsetTetap) || 0,
+};
 
           // Sinkronkan ke laporanData.pl jika tersedia rincian
           const revPOS = Number(d.pendapatan?.penjualanPos) || 0;
@@ -715,98 +718,85 @@ window.accountingApp = function() {
       }
     },
 
-    /**
-     * Tambah Jurnal Manual (Double-Entry Validation)
-     */
-    async tambahJurnalManual() {
-      const { date, desc, debitAccount, creditAccount, amount, ref, proofImage } = this.manualJournalForm;
-      const amt = Number(amount) || 0;
+/**
+ * Tambah Jurnal Manual (Double-Entry Validation)
+ * Mengirim ke POST /accounting/journal (body-based, backend generate ID)
+ */
+async tambahJurnalManual() {
+  const { date, desc, debitAccount, creditAccount, amount, ref, proofImage } = this.manualJournalForm;
+  const amt = Number(amount) || 0;
 
-      if (!desc || amt <= 0) {
-        this.showToast('Deskripsi dan nominal transaksi valid wajib diisi', 'error');
-        return;
-      }
+  if (!desc || amt <= 0) {
+    this.showToast('Deskripsi dan nominal transaksi valid wajib diisi', 'error');
+    return;
+  }
+  if (!debitAccount || !creditAccount) {
+    this.showToast('Pilih Akun Debit dan Akun Kredit', 'error');
+    return;
+  }
+  if (debitAccount === creditAccount) {
+    this.showToast('Akun Debit dan Kredit tidak boleh sama!', 'error');
+    return;
+  }
+  if (!validateDoubleEntry(amt, amt)) {
+    this.showToast('Transaksi tidak seimbang', 'error');
+    return;
+  }
 
-      if (!debitAccount || !creditAccount) {
-        this.showToast('Pilih Akun Debit dan Akun Kredit yang sesuai', 'error');
-        return;
-      }
+  const txDate = date || new Date().toISOString().split('T')[0];
+  const bulanKey = txDate.substring(0, 7);
 
-      if (debitAccount === creditAccount) {
-        this.showToast('Akun Debit dan Akun Kredit tidak boleh sama!', 'error');
-        return;
-      }
+  // Body sesuai kontrak backend
+  const payload = {
+    date: txDate,
+    desc: desc.trim(),
+    category: 'operasional',
+    ref: ref ? ref.trim() : `MANUAL-${Date.now().toString().slice(-4)}`,
+    proof: proofImage || '',
+    status: 'approved',
+    lines: [
+      { acc: debitAccount, debit: amt, credit: 0 },
+      { acc: creditAccount, debit: 0, credit: amt }
+    ]
+  };
 
-      // Validasi Double-Entry: Total Debit = Total Kredit
-      if (!validateDoubleEntry(amt, amt)) {
-        this.showToast('Transaksi tidak seimbang (Double-entry mismatch)', 'error');
-        return;
-      }
+  try {
+    const res = await fetch('/accounting/journal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
 
-      const debitAccObj = this.coaList.find(c => c.code === debitAccount) || { name: 'Akun ' + debitAccount };
-      const creditAccObj = this.coaList.find(c => c.code === creditAccount) || { name: 'Akun ' + creditAccount };
+    if (!json.success) {
+      this.showToast(json.error || 'Gagal menyimpan jurnal', 'error');
+      return;
+    }
 
-      const entryId = 'J' + Date.now();
-      const noEntry = 'JE-' + String(this.jurnalList.length + 1).padStart(4, '0');
-      const txDate = date || new Date().toISOString().split('T')[0];
-      const bulanKey = txDate.substring(0, 7);
+    // Refresh dari server
+    await this.loadJournal(bulanKey);
+    await this.loadSummary(this.bulanAktif);
+    await this.loadDashboard();
 
-      const newEntry = {
-        id: entryId,
-        date: txDate,
-        timestamp: new Date(txDate).getTime() || Date.now(),
-        noEntry: noEntry,
-        desc: desc.trim(),
-        debitCode: debitAccount,
-        debitName: debitAccObj.name,
-        debitAmount: amt,
-        creditCode: creditAccount,
-        creditName: creditAccObj.name,
-        creditAmount: amt,
-        lines: [
-          { acc: debitAccount, debit: amt, credit: 0 },
-          { acc: creditAccount, debit: 0, credit: amt }
-        ],
-        status: 'approved',
-        ref: ref ? ref.trim() : `MANUAL-${entryId.slice(-4)}`,
-        proof: proofImage || ''
-      };
+    this.showToast(`Jurnal berhasil dicatat (${json.data?.noEntry || json.id})`, 'success');
 
-      // Tambahkan ke jurnal
-      this.jurnalList.unshift(newEntry);
+    // Reset form
+    this.manualJournalForm = {
+      date: new Date().toISOString().split('T')[0],
+      desc: '',
+      debitAccount: '6001',
+      creditAccount: '1001',
+      amount: 0,
+      ref: '',
+      proofImage: ''
+    };
 
-      // Simpan ke LocalStorage & Server
-      localStorage.setItem(`dapur_journal_${bulanKey}`, JSON.stringify(this.jurnalList));
-
-      try {
-        await fetch(`/accounting/journal/${encodeURIComponent(bulanKey)}/${encodeURIComponent(entryId)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newEntry)
-        });
-      } catch (e) {
-        console.warn('[ACCT-APP] Post journal entry note:', e);
-      }
-
-      this.recalculateAllAccountBalances();
-      await this.loadSummary(this.bulanAktif);
-      await this.loadDashboard();
-
-      this.showToast(`Jurnal [${noEntry}] sebesar ${formatRupiah(amt)} berhasil dicatat!`, 'success');
-
-      // Reset form
-      this.manualJournalForm = {
-        date: new Date().toISOString().split('T')[0],
-        desc: '',
-        debitAccount: '6001',
-        creditAccount: '1001',
-        amount: 0,
-        ref: '',
-        proofImage: ''
-      };
-
-      this.setTab('jurnal');
-    },
+    this.setTab('jurnal');
+  } catch (err) {
+    console.error('[ACCT-APP] tambahJurnalManual err:', err);
+    this.showToast('Gagal menyimpan jurnal: ' + err.message, 'error');
+  }
+},
 
     /**
      * Upload File Bukti Transaksi
