@@ -795,6 +795,99 @@ export async function onRequest(context) {
     // GET /accounting/rebuild-ledger/{bulan}
     // ⚠️ Jalankan SEKALI saja untuk cleanup data lama
     // =======================================================================
+        // =======================================================================
+    // NORMALIZE JOURNALS — Konversi 3-digit → 4-digit permanent
+    // GET /accounting/normalize-journals/{bulan}
+    // ⚠️ Jalankan SEKALI untuk cleanup
+    // =======================================================================
+    if (parts[0] === 'normalize-journals') {
+      const now = new Date();
+      const bulan = parts[1] || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      console.log(`[NORMALIZE] Mulai normalize jurnal untuk ${bulan}...`);
+
+      const report = { bulan, updated: [], skipped: 0, errors: [] };
+
+      try {
+        const jRes = await fetch(`${dbUrl}/accounting/journal/${bulan}.json${authParam}`);
+        const journals = await jRes.json();
+
+        if (journals && typeof journals === 'object') {
+          for (const [jid, entry] of Object.entries(journals)) {
+            if (!entry || !Array.isArray(entry.lines)) { report.skipped++; continue; }
+            
+            let changed = false;
+            const newLines = entry.lines.map(l => {
+              const oldAcc = String(l.acc || '').trim();
+              const newAcc = normalizeAccCode(oldAcc);
+              if (newAcc !== oldAcc) {
+                changed = true;
+                console.log(`[NORMALIZE] ${jid}: ${oldAcc} → ${newAcc}`);
+              }
+              return { ...l, acc: newAcc };
+            });
+
+            if (changed) {
+              const updated = {
+                ...entry,
+                lines: newLines,
+                debitCode: entry.debitCode ? normalizeAccCode(entry.debitCode) : undefined,
+                creditCode: entry.creditCode ? normalizeAccCode(entry.creditCode) : undefined,
+                normalizedAt: Date.now()
+              };
+              
+              await fetch(`${dbUrl}/accounting/journal/${bulan}/${jid}.json${authParam}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updated)
+              });
+              report.updated.push(jid);
+            } else {
+              report.skipped++;
+            }
+          }
+        }
+      } catch (e) {
+        report.errors.push(`Normalize error: ${e.message}`);
+      }
+
+      // Auto rebuild ledger supaya konsisten
+      let rebuildResult = null;
+      try {
+        // Hapus ledger bulan itu
+        const allLedgerRes = await fetch(`${dbUrl}/accounting/ledger.json${authParam}`);
+        const allLedger = await allLedgerRes.json();
+        if (allLedger && typeof allLedger === 'object') {
+          for (const code of Object.keys(allLedger)) {
+            if (allLedger[code] && allLedger[code][bulan]) {
+              await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(code)}/${encodeURIComponent(bulan)}.json${authParam}`, { method: 'DELETE' });
+            }
+          }
+        }
+        // Rebuild dari jurnal yang sudah normalize
+        const jRes2 = await fetch(`${dbUrl}/accounting/journal/${bulan}.json${authParam}`);
+        const journals2 = await jRes2.json();
+        let rebuilt = 0;
+        if (journals2 && typeof journals2 === 'object') {
+          for (const [jid, entry] of Object.entries(journals2)) {
+            if (!entry || !Array.isArray(entry.lines)) continue;
+            if (entry.status === 'rejected') continue;
+            await updateLedgerAfterApprove(dbUrl, bulan, entry.lines, apiKey, jid);
+            rebuilt++;
+          }
+        }
+        await updateSummaryAfterApprove(dbUrl, bulan, apiKey);
+        rebuildResult = { journalsRebuilt: rebuilt };
+      } catch (e) {
+        report.errors.push(`Rebuild error: ${e.message}`);
+      }
+
+      return jsonResponse({
+        success: true,
+        message: `Normalize selesai. ${report.updated.length} jurnal diupdate, ${report.skipped} skip, ${rebuildResult?.journalsRebuilt || 0} diposting ulang.`,
+        ...report,
+        rebuild: rebuildResult
+      });
+    }
     if (parts[0] === 'rebuild-ledger') {
       const now = new Date();
       const bulan = parts[1] || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
