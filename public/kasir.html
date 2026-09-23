@@ -3472,6 +3472,49 @@
         </template>
       </div>
 
+            <!-- ✅ DETAIL MENU PESANAN & STATUS STOK -->
+      <div class="p-3 rounded-xl bg-stone-50 border border-stone-200 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-stone-700 uppercase tracking-wider">
+            <i class="fa-solid fa-utensils text-brand-600 mr-1"></i>Menu Pesanan & Stok
+          </span>
+          <span class="text-[10px] font-mono text-stone-400" x-text="(activeReconcileItem && activeReconcileItem.items ? activeReconcileItem.items.length : 0) + ' item'"></span>
+        </div>
+        <template x-if="activeReconcileItem && activeReconcileItem.items && activeReconcileItem.items.length > 0">
+          <ul class="space-y-1">
+            <template x-for="(it, idx) in activeReconcileItem.items" :key="'rm-' + idx">
+              <li class="flex items-center justify-between text-xs py-1 border-b border-stone-200 last:border-0">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-bold text-stone-900 truncate" x-text="it.name || it.menuName || it.id"></span>
+                    <span class="font-mono text-stone-500 text-[11px]" x-text="'x' + (it.qty || it.quantity || 1)"></span>
+                  </div>
+                </div>
+                <div class="flex-shrink-0 ml-2">
+                  <template x-if="getMenuCalculatedStock(it.id) >= (it.qty || it.quantity || 1)">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                      <i class="fa-solid fa-circle-check"></i>
+                      <span x-text="getMenuCalculatedStock(it.id) + ' ready'"></span>
+                    </span>
+                  </template>
+                  <template x-if="getMenuCalculatedStock(it.id) < (it.qty || it.quantity || 1)">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                      <i class="fa-solid fa-triangle-exclamation"></i>
+                      <span x-text="'kurang ' + ((it.qty || it.quantity || 1) - getMenuCalculatedStock(it.id))"></span>
+                    </span>
+                  </template>
+                </div>
+              </li>
+            </template>
+          </ul>
+        </template>
+        <template x-if="!activeReconcileItem || !activeReconcileItem.items || activeReconcileItem.items.length === 0">
+          <div class="text-center py-2 text-xs italic text-stone-400">
+            <i class="fa-solid fa-circle-info"></i> Tidak ada detail menu — validasi stok dilewati
+          </div>
+        </template>
+      </div>
+      
       <!-- Tombol Aksi Verifikasi Manual 4 Opsi: Approve, Postpone, Reject, Mark Failed -->
       <div class="space-y-2 pt-2">
         <button 
