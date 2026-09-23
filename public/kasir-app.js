@@ -155,7 +155,7 @@ window.kasirApp = () => ({
   _reconcileInterval: null,
 
   // Shift, Inventory & Laporan State (BAGIAN 3)
-  shiftSummary: {
+    shiftSummary: {
     totalSales: 2450000,
     cashSales: 980000,
     qrisSales: 1120000,
@@ -165,6 +165,35 @@ window.kasirApp = () => ({
     startCash: 200000,
     startTime: '08:00 WIB'
   },
+
+  /**
+   * GETTER: Saldo Kas Laci Aktual
+   * = Modal Awal + Penjualan Tunai − Pengeluaran Tunai (dari jurnal hari ini)
+   */
+  get saldoKasLaci() {
+    const modalAwal = Number(this.shiftSummary?.startCash) || 0;
+    const penjualanTunai = Number(this.shiftSummary?.cashSales) || 0;
+    
+    // Hitung pengeluaran tunai dari jurnal hari ini
+    const today = new Date().toISOString().slice(0, 10);
+    let pengeluaranTunai = 0;
+    const list = Array.isArray(this.accountingJournalList) ? this.accountingJournalList : [];
+    
+    list.forEach(j => {
+      if (j.date !== today) return;
+      if (j.status === 'rejected') return;
+      (j.lines || []).forEach(l => {
+        const acc = String(l.acc || '').trim();
+        // Kredit ke Kas = uang keluar
+        if ((acc === '1001' || acc === '101') && Number(l.credit) > 0) {
+          pengeluaranTunai += Number(l.credit) || 0;
+        }
+      });
+    });
+    
+    return Math.max(0, modalAwal + penjualanTunai - pengeluaranTunai);
+  },
+
   shiftData: {
     startTime: '08:00 WIB',
     duration: '5 jam 30 menit',
