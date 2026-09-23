@@ -21,10 +21,6 @@ window.kasirApp = () => ({
   // 1. STATE DASAR & NAVIGASI
   // =========================================================================
   activeTab: 'transaksi',
-  // Filter Rekonsiliasi
-  reconcileDateRange: 'today',           // ← TAMBAHKAN INI
-  reconcileFilter: 'semua',              // ← pastikan ada
-  reconciliationFilter: 'semua',         // ← pastikan ada
   mobileMenuOpen: false,
 
   // Sesi Kasir & Jam Realtime
@@ -135,6 +131,7 @@ window.kasirApp = () => ({
   reconciliationList: [],
   reconciliationFilter: 'all',
   reconcileFilter: 'semua',
+  reconcileDateRange: 'today',
   selectedOrders: [],
   selectedReconcileIds: [],
   showRekonsiliasiModal: false,
@@ -191,8 +188,59 @@ window.kasirApp = () => ({
   shiftClosingNotes: '',
   inventoryList: [],
   inventorySearch: '',
-  inventoryTab: 'ingredients', // 'ingredients' | 'products'
+  inventoryTab: 'ingredients', // 'ingredients' | 'products' | 'pembelian'
   todayTotalRevenue: 2450000,
+
+  // Riwayat Transaksi & Recall Struk State
+  showTxHistoryModal: false,
+  txHistoryList: [],
+  txHistoryLoading: false,
+  txHistoryDate: new Date().toISOString().slice(0, 10),
+  txHistorySearch: '',
+  txHistoryPaymentFilter: 'all',
+
+  // Edit Stok & Tambah Inventori Enhanced State
+  editStockModal: false,
+  addInventoryModal: false,
+  newInventoryForm: {
+    nama: '',
+    category: 'Bahan Baku',
+    stok: 10,
+    min: 5,
+    unit: 'kg',
+    purchasePrice: 0,
+    isCountable: true
+  },
+  insufficientCashModal: false,
+  insufficientCashInfo: {
+    totalCost: 0,
+    availableCash: 0,
+    shortfall: 0,
+    itemName: ''
+  },
+  selectedStockItem: { id: '', name: '', category: 'Bahan Baku', stock: 0, minStock: 0, unit: 'unit', purchasePrice: 0, isCountable: true },
+  newStockValue: 0,
+  stockChangeType: 'adjustment', // 'adjustment' | 'purchase' | 'waste' | 'opname'
+  stockChangePaymentMethod: 'cash', // 'cash' | 'transfer' | 'payable'
+  stockChangeReason: '',
+
+  // Pembelian Bahan Baku State
+  pembelianForm: {
+    date: new Date().toISOString().slice(0, 10),
+    supplier: '',
+    itemId: '',
+    qty: 1,
+    unit: '',
+    purchasePrice: 0,
+    total: 0,
+    paymentMethod: 'cash',
+    notes: '',
+    receiptImage: ''
+  },
+  pembelianList: [],
+  loadingPembelian: false,
+  pembelianSearch: '',
+  pembelianDateFilter: '',
 
   // Logout Confirmation Modal
   confirmLogoutModal: false,
@@ -307,23 +355,22 @@ window.kasirApp = () => ({
   approvalFilter: 'all',  // all | pending | approved | rejected
   approvalSearch: '',
 
-  // State accounting summary (P&L, Ledger Realtime)
-    accountingSummaryData: null,
-    accountingSummaryLoading: false,
-    accountingSummaryLastFetch: 0,
-    accountingSummaryError: null,
-    coaListBackend: [],
-    coaListBackendLoading: false,
-    
+  // State accounting summary (P&L Ledger Realtime)
+  accountingSummaryData: null,  // hasil fetch terakhir
+  accountingSummaryLoading: false,
+  accountingSummaryLastFetch: 0,
+  accountingSummaryError: null,
 
-    // Inventory Modals & Recipe State
-    editStockModal: false,
-    selectedStockItem: {
+  // Inventory Modals & Recipe State
+  editStockModal: false,
+  selectedStockItem: {
     id: '',
     name: '',
+    category: 'Bahan Baku',
     stock: 0,
+    stok: 0,
     minStock: 0,
-    unit: 'kg',
+    unit: 'unit',
     purchasePrice: 0,
     isCountable: true
   },
@@ -446,8 +493,6 @@ window.kasirApp = () => ({
     this.listenMenuItems();
     this.loadPrinterConfig();
     this.loadAccountingSummary(true);
-    await this.loadJournalList();
-    await this.loadCOAListFromBackend(); 
 
     // 6. Muat Inventory Realtime, Resep Bahan Baku & Riwayat Shift (BAGIAN 3)
     this.loadInventory();
@@ -612,14 +657,14 @@ window.kasirApp = () => ({
     // Timeout safety 5 detik: jangan sampai loading spinner stuck selamanya
     const menuTimeout = setTimeout(() => {
       if (this.isLoadingMenu) {
-        console.warn('Firebase menu listener timeout 10s, using fallback menu');
+        console.warn('Firebase menu listener timeout 5s, using fallback menu');
         if (!this.menuList || this.menuList.length === 0) {
           this.menuList = fallbackMenu;
         }
         this.syncCategoriesWithMainStore();
         this.isLoadingMenu = false;
       }
-    }, 10000);
+    }, 5000);
 
     if (this._fbDb && this._fbOnValue && this._fbRef) {
       try {
@@ -1633,7 +1678,23 @@ window.kasirApp = () => ({
       fetch('/inventory/deduct', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: rawItems })
+        body: JSON.stringify({
+          orderId: this.currentOrder?.id || txId,
+          date: dateStr,
+          kasir: this.kasirInfo?.name || this.kasirInfo?.username || 'kasir',
+          items: rawItems
+        })
+      }).then(r => r.json()).then(res => {
+        if (res && res.success && Array.isArray(res.deducted)) {
+          // Update local inventory state
+          res.deducted.forEach(d => {
+            const it = this.inventoryList.find(i => i.id === d.itemId);
+            if (it) {
+              it.stock = d.after;
+              it.stok = d.after;
+            }
+          });
+        }
       }).catch(e => console.warn('Inventory deduct note:', e));
     } catch (e) {}
 
@@ -1674,57 +1735,6 @@ window.kasirApp = () => ({
       this.downloadStrukPDF(this.currentOrder);
     }
 
-    // =====================================================================
-    // 8.5. HOOK AKUNTANSI — kirim POS ke backend (Revenue + HPP otomatis)
-    // =====================================================================
-    try {
-      const _acctTxId = (typeof txId !== 'undefined' && txId)
-                        ? txId : ('T' + Date.now());
-      const _acctMethod = (typeof method !== 'undefined' && method)
-                          ? method
-                          : (this.selectedPaymentMethod || this.paymentMethod || 'cash');
-      const _acctTotal = (typeof orderData !== 'undefined' && orderData && orderData.total)
-                         ? Number(orderData.total)
-                         : (this.getCartGrandTotal ? this.getCartGrandTotal() : 0);
-      const _acctItems = (typeof orderData !== 'undefined' && orderData && Array.isArray(orderData.items))
-                         ? orderData.items.map(i => ({ id: i.id, qty: i.qty, price: i.price }))
-                         : (Array.isArray(this.cart)
-                            ? this.cart.map(i => ({ id: i.id, qty: i.qty, price: i.price }))
-                            : []);
-
-      if (_acctTotal > 0 && !isReconciliation) {
-        const _acctBody = {
-          orderId: _acctTxId,
-          date: new Date().toISOString().slice(0, 10),
-          pm: _acctMethod,
-          total: _acctTotal,
-          items: _acctItems
-        };
-
-        // Fire-and-forget
-        fetch('/accounting/journal/pos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(_acctBody)
-        })
-        .then(r => r.json())
-        .then(j => {
-          if (j.success) {
-            console.log('[KASIR→ACCT] ✅ Revenue:', j.totalRev, '| HPP:', j.totalHpp);
-          } else {
-            console.warn('[KASIR→ACCT] ⚠️', j.error);
-          }
-        })
-        .catch(e => console.warn('[KASIR→ACCT] ❌', e.message));
-      }
-    } catch (acctErr) {
-      console.warn('[KASIR→ACCT] Hook exception:', acctErr);
-    }
-    // =====================================================================
-    // END HOOK AKUNTANSI
-    // =====================================================================
-
-  
     // 9. Kosongkan keranjang & bersihkan draft tersimpan jika checkout reguler
     if (!isReconciliation) {
       this.cart = [];
@@ -1790,7 +1800,51 @@ window.kasirApp = () => ({
    * Preview struk modal
    */
   previewStruk(txData) {
-    if (txData) this.currentOrder = txData;
+    if (txData) {
+      const d = txData.t ? new Date(txData.t) : (txData.timestamp ? new Date(txData.timestamp) : new Date());
+      let parsedItems = [];
+      if (Array.isArray(txData.items)) {
+        parsedItems = txData.items.map(it => {
+          if (Array.isArray(it)) {
+            return { id: 'it_' + Math.random(), name: it[0], qty: Number(it[1]) || 1, price: Number(it[2]) || 0 };
+          }
+          return {
+            id: it.id || it.menuId || ('it_' + Math.random()),
+            name: it.name || it.menuName || 'Menu Pesanan',
+            qty: Number(it.qty || it.quantity || 1),
+            price: Number(it.price || it.harga || 0)
+          };
+        });
+      } else {
+        parsedItems = this.cart || [];
+      }
+
+      const grandTotal = txData.total !== undefined ? Number(txData.total) : (txData.amount !== undefined ? Number(txData.amount) : 0);
+      const subtotal = txData.sub !== undefined ? Number(txData.sub) : (txData.subtotal !== undefined ? Number(txData.subtotal) : grandTotal);
+      const tax = txData.tax !== undefined ? Number(txData.tax) : 0;
+      const serviceCharge = txData.sc !== undefined ? Number(txData.sc) : (txData.serviceCharge !== undefined ? Number(txData.serviceCharge) : 0);
+      const discount = txData.disc !== undefined ? Number(txData.disc) : (txData.discount !== undefined ? Number(txData.discount) : 0);
+      const pm = txData.pm || txData.paymentMethod || 'tunai';
+
+      this.currentOrder = {
+        id: txData.id || txData.orderId || ('ORD-' + Date.now()),
+        date: txData.date || (d.toLocaleDateString('id-ID') + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })),
+        time: txData.time || d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        items: parsedItems,
+        subtotal: subtotal,
+        tax: tax,
+        serviceCharge: serviceCharge,
+        discount: discount,
+        total: grandTotal,
+        paymentMethod: pm,
+        cashReceived: txData.cashReceived || (pm === 'tunai' || pm === 'cash' ? grandTotal : 0),
+        cashChange: txData.cashChange || 0,
+        customer: txData.customer || txData.cust || 'Pelanggan',
+        note: txData.note || txData.notes || ''
+      };
+      this.selectedPaymentMethod = pm;
+      this.cashReceived = this.currentOrder.cashReceived;
+    }
     this.receiptModal = true;
     this.playSound('click');
   },
@@ -2215,8 +2269,11 @@ window.kasirApp = () => ({
     try {
       const res = await fetch('/inventory');
       if (res.ok) {
-        const json = await res.json();
-        if (json.data) this.inventoryList = json.data;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const json = await res.json();
+          if (json && json.data) this.inventoryList = json.data;
+        }
       }
     } catch (e) {
       console.warn('Fetch inventory note:', e);
@@ -2263,20 +2320,42 @@ window.kasirApp = () => ({
    * Filter daftar rekonsiliasi sesuai filter tab aktif
    */
   filteredReconciliationList() {
+    let list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
     const f = (this.reconcileFilter || this.reconciliationFilter || 'semua').toLowerCase();
-    if (f === 'semua' || f === 'all') return this.reconciliationList;
-    return this.reconciliationList.filter(item => {
-      if (f === 'berhasil' || f === 'settlement') {
-        return item.status === 'berhasil' || item.rawStatus === 'settlement';
-      }
-      if (f === 'menggantung' || f === 'pending') {
-        return item.status === 'menggantung' || item.rawStatus === 'pending';
-      }
-      if (f === 'gagal' || f === 'expired') {
-        return item.status === 'gagal' || item.rawStatus === 'expired';
-      }
-      return item.status === f;
-    });
+    if (f !== 'semua' && f !== 'all') {
+      list = list.filter(item => {
+        if (f === 'berhasil' || f === 'settlement') {
+          return item.status === 'berhasil' || item.rawStatus === 'settlement';
+        }
+        if (f === 'menggantung' || f === 'pending') {
+          return item.status === 'menggantung' || item.rawStatus === 'pending';
+        }
+        if (f === 'gagal' || f === 'expired') {
+          return item.status === 'gagal' || item.rawStatus === 'expired';
+        }
+        return item.status === f;
+      });
+    }
+
+    if (this.reconcileDateRange && this.reconcileDateRange !== 'all') {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const yesterdayStart = todayStart - 86400000;
+      const last7DaysStart = todayStart - (7 * 86400000);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+      list = list.filter(item => {
+        const itemTime = Number(item.timestamp || item.time || (item.createdAt ? new Date(item.createdAt).getTime() : 0));
+        if (!itemTime) return true;
+        if (this.reconcileDateRange === 'today') return itemTime >= todayStart;
+        if (this.reconcileDateRange === 'yesterday') return itemTime >= yesterdayStart && itemTime < todayStart;
+        if (this.reconcileDateRange === 'last7days') return itemTime >= last7DaysStart;
+        if (this.reconcileDateRange === 'month') return itemTime >= monthStart;
+        return true;
+      });
+    }
+
+    return list;
   },
 
   /**
@@ -3092,10 +3171,10 @@ window.kasirApp = () => ({
     // Timeout safety 5 detik agar state loading tidak gantung
     const invTimeout = setTimeout(() => {
       if (this.loadingStates && this.loadingStates.inventory) {
-        console.warn('Inventory loading timeout 10s, unlocking loading state');
+        console.warn('Inventory loading timeout 5s, unlocking loading state');
         this.loadingStates.inventory = false;
       }
-    }, 10000);
+    }, 5000);
 
     try {
       if (this._fbDb && this._fbOnValue && this._fbRef) {
@@ -3122,17 +3201,19 @@ window.kasirApp = () => ({
       }
 
       const res = await fetch('/inventory');
-if (res.ok) {
-  const contentType = res.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    const json = await res.json();
-    if (Array.isArray(json.data) && json.data.length > 0) {
-      this.inventoryList = json.data;
-    }
-  } else {
-    console.warn('[INVENTORY] Endpoint /inventory returned non-JSON (likely 404). Using Firebase/local fallback.');
-  }
-}
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          try {
+            const json = await res.json();
+            if (Array.isArray(json.data) && json.data.length > 0) {
+              this.inventoryList = json.data;
+            }
+          } catch (jsonErr) {
+            console.warn('Gagal parse JSON dari /inventory:', jsonErr);
+          }
+        }
+      }
 
       // Restore dari localStorage jika kosong
       if (!this.inventoryList || this.inventoryList.length === 0) {
@@ -3180,7 +3261,7 @@ if (res.ok) {
   /**
    * Update stok & harga beli item inventori & catat log aktivitas
    */
-  async updateStok(itemId, newStok, keterangan) {
+  async updateStok(itemId, newStok, keterangan, changeType = 'adjustment') {
     const numStok = Number(newStok);
     if (isNaN(numStok) || numStok < 0) {
       this.showToast('Jumlah stok harus angka valid >= 0', 'error');
@@ -3201,7 +3282,8 @@ if (res.ok) {
       new: numStok,
       diff: numStok - oldStok,
       by: kasirUsername,
-      note: keterangan || 'Penyesuaian stok kasir'
+      reason: keterangan || 'Penyesuaian stok kasir',
+      changeType: changeType || 'adjustment'
     };
 
     try {
@@ -3220,7 +3302,7 @@ if (res.ok) {
       });
 
       // 3. Realtime database sync
-        if (this._fbDb && this._fbSet && this._fbRef) {
+      if (this._fbDb && this._fbSet && this._fbRef) {
         try {
           const stockRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
           await this._fbSet(stockRef, JSON.parse(JSON.stringify({
@@ -3261,111 +3343,390 @@ if (res.ok) {
   },
 
   /**
-   * Tambah item inventori baru dengan validasi dan status countable/uncountable
+   * Helper auto-jurnal pembelian bahan
    */
-  async tambahItemInventory(form) {
-    const nama = form.nama || form.name;
-    const stok = form.stok !== undefined ? form.stok : form.stock;
-    const min = form.min !== undefined ? form.min : form.minStock;
-    const unit = form.unit;
-    const purchasePrice = form.purchasePrice !== undefined ? form.purchasePrice : (form.hargaBeli || 0);
-    const isCountable = form.isCountable !== undefined ? form.isCountable : true;
+  async autoCreatePurchaseJournal({ date, desc, amount, paymentMethod = 'cash', ref = '' }) {
+    if (!amount || amount <= 0) return;
+    const dateStr = date || new Date().toISOString().slice(0, 10);
+    const journalId = 'JRN-' + Date.now();
+    const refStr = ref || ('INV-' + dateStr.replace(/-/g, '') + '-' + Math.random().toString(36).substring(2, 6).toUpperCase());
 
-    if (!nama || stok === undefined || min === undefined || !unit) {
-      this.showToast('Nama, Stok, Batas Minimum, dan Satuan wajib diisi', 'error');
-      return false;
+    let creditAcc = '1001';
+    let creditAccName = 'Kas di Tangan';
+    const pm = String(paymentMethod).toLowerCase();
+    if (pm === 'transfer' || pm === 'bank' || pm === 'bca') {
+      creditAcc = '1002';
+      creditAccName = 'Kas di Bank BCA';
+    } else if (pm === 'payable' || pm === 'hutang' || pm === 'kredit') {
+      creditAcc = '2001';
+      creditAccName = 'Hutang Usaha Supplier';
     }
 
-    const itemId = 'inv_' + Date.now();
-    const newItem = {
-      id: itemId,
-      name: String(nama).trim(),
-      category: form.category || 'Bahan Baku',
-      stock: Number(stok) || 0,
-      minStock: Number(min) || 5,
-      unit: String(unit).trim(),
-      purchasePrice: Number(purchasePrice) || 0,
-      isCountable: Boolean(isCountable)
+    const journalPayload = {
+      id: journalId,
+      date: dateStr,
+      category: 'pembelian',
+      desc: desc || `Pembelian bahan baku`,
+      ref: refStr,
+      status: 'approved',
+      timestamp: Date.now(),
+      lines: [
+        { acc: '1004', name: 'Persediaan Bahan Baku', debit: Number(amount), credit: 0 },
+        { acc: creditAcc, name: creditAccName, debit: 0, credit: Number(amount) }
+      ]
     };
 
     try {
-      // POST /inventory/{itemId}
-      await fetch(`/inventory/${encodeURIComponent(itemId)}`, {
+      await fetch(`/accounting/journal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newItem)
+        body: JSON.stringify(journalPayload)
       });
-
-      if (this._fbDb && this._fbSet && this._fbRef) {
-        try {
-          const cleanItem = JSON.parse(JSON.stringify(newItem));
-          const itemRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
-          await this._fbSet(itemRef, cleanItem);
-        } catch (fbErr) {
-          console.warn('Firebase item sync warning:', fbErr);
-        }
-      }
-
-      this.inventoryList.unshift(newItem);
-      try {
-        localStorage.setItem('dapur_inventory_list', JSON.stringify(this.inventoryList));
-      } catch (e) {}
-
-      this.showToast(`Item "${newItem.name}" berhasil ditambahkan ke inventori`, 'success');
-      this.addInventoryModal = false;
-      this.newInventoryForm = { nama: '', category: 'Bahan Baku', stok: 10, min: 5, unit: 'kg', purchasePrice: 0, isCountable: true };
-      return true;
-    } catch (err) {
-      console.error('Gagal tambah item inventory:', err);
-      this.showToast('Gagal menambahkan item inventori', 'error');
-      return false;
+      console.log('[KASIR-APP] Auto-generated purchase journal:', journalPayload);
+    } catch (e) {
+      console.warn('[KASIR-APP] Auto purchase journal note:', e);
     }
   },
 
   /**
-   * Hapus item inventori
+   * Helper auto-jurnal bahan rusak / expired (waste)
    */
-  async hapusItemInventory(itemId) {
-    const item = this.inventoryList.find(i => i.id === itemId);
-    const itemName = item ? item.name : itemId;
-    if (!confirm(`Hapus item inventori "${itemName}"? Tindakan ini tidak dapat dibatalkan.`)) {
+  async autoCreateWasteJournal({ date, desc, amount, ref = '' }) {
+    if (!amount || amount <= 0) return;
+    const dateStr = date || new Date().toISOString().slice(0, 10);
+    const journalId = 'JRN-' + Date.now();
+    const refStr = ref || ('WST-' + dateStr.replace(/-/g, '') + '-' + Math.random().toString(36).substring(2, 6).toUpperCase());
+
+    const journalPayload = {
+      id: journalId,
+      date: dateStr,
+      category: 'penyesuaian',
+      desc: desc || `Bahan baku rusak / expired (waste)`,
+      ref: refStr,
+      status: 'approved',
+      timestamp: Date.now(),
+      lines: [
+        { acc: '6005', name: 'Beban Operasional & Kerugian Bahan', debit: Number(amount), credit: 0 },
+        { acc: '1004', name: 'Persediaan Bahan Baku', debit: 0, credit: Number(amount) }
+      ]
+    };
+
+    try {
+      await fetch(`/accounting/journal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(journalPayload)
+      });
+      console.log('[KASIR-APP] Auto-generated waste journal:', journalPayload);
+    } catch (e) {
+      console.warn('[KASIR-APP] Auto waste journal note:', e);
+    }
+  },
+
+  /**
+   * Riwayat Transaksi Modal Helpers
+   */
+  async openTransactionHistoryModal() {
+    this.showTxHistoryModal = true;
+    await this.loadTransactionHistory(this.txHistoryDate || new Date().toISOString().slice(0, 10));
+  },
+
+  async loadTransactionHistory(dateStr) {
+    const targetDate = dateStr || this.txHistoryDate || new Date().toISOString().slice(0, 10);
+    this.txHistoryDate = targetDate;
+    this.txHistoryLoading = true;
+    try {
+      const res = await fetch(`/pos/transactions/${targetDate}`);
+      if (res.ok) {
+        const json = await res.json();
+        this.txHistoryList = Array.isArray(json.data) ? json.data : (json.transactions ? Object.values(json.transactions) : []);
+      } else {
+        this.txHistoryList = [];
+      }
+    } catch (e) {
+      console.warn('Load tx history note:', e);
+      this.txHistoryList = [];
+    } finally {
+      this.txHistoryLoading = false;
+    }
+  },
+
+  filteredTxHistory() {
+    let list = this.txHistoryList || [];
+    if (this.txHistoryPaymentFilter && this.txHistoryPaymentFilter !== 'all') {
+      list = list.filter(t => (t.pm || t.paymentMethod || '').toLowerCase() === this.txHistoryPaymentFilter.toLowerCase());
+    }
+    if (this.txHistorySearch) {
+      const q = this.txHistorySearch.toLowerCase().trim();
+      list = list.filter(t => 
+        (t.id || '').toLowerCase().includes(q) ||
+        (t.customer || t.cust || '').toLowerCase().includes(q) ||
+        String(t.total || t.amount || '').includes(q)
+      );
+    }
+    return list;
+  },
+
+  /**
+   * Pembelian Bahan Baku Module Methods
+   */
+  onPembelianItemChange() {
+    const it = this.inventoryList.find(i => i.id === this.pembelianForm.itemId);
+    if (it) {
+      this.pembelianForm.unit = it.unit || 'kg';
+      this.pembelianForm.purchasePrice = Number(it.purchasePrice || it.hargaBeli || 0);
+    }
+  },
+
+  async submitPembelianBahan() {
+    const { date, supplier, itemId, qty, purchasePrice, paymentMethod, notes } = this.pembelianForm;
+    if (!itemId) {
+      this.showToast('Pilih bahan baku yang dibeli', 'error');
+      return;
+    }
+    const numQty = Number(qty) || 0;
+    if (numQty <= 0) {
+      this.showToast('Jumlah qty masuk harus lebih dari 0', 'error');
+      return;
+    }
+    const numPrice = Number(purchasePrice) || 0;
+    if (numPrice <= 0) {
+      this.showToast('Harga beli per unit harus valid (> 0)', 'error');
+      return;
+    }
+    const reasonNotes = String(notes || '').trim();
+    if (reasonNotes.length < 5) {
+      this.showToast('Catatan/Alasan pembelian wajib diisi (minimal 5 karakter)', 'error');
       return;
     }
 
+    const item = this.inventoryList.find(i => i.id === itemId);
+    if (!item) {
+      this.showToast('Item inventori tidak ditemukan', 'error');
+      return;
+    }
+
+    const totalBeli = numQty * numPrice;
+    const oldStock = Number(item.stock || item.stok || 0);
+    const newStock = oldStock + numQty;
+    const dateStr = date || new Date().toISOString().slice(0, 10);
+    const refNumber = 'INV-' + dateStr.replace(/-/g, '') + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const logId = 'log_' + Date.now();
+    const kasirName = this.kasirInfo?.name || this.kasirInfo?.username || 'kasir';
+
     try {
-      // DELETE /inventory/{itemId}
+      // 1. Update /inventory/{itemId}
       await fetch(`/inventory/${encodeURIComponent(itemId)}`, {
-        method: 'DELETE'
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stock: newStock,
+          stok: newStock,
+          purchasePrice: numPrice,
+          lastUpdate: Date.now()
+        })
       });
+
+      // 2. Log ke /inventory_logs/{itemId}/{logId}
+      const logPayload = {
+        t: Date.now(),
+        old: oldStock,
+        new: newStock,
+        diff: numQty,
+        by: `${kasirName} (Beli: ${supplier || 'Supplier'})`,
+        reason: reasonNotes,
+        changeType: 'purchase'
+      };
+
+      await fetch(`/inventory_logs/${encodeURIComponent(itemId)}/${encodeURIComponent(logId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(logPayload)
+      });
+
+      // 3. Simpan record riwayat pembelian
+      const purchaseRecord = {
+        id: refNumber,
+        date: dateStr,
+        timestamp: Date.now(),
+        itemId: item.id,
+        itemName: item.name,
+        category: item.category,
+        supplier: supplier || 'Supplier Umum',
+        qty: numQty,
+        unit: item.unit,
+        purchasePrice: numPrice,
+        total: totalBeli,
+        paymentMethod: paymentMethod || 'cash',
+        notes: reasonNotes,
+        kasir: kasirName
+      };
 
       if (this._fbDb && this._fbSet && this._fbRef) {
         try {
-          const itemRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
-          await this._fbSet(itemRef, null);
-        } catch (fbErr) {
-          console.warn('Firebase delete item warning:', fbErr);
-        }
+          const pRef = this._fbRef(this._fbDb, `purchases/${dateStr.slice(0, 7)}/${refNumber}`);
+          await this._fbSet(pRef, purchaseRecord);
+        } catch (e) {}
       }
 
-      this.inventoryList = this.inventoryList.filter(i => i.id !== itemId);
-      this.showToast(`Item "${itemName}" berhasil dihapus`, 'notify');
+      // 4. Auto create Accounting Journal
+      await this.autoCreatePurchaseJournal({
+        date: dateStr,
+        desc: `Pembelian ${item.name} ${numQty} ${item.unit} dari ${supplier || 'Supplier'}`,
+        amount: totalBeli,
+        paymentMethod: paymentMethod,
+        ref: refNumber
+      });
+
+      // Update local item
+      item.stock = newStock;
+      item.stok = newStock;
+      item.purchasePrice = numPrice;
+
+      // Update pembelian list
+      this.pembelianList.unshift(purchaseRecord);
+      try {
+        localStorage.setItem('dapur_purchases_' + dateStr.slice(0, 7), JSON.stringify(this.pembelianList));
+      } catch (e) {}
+
+      this.showToast(`Pembelian ${item.name} (${numQty} ${item.unit}) berhasil dicatat & jurnal terbit!`, 'success');
+
+      // Reset form
+      this.pembelianForm = {
+        date: new Date().toISOString().slice(0, 10),
+        supplier: '',
+        itemId: '',
+        qty: 1,
+        unit: '',
+        purchasePrice: 0,
+        total: 0,
+        paymentMethod: 'cash',
+        notes: '',
+        receiptImage: ''
+      };
+
+      await this.loadInventory();
     } catch (err) {
-      console.error('Gagal hapus item inventory:', err);
-      this.showToast('Gagal menghapus item inventori', 'error');
+      console.error('Gagal simpan pembelian:', err);
+      this.showToast('Gagal memproses pembelian bahan', 'error');
     }
+  },
+
+  async loadRiwayatPembelian() {
+    this.loadingPembelian = true;
+    try {
+      const month = (this.pembelianDateFilter || new Date().toISOString().slice(0, 7)).slice(0, 7);
+      if (this._fbDb && this._fbRef && this._fbGet) {
+        const pRef = this._fbRef(this._fbDb, `purchases/${month}`);
+        const snap = await this._fbGet(pRef);
+        if (snap.exists()) {
+          const val = snap.val();
+          this.pembelianList = Object.values(val).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        } else {
+          this.pembelianList = [];
+        }
+      } else {
+        const saved = localStorage.getItem('dapur_purchases_' + month);
+        if (saved) {
+          this.pembelianList = JSON.parse(saved);
+        } else {
+          this.pembelianList = [];
+        }
+      }
+    } catch (e) {
+      console.warn('Load pembelian note:', e);
+    } finally {
+      this.loadingPembelian = false;
+    }
+  },
+
+  filteredPembelianList() {
+    let list = this.pembelianList || [];
+    if (this.pembelianDateFilter) {
+      list = list.filter(p => p.date === this.pembelianDateFilter);
+    }
+    if (this.pembelianSearch) {
+      const q = this.pembelianSearch.toLowerCase().trim();
+      list = list.filter(p => 
+        (p.itemName || '').toLowerCase().includes(q) ||
+        (p.supplier || '').toLowerCase().includes(q) ||
+        (p.notes || '').toLowerCase().includes(q) ||
+        (p.id || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  },
+
+  exportPembelianCSV() {
+    const list = this.filteredPembelianList();
+    if (list.length === 0) {
+      this.showToast('Tidak ada data pembelian untuk diexport', 'notify');
+      return;
+    }
+    let csv = 'ID,Tanggal,Bahan Baku,Kategori,Supplier,Qty,Satuan,Harga Beli (Rp),Total (Rp),Metode Bayar,Catatan,Kasir\n';
+    list.forEach(p => {
+      csv += `"${p.id}","${p.date}","${p.itemName}","${p.category}","${p.supplier}",${p.qty},"${p.unit}",${p.purchasePrice},${p.total},"${p.paymentMethod}","${(p.notes || '').replace(/"/g, '""')}","${p.kasir}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `pembelian_bahan_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    this.showToast('CSV riwayat pembelian berhasil didownload', 'success');
   },
 
   openEditStockModal(item) {
     if (!item) return;
-    this.selectedStockItem = item;
+    this.selectedStockItem = {
+      id: item.id || '',
+      name: item.name || '',
+      category: item.category || 'Bahan Baku',
+      stock: Number(item.stock || item.stok || 0),
+      minStock: Number(item.minStock || 0),
+      unit: item.unit || 'unit',
+      purchasePrice: item.purchasePrice !== undefined ? Number(item.purchasePrice) : 0,
+      isCountable: item.isCountable !== false
+    };
     this.newStockValue = Number(item.stock || item.stok || 0);
-    this.stockChangeReason = 'Penyesuaian stok harian';
+    this.stockChangeType = 'adjustment';
+    this.stockChangePaymentMethod = 'cash';
+    this.stockChangeReason = '';
     this.editStockModal = true;
   },
 
-  submitEditStock() {
+  async submitEditStock() {
     if (!this.selectedStockItem) return;
-    return this.updateStok(this.selectedStockItem.id, this.newStockValue, this.stockChangeReason);
+    const reason = String(this.stockChangeReason || '').trim();
+    if (reason.length < 5) {
+      this.showToast('Alasan perubahan stok wajib diisi minimal 5 karakter', 'error');
+      return;
+    }
+
+    const item = this.inventoryList.find(i => i.id === this.selectedStockItem.id);
+    const oldStok = item ? Number(item.stock || item.stok || 0) : 0;
+    const diff = Number(this.newStockValue) - oldStok;
+    const price = Number(this.selectedStockItem.purchasePrice || item?.purchasePrice || 0);
+    const totalValue = Math.abs(diff) * price;
+
+    if (this.stockChangeType === 'purchase' && diff > 0 && totalValue > 0) {
+      await this.autoCreatePurchaseJournal({
+        date: new Date().toISOString().slice(0, 10),
+        desc: `Restock/Pembelian: ${this.selectedStockItem.name} ${diff} ${this.selectedStockItem.unit}`,
+        amount: totalValue,
+        paymentMethod: this.stockChangePaymentMethod || 'cash'
+      });
+    } else if (this.stockChangeType === 'waste' && diff < 0 && totalValue > 0) {
+      await this.autoCreateWasteJournal({
+        date: new Date().toISOString().slice(0, 10),
+        desc: `Bahan rusak/expired: ${this.selectedStockItem.name} ${Math.abs(diff)} ${this.selectedStockItem.unit}`,
+        amount: totalValue
+      });
+    }
+
+    return this.updateStok(this.selectedStockItem.id, this.newStockValue, reason, this.stockChangeType);
   },
 
   async toggleCountable(item) {
@@ -3384,6 +3745,22 @@ if (res.ok) {
     }
   },
 
+  /**
+   * Ambil saldo kas tunai aktif saat ini
+   */
+  getCashInHand() {
+    const startCash = Number(this.shiftSummary?.startCash !== undefined ? this.shiftSummary.startCash : 200000);
+    const cashSales = Number(this.shiftSummary?.cashSales || 0);
+    const cashExpenses = Number(this.shiftSummary?.cashExpenses || 0);
+    const shiftCash = Math.max(0, startCash + cashSales - cashExpenses);
+    
+    if (this.accountingSummaryData && this.accountingSummaryData.saldoKas !== undefined) {
+      const acctKas = Math.max(0, Number(this.accountingSummaryData.saldoKas));
+      if (acctKas > 0 && shiftCash === 0) return acctKas;
+    }
+    return shiftCash;
+  },
+
   openAddInventoryModal() {
     this.newInventoryForm = {
       nama: '',
@@ -3391,13 +3768,142 @@ if (res.ok) {
       stok: 10,
       min: 5,
       unit: 'kg',
+      purchasePrice: 0,
       isCountable: true
     };
     this.addInventoryModal = true;
   },
 
-  submitAddInventory() {
-    return this.tambahItemInventory(this.newInventoryForm);
+  async submitAddInventory() {
+    return await this.tambahItemInventory(this.newInventoryForm);
+  },
+
+  /**
+   * Tambah item inventori baru dengan validasi saldo kas tunai otomatis
+   */
+  async tambahItemInventory(form) {
+    if (!form || !form.nama || !form.nama.trim()) {
+      this.showToast('Nama item/bahan baku wajib diisi', 'error');
+      return false;
+    }
+
+    const itemName = form.nama.trim();
+    const stokAwal = Math.max(0, Number(form.stok) || 0);
+    const minStok = Math.max(0, Number(form.min) || 0);
+    const hargaBeli = Math.max(0, Number(form.purchasePrice) || 0);
+    const totalCost = Math.round(stokAwal * hargaBeli);
+    const availableCash = this.getCashInHand();
+
+    // 1. Validasi saldo kas tunai jika ada nilai modal pembelian (> 0)
+    if (totalCost > 0 && availableCash < totalCost) {
+      this.insufficientCashInfo = {
+        itemName: itemName,
+        totalCost: totalCost,
+        availableCash: availableCash,
+        shortfall: totalCost - availableCash
+      };
+      this.insufficientCashModal = true;
+      this.playSound('error');
+      return false;
+    }
+
+    // 2. Jika dana kas tunai cukup & totalCost > 0: Kurangi saldo kas tunai dan catat jurnal
+    if (totalCost > 0) {
+      this.shiftSummary.cashExpenses = (this.shiftSummary.cashExpenses || 0) + totalCost;
+      if (this.accountingSummaryData && this.accountingSummaryData.saldoKas !== undefined) {
+        this.accountingSummaryData.saldoKas = Math.max(0, Number(this.accountingSummaryData.saldoKas) - totalCost);
+      }
+      
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const refNumber = 'INV-' + dateStr.replace(/-/g, '') + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      
+      await this.autoCreatePurchaseJournal({
+        date: dateStr,
+        desc: `Pembelian Bahan Baru: ${itemName} (${stokAwal} ${form.unit || 'kg'})`,
+        amount: totalCost,
+        paymentMethod: 'cash',
+        ref: refNumber
+      });
+    }
+
+    // 3. Buat objek item inventori baru
+    const newItemId = 'inv_' + Date.now();
+    const newItem = {
+      id: newItemId,
+      name: itemName,
+      category: form.category || 'Bahan Baku',
+      stock: stokAwal,
+      stok: stokAwal,
+      minStock: minStok,
+      unit: form.unit || 'kg',
+      purchasePrice: hargaBeli,
+      isCountable: form.isCountable !== false,
+      lastUpdate: Date.now(),
+      createdAt: Date.now()
+    };
+
+    try {
+      // Simpan lokal
+      this.inventoryList.push(newItem);
+      try {
+        localStorage.setItem('dapur_inventory_list', JSON.stringify(this.inventoryList));
+      } catch (e) {}
+
+      // Simpan ke server
+      fetch(`/inventory/${encodeURIComponent(newItemId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newItem)
+      }).catch(e => console.warn('POST /inventory note:', e));
+
+      // Simpan ke Firebase
+      if (this._fbDb && this._fbSet && this._fbRef) {
+        try {
+          const itemRef = this._fbRef(this._fbDb, `inventory/${newItemId}`);
+          await this._fbSet(itemRef, newItem);
+
+          const logId = 'log_' + Date.now();
+          const logRef = this._fbRef(this._fbDb, `inventory_logs/${newItemId}/${logId}`);
+          await this._fbSet(logRef, {
+            t: Date.now(),
+            old: 0,
+            new: stokAwal,
+            diff: stokAwal,
+            by: this.kasirInfo?.name || this.kasirInfo?.username || 'kasir',
+            reason: totalCost > 0 ? `Input bahan baru (Total beli: Rp ${this.formatNumber(totalCost)})` : 'Input bahan baru awal',
+            changeType: totalCost > 0 ? 'purchase' : 'adjustment'
+          });
+        } catch (fbErr) {
+          console.warn('Firebase inventory save note:', fbErr);
+        }
+      }
+
+      if (totalCost > 0) {
+        this.showToast(`Bahan "${itemName}" berhasil ditambah! Kas terpotong ${this.formatRupiah(totalCost)}`, 'success');
+      } else {
+        this.showToast(`Bahan "${itemName}" berhasil ditambahkan ke inventori`, 'success');
+      }
+      this.playSound('success');
+
+      // Tutup modal form & reset
+      this.addInventoryModal = false;
+      this.newInventoryForm = {
+        nama: '',
+        category: 'Bahan Baku',
+        stok: 10,
+        min: 5,
+        unit: 'kg',
+        purchasePrice: 0,
+        isCountable: true
+      };
+
+      await this.loadInventory();
+      return true;
+    } catch (err) {
+      console.error('Gagal menambah inventory:', err);
+      this.showToast('Gagal menambahkan item inventori', 'error');
+      return false;
+    }
   },
 
   filteredInventoryList() {
@@ -3440,7 +3946,11 @@ if (res.ok) {
     
     this.recipeForm = {
       menuId: menu.id,
-      menuName: menu.name,
+      menuName: menu.name || '',
+      category: menu.category || 'rice_bowl',
+      price: Number(menu.price) || 0,
+      desc: menu.desc || '',
+      showOnMain: menu.showOnMain !== false,
       ingredients: JSON.parse(JSON.stringify(existingRecipe.ingredients || []))
     };
     this.productModal = true;
@@ -3450,11 +3960,11 @@ if (res.ok) {
    * Tambah baris bahan baku ke formulasi produk
    */
   addIngredientRow() {
-    const firstItem = this.inventoryList[0] || { id: 'inv1', unit: 'gram' };
+    const firstItem = (this.inventoryList && this.inventoryList[0]) ? this.inventoryList[0] : { id: 'inv1', unit: 'kg' };
     this.recipeForm.ingredients.push({
       itemId: firstItem.id,
-      amount: 100,
-      unit: firstItem.unit || 'gram'
+      amount: firstItem.unit === 'kg' ? 0.1 : 1,
+      unit: firstItem.unit || 'kg'
     });
   },
 
@@ -3466,41 +3976,106 @@ if (res.ok) {
   },
 
   /**
+   * Helper auto-set unit saat item bahan baku diganti
+   */
+  onRecipeItemChange(ing) {
+    if (!ing || !ing.itemId) return;
+    const item = (this.inventoryList || []).find(i => i.id === ing.itemId);
+    if (item && item.unit) {
+      ing.unit = item.unit;
+    }
+  },
+
+  /**
    * Simpan formulasi resep produk ke server
    */
   async saveProductRecipe() {
     if (!this.recipeForm.menuId) return;
     try {
-      this.menuRecipes[this.recipeForm.menuId] = {
-        menuId: this.recipeForm.menuId,
-        ingredients: this.recipeForm.ingredients
+      const menuId = this.recipeForm.menuId;
+      const updatedName = (this.recipeForm.menuName || '').trim() || 'Menu';
+      const updatedCategory = this.recipeForm.category || 'rice_bowl';
+      const updatedPrice = Number(this.recipeForm.price) || 0;
+      const updatedDesc = this.recipeForm.desc || '';
+      const updatedShowOnMain = this.recipeForm.showOnMain !== false;
+
+      // 1. Update menu item in local menuList
+      const menuObj = this.menuList.find(m => m.id === menuId);
+      if (menuObj) {
+        menuObj.name = updatedName;
+        menuObj.category = updatedCategory;
+        menuObj.price = updatedPrice;
+        menuObj.desc = updatedDesc;
+        menuObj.showOnMain = updatedShowOnMain;
+      }
+
+      // 2. Filter & format ingredients
+      const rawIngs = Array.isArray(this.recipeForm.ingredients) ? this.recipeForm.ingredients : [];
+      const validIngredients = rawIngs
+        .filter(ing => ing && ing.itemId && Number(ing.amount) > 0)
+        .map(ing => {
+          const invItem = (this.inventoryList || []).find(i => i.id === ing.itemId);
+          return {
+            itemId: ing.itemId,
+            amount: Number(ing.amount) || 0.1,
+            unit: ing.unit || (invItem ? invItem.unit : 'kg')
+          };
+        });
+
+      this.menuRecipes[menuId] = {
+        menuId: menuId,
+        menuName: updatedName,
+        ingredients: validIngredients
       };
 
+      // 3. LocalStorage persistence
       try {
+        localStorage.setItem('dapur_menu_list', JSON.stringify(this.menuList));
+        localStorage.setItem('dapur_menu_items', JSON.stringify(this.menuList));
         localStorage.setItem('dapur_menu_recipes', JSON.stringify(this.menuRecipes));
       } catch (e) {}
 
+      // 4. API & Firebase persistence
+      fetch(`/menu/${encodeURIComponent(menuId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: updatedName,
+          category: updatedCategory,
+          price: updatedPrice,
+          desc: updatedDesc,
+          showOnMain: updatedShowOnMain
+        })
+      }).catch(e => console.warn('Server menu update note:', e));
+
+      fetch(`/inventory/recipes/${encodeURIComponent(menuId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ingredients: validIngredients })
+      }).catch(e => console.warn('Server recipe save note:', e));
+
       if (this._fbDb && this._fbRef && this._fbSet) {
         try {
-          const recipeRef = this._fbRef(this._fbDb, `recipes/${this.recipeForm.menuId}`);
+          const recipeRef = this._fbRef(this._fbDb, `recipes/${menuId}`);
           await this._fbSet(recipeRef, {
-            menuId: this.recipeForm.menuId,
-            ingredients: this.recipeForm.ingredients,
+            menuId: menuId,
+            menuName: updatedName,
+            ingredients: validIngredients,
             updatedAt: new Date().toISOString()
           });
+
+          const menuRef = this._fbRef(this._fbDb, `menu_items/${menuId}`);
+          if (menuObj) {
+            await this._fbSet(menuRef, menuObj);
+          }
         } catch (fbErr) {
           console.warn('Firebase recipe save warning:', fbErr);
         }
       }
 
-      fetch(`/inventory/recipes/${encodeURIComponent(this.recipeForm.menuId)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ingredients: this.recipeForm.ingredients })
-      }).catch(e => console.warn('Server recipe save failover:', e));
-
-      this.showToast(`Bahan baku "${this.recipeForm.menuName}" berhasil disimpan!`, 'success');
+      this.showToast(`Menu & Resep "${updatedName}" berhasil diperbarui!`, 'success');
       this.productModal = false;
+      await this.loadInventory();
     } catch (e) {
       console.error('Save recipe error:', e);
       this.showToast('Gagal menyimpan resep', 'error');
@@ -3600,8 +4175,12 @@ if (res.ok) {
    */
   addNewMenuIngredientRow() {
     if (!this.newMenuForm.ingredients) this.newMenuForm.ingredients = [];
-    const defaultItem = (this.inventoryList && this.inventoryList[0]) ? this.inventoryList[0].id : '';
-    this.newMenuForm.ingredients.push({ itemId: defaultItem, amount: 0.1 });
+    const defaultItem = (this.inventoryList && this.inventoryList[0]) ? this.inventoryList[0] : null;
+    this.newMenuForm.ingredients.push({ 
+      itemId: defaultItem ? defaultItem.id : '', 
+      amount: defaultItem && defaultItem.unit === 'kg' ? 0.1 : 1,
+      unit: defaultItem ? defaultItem.unit : 'kg'
+    });
   },
 
   removeNewMenuIngredientRow(idx) {
@@ -3610,12 +4189,22 @@ if (res.ok) {
     }
   },
 
-  getIngredientCost(itemId, amount) {
+  getIngredientCost(itemId, amount, ingUnit) {
     if (!itemId) return 0;
     const item = (this.inventoryList || []).find(i => i.id === itemId);
     if (!item) return 0;
     const price = Number(item.purchasePrice || item.hargaBeli) || 0;
-    return Math.round((Number(amount) || 0) * price);
+    const numAmount = Number(amount) || 0;
+    const itemUnit = (item.unit || 'kg').toLowerCase().trim();
+    const unit = (ingUnit || item.unit || 'kg').toLowerCase().trim();
+
+    let normalizedAmount = numAmount;
+    if (itemUnit === 'kg' && (unit === 'gram' || unit === 'g' || unit === 'gr')) normalizedAmount = numAmount / 1000;
+    else if ((itemUnit === 'gram' || itemUnit === 'g' || itemUnit === 'gr') && unit === 'kg') normalizedAmount = numAmount * 1000;
+    else if (itemUnit === 'liter' && (unit === 'ml' || unit === 'mililiter')) normalizedAmount = numAmount / 1000;
+    else if ((itemUnit === 'ml' || itemUnit === 'mililiter') && unit === 'liter') normalizedAmount = numAmount * 1000;
+
+    return Math.round(normalizedAmount * price);
   },
 
   calculateNewMenuHPP(ingredients) {
@@ -3623,7 +4212,7 @@ if (res.ok) {
     let totalHPP = 0;
     for (const ing of ingredients) {
       if (ing && ing.itemId) {
-        totalHPP += this.getIngredientCost(ing.itemId, ing.amount);
+        totalHPP += this.getIngredientCost(ing.itemId, ing.amount, ing.unit);
       }
     }
     return totalHPP;
@@ -3681,7 +4270,7 @@ if (res.ok) {
     this.syncCategoriesWithMainStore();
     const availCats = this.getAvailableMenuCategories();
     const defaultCat = (availCats && availCats.length > 0) ? availCats[0].id : 'rice_bowl';
-    const defaultBahan = (this.inventoryList && this.inventoryList[0]) ? this.inventoryList[0].id : '';
+    const defaultItem = (this.inventoryList && this.inventoryList[0]) ? this.inventoryList[0] : null;
     this.newMenuForm = {
       name: '',
       category: defaultCat,
@@ -3690,7 +4279,11 @@ if (res.ok) {
       desc: '',
       image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
       showOnMain: true,
-      ingredients: defaultBahan ? [{ itemId: defaultBahan, amount: 0.1 }] : []
+      ingredients: defaultItem ? [{ 
+        itemId: defaultItem.id, 
+        amount: defaultItem.unit === 'kg' ? 0.1 : 1,
+        unit: defaultItem.unit || 'kg'
+      }] : []
     };
     this.newMenuModal = true;
   },
@@ -4895,58 +5488,41 @@ if (res.ok) {
     };
   },
 
-    getAccountingJournal() {
-    // Ambil dari state yang sudah di-load dari backend
-    const list = Array.isArray(this.accountingJournalList) ? this.accountingJournalList : [];
-    
-    if (list.length === 0) {
-      return []; // Tidak ada dummy — kosong jika backend belum respond
-    }
-    
-    // Helper: normalize 3-digit → 4-digit
-    const normalizeAcc = (c) => {
-      const s = String(c || '').trim();
-      const map = {
-        '101':'1001','102':'1002','103':'1003','105':'1004','106':'1005',
-        '201':'2001','202':'2002','301':'3001','302':'3002','303':'3003',
-        '401':'4001','402':'4002','501':'5001',
-        '601':'6001','602':'6002','603':'6003','604':'6004','605':'6005','606':'6006'
-      };
-      return map[s] || s;
-    };
-    
-    // Helper: nama akun dari COA
-    const getAccName = (code) => {
-      const norm = normalizeAcc(code);
-      const map = {
-        '1001': 'Kas & Bank', '1002': 'Bank BCA', '1003': 'Piutang Usaha',
-        '1004': 'Persediaan Bahan Baku', '1005': 'Peralatan Dapur',
-        '2001': 'Hutang Supplier', '2002': 'Hutang Beban',
-        '3001': 'Modal Pemilik', '3002': 'Laba Ditahan', '3003': 'Prive Pemilik',
-        '4001': 'Pendapatan Penjualan POS', '4002': 'Pendapatan Catering',
-        '5001': 'HPP Bahan Baku',
-        '6001': 'Beban Gaji', '6002': 'Beban Sewa', '6003': 'Beban Listrik',
-        '6004': 'Beban Marketing', '6005': 'Beban Operasional'
-      };
-      return map[norm] || ('Akun ' + norm);
-    };
-    
-    return list.map(j => {
-      const lines = Array.isArray(j.lines) ? j.lines : [];
-      const dLine = lines.find(l => Number(l.debit) > 0);
-      const cLine = lines.find(l => Number(l.credit) > 0);
-      return {
-        date: j.date || '-',
-        ref: j.noEntry || j.ref || j.id || '-',
-        desc: j.desc || '-',
-        debitAccount: dLine ? `${normalizeAcc(dLine.acc)} - ${getAccName(dLine.acc)}` : '-',
-        debitAmount: Number(dLine?.debit) || 0,
-        creditAccount: cLine ? `${normalizeAcc(cLine.acc)} - ${getAccName(cLine.acc)}` : '-',
-        creditAmount: Number(cLine?.credit) || 0,
-        status: j.status || 'approved'
-      };
-    });
+  getAccountingJournal() {
+    const today = new Date().toLocaleDateString('id-ID');
+    const summary = this.getAccountingSummary();
+
+    return [
+      {
+        date: today,
+        ref: 'JU-001',
+        desc: 'Penerimaan Penjualan Kasir POS (Tunai / QRIS)',
+        debitAccount: '101 - Kas & Bank',
+        debitAmount: summary.totalRev,
+        creditAccount: '401 - Pendapatan Penjualan',
+        creditAmount: summary.totalRev
+      },
+      {
+        date: today,
+        ref: 'JU-002',
+        desc: 'Pengakuan HPP Bahan Baku Terpakai Penjualan',
+        debitAccount: '501 - Harga Pokok Penjualan (HPP)',
+        debitAmount: summary.totalCOGS,
+        creditAccount: '103 - Persediaan Bahan Baku',
+        creditAmount: summary.totalCOGS
+      },
+      {
+        date: today,
+        ref: 'JU-003',
+        desc: 'Pengakuan Beban Operasional Dapur & Utility',
+        debitAccount: '601 - Beban Operasional & Listrik',
+        debitAmount: summary.totalOpEx,
+        creditAccount: '101 - Kas & Bank',
+        creditAmount: summary.totalOpEx
+      }
+    ];
   },
+
   // -------------------------------------------------------------------------
   // 14.8.1 INPUT JURNAL MANUAL, DOUBLE-ENTRY, APPROVAL & AUTO-UPDATE LEDGER
   // -------------------------------------------------------------------------
@@ -5375,68 +5951,8 @@ if (res.ok) {
       console.error('Error load journal list:', err);
     }
   },
-      async loadCOAListFromBackend() {
-      try {
-        this.coaListBackendLoading = true;
-        const res = await fetch('/accounting/coa');
-        if (!res.ok) {
-          console.warn('[KASIR-COA] HTTP', res.status);
-          this.coaListBackendLoading = false;
-          return;
-        }
-        const json = await res.json();
-        
-        if (json.success && json.data) {
-          let list = [];
-          if (Array.isArray(json.data)) {
-            list = json.data;
-          } else {
-            list = Object.entries(json.data).map(([code, v]) => ({
-              code,
-              name: v.n || v.name || code,
-              type: v.t || v.type || 'Aset'
-            }));
-          }
-          
-          const summary = this.accountingSummaryData || {};
-          const saldoMap = {
-            '1001': Number(summary.saldoKas) || 0,
-            '1002': Number(summary.saldoBank) || 0,
-            '1003': Number(summary.piutang) || 0,
-            '1004': Number(summary.persediaanAkhir) || 0,
-            '1005': 0,
-            '2001': Number(summary.hutangSupplier) || 0,
-            '2002': Number(summary.hutangBeban) || 0,
-            '3001': Number(summary.modalPemilik) || 0,
-            '3002': Number(summary.labaDitahan) || 0,
-            '3003': Number(summary.prive) || 0,
-            '4001': Number(summary.pendapatan?.penjualanPos) || 0,
-            '4002': Number(summary.pendapatan?.penjualanCatering) || 0,
-            '5001': Number(summary.hpp?.totalHpp) || 0,
-            '6001': Number(summary.beban?.gaji) || 0,
-            '6002': Number(summary.beban?.sewa) || 0,
-            '6003': Number(summary.beban?.utilitas) || 0,
-            '6004': Number(summary.beban?.marketing) || 0,
-            '6005': Number(summary.beban?.operasional) || 0
-          };
-          
-          list.forEach(item => {
-            item.saldo = saldoMap[item.code] || 0;
-          });
-          
-          list.sort((a, b) => String(a.code).localeCompare(String(b.code)));
-          
-          this.coaListBackend = list;
-          console.log(`[KASIR-COA] Loaded ${list.length} accounts`);
-        }
-      } catch (err) {
-        console.error('[KASIR-COA] Fetch error:', err);
-      } finally {
-        this.coaListBackendLoading = false;
-      }
-    },
 
-    filteredApprovals() {
+  filteredApprovals() {
     let list = Array.isArray(this.pendingApprovals) ? this.pendingApprovals : [];
     if (this.approvalFilter && this.approvalFilter !== 'all') {
       list = list.filter(a => a.status === this.approvalFilter);

@@ -28,11 +28,6 @@ export async function onRequest(context) {
   // Ekstrak path setelah /pos/
   const fullPath = url.pathname.replace(/^\/pos\/?/, '');
   const parts = fullPath.split('/').filter(Boolean);
-  
-  // ✅ Fix: kalau path kosong, serve static HTML
-  if (parts.length === 0) {
-    return context.next();
-  }
 
   try {
     if (parts.length === 0) {

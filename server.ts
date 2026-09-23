@@ -492,43 +492,121 @@ app.post(['/inventory_logs/:itemId/:logId', '/api/inventory_logs/:itemId/:logId'
   }
 });
 
+let inventoryDeductedStore: Record<string, any> = {};
+
 app.post(['/inventory/deduct', '/api/inventory/deduct'], (req, res) => {
   try {
-    const { items = [] } = req.body || {};
+    const { orderId = ('ORD-' + Date.now()), kasir = 'kasir', items = [] } = req.body || {};
     
+    if (inventoryDeductedStore[orderId]) {
+      return res.json({
+        success: true,
+        orderId,
+        alreadyProcessed: true,
+        message: `Order #${orderId} sudah pernah diproses pengurangan stok.`,
+        processedAt: inventoryDeductedStore[orderId].timestamp || Date.now()
+      });
+    }
+
+    const deducted: any[] = [];
+    const warnings: string[] = [];
+    const now = Date.now();
+
     // Kurangi stok bahan baku berdasarkan formulasi resep jika terdaftar
     for (const orderItem of items) {
-      const menuId = orderItem.id;
+      const menuId = orderItem.id || orderItem.menuId;
       const qty = Number(orderItem.qty) || 1;
       const recipe = menuRecipesStore[menuId];
       
-      if (recipe && Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0) {
-        for (const ing of recipe.ingredients) {
-          const inv = posInventory.find(i => i.id === ing.itemId);
-          if (inv && inv.isCountable !== false) {
-            const reqAmt = Number(ing.amount) || 0;
-            const itemUnit = (inv.unit || '').toLowerCase();
-            const ingUnit = (ing.unit || '').toLowerCase();
-            
-            let deduction = reqAmt * qty;
-            if (itemUnit === 'kg' && ingUnit === 'gram') deduction = deduction / 1000;
-            else if (itemUnit === 'gram' && ingUnit === 'kg') deduction = deduction * 1000;
-            else if (itemUnit === 'liter' && ingUnit === 'ml') deduction = deduction / 1000;
-            else if (itemUnit === 'ml' && ingUnit === 'liter') deduction = deduction * 1000;
+      if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+        warnings.push(`Resep untuk menu "${orderItem.name || menuId}" belum diatur`);
+        continue;
+      }
 
-            inv.stock = Math.max(0, Math.round((inv.stock - deduction) * 1000) / 1000);
+      for (const ing of recipe.ingredients) {
+        const inv = posInventory.find(i => i.id === ing.itemId);
+        if (!inv) {
+          warnings.push(`Bahan baku "${ing.itemId}" tidak ditemukan di inventori`);
+          continue;
+        }
+
+        if (inv.isCountable !== false) {
+          const reqAmt = Number(ing.amount) || 0;
+          const itemUnit = (inv.unit || '').toLowerCase();
+          const ingUnit = (ing.unit || '').toLowerCase();
+          
+          let deduction = reqAmt * qty;
+          if (itemUnit === 'kg' && ingUnit === 'gram') deduction = deduction / 1000;
+          else if (itemUnit === 'gram' && ingUnit === 'kg') deduction = deduction * 1000;
+          else if (itemUnit === 'liter' && ingUnit === 'ml') deduction = deduction / 1000;
+          else if (itemUnit === 'ml' && ingUnit === 'liter') deduction = deduction * 1000;
+
+          const oldStock = inv.stock;
+          let newStock = Math.round((inv.stock - deduction) * 1000) / 1000;
+          if (newStock < 0) {
+            warnings.push(`Stok ${inv.name} tidak cukup (sisa ${oldStock}, butuh ${deduction})`);
+            newStock = 0;
           }
+          inv.stock = newStock;
+
+          const logId = 'log_' + now + '_' + Math.random().toString(36).substring(2, 6);
+          const logData = {
+            t: now,
+            old: oldStock,
+            new: newStock,
+            diff: -deduction,
+            by: `${kasir} (POS #${orderId})`,
+            reason: 'Penjualan POS',
+            changeType: 'auto-pos-sale'
+          };
+          if (!inventoryLogsStore[inv.id]) inventoryLogsStore[inv.id] = [];
+          inventoryLogsStore[inv.id].unshift({ id: logId, itemId: inv.id, ...logData });
+
+          deducted.push({
+            itemId: inv.id,
+            name: inv.name,
+            before: oldStock,
+            after: newStock,
+            used: deduction,
+            unit: inv.unit
+          });
         }
       }
     }
 
-    // Default kemasan paper bowl
+    // Default kemasan paper bowl jika ada
     const bowl = posInventory.find(i => i.id === 'inv7');
-    if (bowl) bowl.stock = Math.max(0, bowl.stock - items.length);
+    if (bowl && items.length > 0) {
+      const oldBowl = bowl.stock;
+      bowl.stock = Math.max(0, bowl.stock - items.length);
+      deducted.push({
+        itemId: bowl.id,
+        name: bowl.name,
+        before: oldBowl,
+        after: bowl.stock,
+        used: items.length,
+        unit: bowl.unit
+      });
+    }
 
-    res.json({ success: true, message: "Inventory stock updated", inventory: posInventory });
+    inventoryDeductedStore[orderId] = {
+      orderId,
+      timestamp: now,
+      kasir,
+      itemsCount: items.length,
+      deductedCount: deducted.length
+    };
+
+    res.json({
+      success: true,
+      orderId,
+      deducted,
+      warnings,
+      processedAt: now,
+      inventory: posInventory
+    });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -680,32 +758,89 @@ app.post(['/accounting/coa', '/api/accounting/coa'], (req, res) => {
 });
 
 // GET /accounting/approvals
-app.get(['/accounting/approvals', '/api/accounting/approvals'], (req, res) => {
-  const approvals: any[] = [];
-  Object.entries(serverJournals).forEach(([bulanKey, monthData]) => {
-    if (monthData && typeof monthData === 'object') {
-      Object.entries(monthData).forEach(([eId, entry]) => {
-        approvals.push({ entryId: eId, bulan: bulanKey, ...entry });
-      });
+app.get(['/accounting/approvals', '/api/accounting/approvals'], async (req, res) => {
+  try {
+    const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
+    const apiKey = process.env.FIREBASE_API_KEY || "";
+    const auth = apiKey ? `?auth=${apiKey}` : "";
+
+    if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+      try {
+        const fbRes = await fetch(`${databaseUrl}/accounting/journal.json${auth}`);
+        if (fbRes.ok) {
+          const allJournals = await fbRes.json();
+          const approvals: any[] = [];
+          if (allJournals && typeof allJournals === 'object') {
+            for (const [bulanKey, monthEntries] of Object.entries(allJournals)) {
+              if (monthEntries && typeof monthEntries === 'object') {
+                for (const [eId, entry] of Object.entries(monthEntries as any)) {
+                  approvals.push({
+                    entryId: eId,
+                    id: eId,
+                    bulan: bulanKey,
+                    month: bulanKey,
+                    ...((entry as any) || {})
+                  });
+                }
+              }
+            }
+          }
+          approvals.sort((a, b) => (b.createdAt || b.timestamp || b.t || 0) - (a.createdAt || a.timestamp || a.t || 0));
+          return res.json({ success: true, count: approvals.length, data: approvals });
+        }
+      } catch (fbErr) {
+        console.warn("[SERVER] Firebase approvals fetch fallback to in-memory:", fbErr);
+      }
     }
-  });
-  approvals.sort((a, b) => (b.createdAt || b.t || 0) - (a.createdAt || a.t || 0));
-  res.json({ success: true, count: approvals.length, data: approvals });
+
+    const approvals: any[] = [];
+    Object.entries(serverJournals).forEach(([bulanKey, monthData]) => {
+      if (monthData && typeof monthData === 'object') {
+        Object.entries(monthData).forEach(([eId, entry]) => {
+          approvals.push({ entryId: eId, id: eId, bulan: bulanKey, ...entry });
+        });
+      }
+    });
+    approvals.sort((a, b) => (b.createdAt || b.t || 0) - (a.createdAt || a.t || 0));
+    res.json({ success: true, count: approvals.length, data: approvals });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // GET & POST /accounting/journal/:bulan
-app.get(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], (req, res) => {
+app.get(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], async (req, res) => {
   const { bulan } = req.params;
+  const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
+  const apiKey = process.env.FIREBASE_API_KEY || "";
+  const auth = apiKey ? `?auth=${apiKey}` : "";
+
+  if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+    try {
+      const fbRes = await fetch(`${databaseUrl}/accounting/journal/${encodeURIComponent(bulan)}.json${auth}`);
+      if (fbRes.ok) {
+        const monthData = await fbRes.json();
+        const entries = monthData && typeof monthData === 'object'
+          ? Object.entries(monthData).map(([id, val]) => ({ entryId: id, id, bulan, ...((val as any) || {}) }))
+          : [];
+        entries.sort((a, b) => (b.createdAt || b.timestamp || b.t || 0) - (a.createdAt || a.timestamp || a.t || 0));
+        return res.json({ success: true, bulan, data: entries });
+      }
+    } catch (e) {}
+  }
+
   const monthData = serverJournals[bulan] || {};
-  const entries = Object.entries(monthData).map(([id, val]) => ({ entryId: id, bulan, ...val }));
+  const entries = Object.entries(monthData).map(([id, val]) => ({ entryId: id, id, bulan, ...val }));
   entries.sort((a, b) => (b.createdAt || b.t || 0) - (a.createdAt || a.t || 0));
   res.json({ success: true, bulan, data: entries });
 });
 
-app.post(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], (req, res) => {
+app.post(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan', '/accounting/journal', '/api/accounting/journal'], async (req, res) => {
   try {
-    const { bulan } = req.params;
     const body = req.body || {};
+    const now = new Date();
+    const currentBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const bulan = req.params.bulan || body.date?.slice(0, 7) || currentBulan;
     const lines = Array.isArray(body.lines) ? body.lines : [];
 
     if (lines.length < 2) {
@@ -729,7 +864,7 @@ app.post(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], (req,
     if (!serverJournals[bulan]) serverJournals[bulan] = {};
     const count = Object.keys(serverJournals[bulan]).length + 1;
     const [yyyy, mm] = bulan.split('-');
-    const noEntry = `JE-${yyyy || '2026'}-${mm || '09'}-${String(count).padStart(4, '0')}`;
+    const noEntry = body.noEntry || `JE-${yyyy || '2026'}-${mm || '09'}-${String(count).padStart(4, '0')}`;
     const entryId = "JE-" + Date.now();
 
     const entryPayload = {
@@ -741,37 +876,207 @@ app.post(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], (req,
       ref: body.ref || '',
       lampiran: body.lampiran || '',
       lines: lines.map((l: any) => ({
-        acc: String(l.acc || '').trim(),
+        acc: String(l.acc || l.code || '').trim(),
         debit: Number(l.debit) || 0,
         credit: Number(l.credit) || 0
       })),
-      status: "pending",
+      status: body.status || "pending",
       createdBy: body.createdBy || "kasir",
       createdAt: Date.now(),
-      approvedBy: null,
-      approvedAt: null,
+      approvedBy: body.status === 'approved' ? (body.approvedBy || "Kasir / System") : null,
+      approvedAt: body.status === 'approved' ? Date.now() : null,
       rejectedReason: null
     };
 
     serverJournals[bulan][entryId] = entryPayload;
+
+    // Simpan ke Firebase bila tersedia
+    const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
+    const apiKey = process.env.FIREBASE_API_KEY || "";
+    const auth = apiKey ? `?auth=${apiKey}` : "";
+    if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+      try {
+        await fetch(`${databaseUrl}/accounting/journal/${encodeURIComponent(bulan)}/${encodeURIComponent(entryId)}.json${auth}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(entryPayload)
+        });
+      } catch (fbErr) {
+        console.warn("[SERVER] Firebase journal save warning:", fbErr);
+      }
+    }
+
     res.json({ success: true, entryId, noEntry, data: entryPayload });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// PATCH /accounting/journal/:bulan/:entryId
-app.patch(['/accounting/journal/:bulan/:entryId', '/api/accounting/journal/:bulan/:entryId'], (req, res) => {
-  try {
-    const { bulan, entryId } = req.params;
-    const body = req.body || {};
-    const action = body.action;
+async function updateFirebaseLedgerAfterApprove(databaseUrl: string, bulan: string, lines: any[], apiKey: string) {
+  const auth = apiKey ? `?auth=${apiKey}` : "";
+  for (const line of lines || []) {
+    const acc = String(line.acc || line.code || '').trim();
+    if (!acc) continue;
+    const debit = Number(line.debit) || 0;
+    const credit = Number(line.credit) || 0;
+    if (debit === 0 && credit === 0) continue;
 
-    if (!serverJournals[bulan] || !serverJournals[bulan][entryId]) {
-      return res.status(404).json({ success: false, error: "Jurnal tidak ditemukan" });
+    try {
+      const ledgerUrl = `${databaseUrl}/accounting/ledger/${encodeURIComponent(acc)}/${encodeURIComponent(bulan)}.json${auth}`;
+      const res = await fetch(ledgerUrl);
+      let existing: any = null;
+      if (res.ok) {
+        existing = await res.json();
+      }
+      if (!existing || typeof existing !== 'object') {
+        existing = { opening: 0, debit: 0, credit: 0, closing: 0 };
+      }
+      existing.debit = (Number(existing.debit) || 0) + debit;
+      existing.credit = (Number(existing.credit) || 0) + credit;
+      const isKreditNormal = acc.startsWith('2') || (acc.startsWith('3') && acc !== '302' && acc !== '3002' && acc !== '3003') || acc.startsWith('4');
+      if (isKreditNormal) {
+        existing.closing = (Number(existing.opening) || 0) + existing.credit - existing.debit;
+      } else {
+        existing.closing = (Number(existing.opening) || 0) + existing.debit - existing.credit;
+      }
+      existing.updatedAt = Date.now();
+      await fetch(ledgerUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(existing)
+      });
+    } catch (e) {
+      console.warn(`[SERVER] Failed to update Firebase ledger for ${acc}:`, e);
+    }
+  }
+}
+
+async function updateFirebaseSummaryAfterApprove(databaseUrl: string, bulan: string, apiKey: string) {
+  const auth = apiKey ? `?auth=${apiKey}` : "";
+  const fetchAcc = async (code: string) => {
+    try {
+      const r = await fetch(`${databaseUrl}/accounting/ledger/${encodeURIComponent(code)}/${encodeURIComponent(bulan)}.json${auth}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d) return d;
+      }
+    } catch (e) {}
+    return { opening: 0, debit: 0, credit: 0, closing: 0 };
+  };
+
+  const [
+    a101, a102, a103, a105,
+    a201, a301, a302,
+    a401, a402,
+    a501,
+    a601, a602, a603, a604, a605, a606
+  ] = await Promise.all([
+    fetchAcc('101'), fetchAcc('102'), fetchAcc('103'), fetchAcc('105'),
+    fetchAcc('201'), fetchAcc('301'), fetchAcc('302'),
+    fetchAcc('401'), fetchAcc('402'),
+    fetchAcc('501'),
+    fetchAcc('601'), fetchAcc('602'), fetchAcc('603'), fetchAcc('604'), fetchAcc('605'), fetchAcc('606')
+  ]);
+
+  const penjualanPos = (Number(a401.credit) || 0) - (Number(a401.debit) || 0);
+  const penjualanCatering = (Number(a402.credit) || 0) - (Number(a402.debit) || 0);
+  const totalPendapatan = penjualanPos + penjualanCatering;
+
+  const hppBahanBaku = (Number(a501.debit) || 0) - (Number(a501.credit) || 0);
+  const totalHpp = hppBahanBaku;
+
+  const labaKotor = totalPendapatan - totalHpp;
+  const marginKotor = totalPendapatan > 0 ? Math.round((labaKotor / totalPendapatan) * 10000) / 100 : 0;
+
+  const bebanGaji = (Number(a601.debit) || 0) - (Number(a601.credit) || 0);
+  const bebanSewa = (Number(a602.debit) || 0) - (Number(a602.credit) || 0);
+  const bebanListrik = (Number(a603.debit) || 0) - (Number(a603.credit) || 0);
+  const bebanMarketing = (Number(a604.debit) || 0) - (Number(a604.credit) || 0);
+  const bebanKurir = (Number(a605.debit) || 0) - (Number(a605.credit) || 0);
+  const bebanPenyusutan = (Number(a606.debit) || 0) - (Number(a606.credit) || 0);
+  const totalBeban = bebanGaji + bebanSewa + bebanListrik + bebanMarketing + bebanKurir + bebanPenyusutan;
+
+  const labaBersih = labaKotor - totalBeban;
+  const marginBersih = totalPendapatan > 0 ? Math.round((labaBersih / totalPendapatan) * 10000) / 100 : 0;
+
+  const pembelianBahanBaku = Number(a105.debit) || 0;
+  const persediaanAkhir = Number(a105.closing) || 0;
+  const saldoKas = Number(a101.closing) || 0;
+  const saldoBank = Number(a102.closing) || 0;
+  const piutang = Number(a103.closing) || 0;
+  const hutangSupplier = Number(a201.closing) || 0;
+
+  const totalAset = saldoKas + saldoBank + piutang + persediaanAkhir;
+  const totalKewajiban = hutangSupplier;
+  const totalEkuitas = (Number(a301.closing) || 0) - (Number(a302.closing) || 0) + labaBersih;
+
+  const summaryData = {
+    periode: bulan,
+    pendapatan: { penjualanPos, penjualanCatering, totalPendapatan },
+    hpp: { bahanBaku: hppBahanBaku, totalHpp },
+    labaKotor, marginKotor,
+    beban: { gaji: bebanGaji, sewa: bebanSewa, utilitas: bebanListrik, marketing: bebanMarketing, kurir: bebanKurir, penyusutan: bebanPenyusutan, totalBeban },
+    labaBersih, marginBersih,
+    status: labaBersih >= 0 ? "PROFIT" : "LOSS",
+    pembelianBahanBaku, persediaanAkhir,
+    saldoKas, saldoBank, kas: saldoKas, bank: saldoBank,
+    piutang, hutang: hutangSupplier, hutangSupplier,
+    totalAset, totalKewajiban, totalEkuitas,
+    updatedAt: Date.now()
+  };
+
+  try {
+    await fetch(`${databaseUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${auth}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(summaryData)
+    });
+  } catch (e) {
+    console.warn(`[SERVER] Failed to update Firebase summary for ${bulan}:`, e);
+  }
+}
+
+// PATCH /accounting/journal/:bulan/:entryId
+app.patch(['/accounting/journal/:bulan/:entryId', '/api/accounting/journal/:bulan/:entryId', '/accounting/journal/:entryId/approve', '/api/accounting/journal/:entryId/approve'], async (req, res) => {
+  try {
+    let { bulan, entryId } = req.params;
+    const body = req.body || {};
+    const action = body.action || (req.url.includes('/approve') ? 'approve' : 'approve');
+    const now = new Date();
+    const currentBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (!bulan || bulan.length !== 7) {
+      bulan = currentBulan;
     }
 
-    const currentEntry = serverJournals[bulan][entryId];
+    const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
+    const apiKey = process.env.FIREBASE_API_KEY || "";
+    const auth = apiKey ? `?auth=${apiKey}` : "";
+
+    let currentEntry = serverJournals[bulan]?.[entryId];
+
+    if (!currentEntry && databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+      try {
+        const fbRes = await fetch(`${databaseUrl}/accounting/journal/${encodeURIComponent(bulan)}/${encodeURIComponent(entryId)}.json${auth}`);
+        if (fbRes.ok) {
+          currentEntry = await fbRes.json();
+        }
+      } catch (e) {}
+    }
+
+    if (!currentEntry) {
+      // Fallback: search across all server journals
+      for (const [bKey, mData] of Object.entries(serverJournals)) {
+        if (mData && (mData as any)[entryId]) {
+          currentEntry = (mData as any)[entryId];
+          bulan = bKey;
+          break;
+        }
+      }
+    }
+
+    if (!currentEntry) {
+      return res.status(404).json({ success: false, error: `Jurnal '${entryId}' tidak ditemukan` });
+    }
 
     if (action === 'approve') {
       currentEntry.status = "approved";
@@ -781,29 +1086,54 @@ app.patch(['/accounting/journal/:bulan/:entryId', '/api/accounting/journal/:bula
 
       // Update Ledger in memory
       for (const line of currentEntry.lines || []) {
-        const acc = line.acc;
+        const acc = String(line.acc);
         if (!serverLedger[acc]) serverLedger[acc] = {};
         if (!serverLedger[acc][bulan]) {
           serverLedger[acc][bulan] = { accCode: acc, bulan, opening: 0, totalDebit: 0, totalCredit: 0, closing: 0, entries: [] };
         }
         const l = serverLedger[acc][bulan];
+        const debit = Number(line.debit) || 0;
+        const credit = Number(line.credit) || 0;
+
         l.entries.push({
           entryId,
           noEntry: currentEntry.noEntry,
           date: currentEntry.date,
           desc: currentEntry.desc,
-          debit: Number(line.debit) || 0,
-          credit: Number(line.credit) || 0,
+          debit,
+          credit,
           t: currentEntry.t || Date.now()
         });
-        l.totalDebit += Number(line.debit) || 0;
-        l.totalCredit += Number(line.credit) || 0;
-        l.closing = (l.opening || 0) + l.totalDebit - l.totalCredit;
+        l.totalDebit += debit;
+        l.totalCredit += credit;
+
+        const isKreditNormal = acc.startsWith('2') || (acc.startsWith('3') && acc !== '302' && acc !== '3002' && acc !== '3003') || acc.startsWith('4');
+        if (isKreditNormal) {
+          l.closing = (l.opening || 0) + l.totalCredit - l.totalDebit;
+        } else {
+          l.closing = (l.opening || 0) + l.totalDebit - l.totalCredit;
+        }
+      }
+
+      // Update di Firebase bila aktif
+      if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+        try {
+          await fetch(`${databaseUrl}/accounting/journal/${encodeURIComponent(bulan)}/${encodeURIComponent(entryId)}.json${auth}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentEntry)
+          });
+          // Update Ledger & Summary di Firebase setelah approval
+          await updateFirebaseLedgerAfterApprove(databaseUrl, bulan, currentEntry.lines, apiKey);
+          await updateFirebaseSummaryAfterApprove(databaseUrl, bulan, apiKey);
+        } catch (e) {
+          console.warn("[SERVER] Error syncing approved journal to Firebase:", e);
+        }
       }
 
       return res.json({
         success: true,
-        message: `Jurnal ${currentEntry.noEntry} berhasil disetujui`,
+        message: `Jurnal ${currentEntry.noEntry || entryId} berhasil disetujui`,
         entryId,
         data: currentEntry
       });
@@ -811,6 +1141,17 @@ app.patch(['/accounting/journal/:bulan/:entryId', '/api/accounting/journal/:bula
       currentEntry.status = "rejected";
       currentEntry.rejectedReason = body.rejectedReason || "Ditolak oleh finance";
       currentEntry.rejectedAt = Date.now();
+
+      if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+        try {
+          await fetch(`${databaseUrl}/accounting/journal/${encodeURIComponent(bulan)}/${encodeURIComponent(entryId)}.json${auth}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentEntry)
+          });
+        } catch (e) {}
+      }
+
       return res.json({ success: true, message: `Jurnal ${currentEntry.noEntry} berhasil ditolak`, entryId, data: currentEntry });
     } else if (action === 'edit') {
       if (body.newData) {
@@ -826,8 +1167,24 @@ app.patch(['/accounting/journal/:bulan/:entryId', '/api/accounting/journal/:bula
 });
 
 // GET /accounting/ledger/:accCode/:bulan
-app.get(['/accounting/ledger/:accCode/:bulan', '/api/accounting/ledger/:accCode/:bulan'], (req, res) => {
+app.get(['/accounting/ledger/:accCode/:bulan', '/api/accounting/ledger/:accCode/:bulan'], async (req, res) => {
   const { accCode, bulan } = req.params;
+  const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
+  const apiKey = process.env.FIREBASE_API_KEY || "";
+  const auth = apiKey ? `?auth=${apiKey}` : "";
+
+  if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+    try {
+      const fbRes = await fetch(`${databaseUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${auth}`);
+      if (fbRes.ok) {
+        const fbData = await fbRes.json();
+        if (fbData) {
+          return res.json({ success: true, accCode, bulan, data: fbData });
+        }
+      }
+    } catch (e) {}
+  }
+
   const ledgerData = serverLedger[accCode]?.[bulan] || {
     accCode,
     bulan,
@@ -841,13 +1198,40 @@ app.get(['/accounting/ledger/:accCode/:bulan', '/api/accounting/ledger/:accCode/
 });
 
 // GET /accounting/summary/:bulan
-app.get(['/accounting/summary/:bulan', '/api/accounting/summary/:bulan'], (req, res) => {
+app.get(['/accounting/summary/:bulan', '/api/accounting/summary/:bulan'], async (req, res) => {
   const { bulan } = req.params;
-  let revenue = 0;
-  let hpp = 0;
-  let expense = 0;
-  let cashIn = 0;
-  let cashOut = 0;
+  const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
+  const apiKey = process.env.FIREBASE_API_KEY || "";
+  const auth = apiKey ? `?auth=${apiKey}` : "";
+
+  if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
+    try {
+      const fbRes = await fetch(`${databaseUrl}/accounting/summary/${encodeURIComponent(bulan)}.json${auth}`);
+      if (fbRes.ok) {
+        const fbSummary = await fbRes.json();
+        if (fbSummary && typeof fbSummary === 'object') {
+          return res.json({ success: true, bulan, data: fbSummary });
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Fallback in-memory calculate
+  let revPOS = 0;
+  let revCatering = 0;
+  let hppBahanBaku = 0;
+  let bebanGaji = 0;
+  let bebanSewa = 0;
+  let bebanListrik = 0;
+  let bebanMarketing = 0;
+  let bebanKurir = 0;
+  let bebanPenyusutan = 0;
+  let saldoKas = 0;
+  let saldoBank = 0;
+  let piutang = 0;
+  let hutangSupplier = 0;
+  let persediaanAkhir = 0;
+  let modalPemilik = 0;
 
   const monthJournals = serverJournals[bulan] || {};
   Object.values(monthJournals).forEach(entry => {
@@ -856,34 +1240,57 @@ app.get(['/accounting/summary/:bulan', '/api/accounting/summary/:bulan'], (req, 
         const acc = String(l.acc);
         const d = Number(l.debit) || 0;
         const c = Number(l.credit) || 0;
-        if (acc.startsWith('4')) revenue += (c - d);
-        else if (acc.startsWith('5')) hpp += (d - c);
-        else if (acc.startsWith('6')) expense += (d - c);
-        if (acc === '101' || acc === '102') {
-          cashIn += d;
-          cashOut += c;
-        }
+
+        if (acc === '401' || acc === '4001') revPOS += (c - d);
+        else if (acc === '402' || acc === '4002') revCatering += (c - d);
+        else if (acc === '501' || acc === '5001') hppBahanBaku += (d - c);
+        else if (acc === '601' || acc === '6001') bebanGaji += (d - c);
+        else if (acc === '602' || acc === '6002') bebanSewa += (d - c);
+        else if (acc === '603' || acc === '6003') bebanListrik += (d - c);
+        else if (acc === '604' || acc === '6004') bebanMarketing += (d - c);
+        else if (acc === '605' || acc === '6005') bebanKurir += (d - c);
+        else if (acc === '606' || acc === '6006') bebanPenyusutan += (d - c);
+        else if (acc === '101' || acc === '1001') saldoKas += (d - c);
+        else if (acc === '102' || acc === '1002') saldoBank += (d - c);
+        else if (acc === '103' || acc === '1003') piutang += (d - c);
+        else if (acc === '105' || acc === '1004') persediaanAkhir += (d - c);
+        else if (acc === '201' || acc === '2001') hutangSupplier += (c - d);
+        else if (acc === '301' || acc === '3001') modalPemilik += (c - d);
       });
     }
   });
 
-  const grossProfit = revenue - hpp;
-  const netProfit = grossProfit - expense;
-  const netCashFlow = cashIn - cashOut;
+  const totalPendapatan = revPOS + revCatering;
+  const totalHpp = hppBahanBaku;
+  const labaKotor = totalPendapatan - totalHpp;
+  const totalBeban = bebanGaji + bebanSewa + bebanListrik + bebanMarketing + bebanKurir + bebanPenyusutan;
+  const labaBersih = labaKotor - totalBeban;
+  const totalAset = saldoKas + saldoBank + piutang + persediaanAkhir;
+  const totalKewajiban = hutangSupplier;
+  const totalEkuitas = modalPemilik + labaBersih;
 
   res.json({
     success: true,
     bulan,
     data: {
-      bulan,
-      revenue,
-      hpp,
-      grossProfit,
-      expense,
-      netProfit,
-      cashIn,
-      cashOut,
-      netCashFlow,
+      periode: bulan,
+      pendapatan: { penjualanPos: revPOS, penjualanCatering: revCatering, totalPendapatan },
+      hpp: { bahanBaku: hppBahanBaku, totalHpp },
+      labaKotor,
+      marginKotor: totalPendapatan > 0 ? (labaKotor / totalPendapatan) * 100 : 0,
+      beban: { gaji: bebanGaji, sewa: bebanSewa, utilitas: bebanListrik, marketing: bebanMarketing, kurir: bebanKurir, penyusutan: bebanPenyusutan, totalBeban },
+      labaBersih,
+      marginBersih: totalPendapatan > 0 ? (labaBersih / totalPendapatan) * 100 : 0,
+      pembelianBahanBaku: persediaanAkhir,
+      persediaanAkhir,
+      saldoKas,
+      saldoBank,
+      piutang,
+      hutangSupplier,
+      totalAset,
+      totalKewajiban,
+      totalEkuitas,
+      status: labaBersih >= 0 ? "PROFIT" : "LOSS",
       updatedAt: Date.now()
     }
   });
