@@ -5665,27 +5665,47 @@ window.kasirApp = () => ({
   },
 
   getAccountName(accCode) {
-    const coa = {
-      '101': 'Kas di Tangan',
-      '102': 'Bank',
-      '103': 'Piutang',
-      '105': 'Persediaan Bahan Baku',
-      '111': 'Akum. Penyusutan',
-      '201': 'Hutang Supplier',
-      '301': 'Modal Pemilik',
-      '302': 'Prive',
-      '401': 'Pendapatan Penjualan',
-      '402': 'Pendapatan Catering',
-      '501': 'HPP',
-      '601': 'Beban Gaji',
-      '602': 'Beban Sewa',
-      '603': 'Beban Listrik & Air',
-      '604': 'Beban Marketing',
-      '605': 'Beban Kurir',
-      '606': 'Beban Penyusutan'
-    };
-    return coa[accCode] || ('Akun ' + accCode);
-  },
+  const coa = {
+    // 4-digit (primary — kode standar sekarang)
+    '1001': 'Kas di Tangan',
+    '1002': 'Bank BCA',
+    '1003': 'Piutang Usaha',
+    '1004': 'Persediaan Bahan Baku',
+    '1005': 'Peralatan & Mesin Dapur',
+    '2001': 'Hutang Dagang / Supplier',
+    '2002': 'Hutang Beban & Operasional',
+    '3001': 'Modal Pemilik',
+    '3002': 'Laba Ditahan',
+    '3003': 'Prive Pemilik',
+    '4001': 'Pendapatan Penjualan POS',
+    '4002': 'Pendapatan Pesanan Catering',
+    '5001': 'Harga Pokok Penjualan (HPP)',
+    '6001': 'Beban Gaji Karyawan',
+    '6002': 'Beban Sewa Tempat & Outlet',
+    '6003': 'Beban Listrik, Air & Gas',
+    '6004': 'Beban Marketing & Iklan',
+    '6005': 'Beban Operasional & Kurir',
+    '6006': 'Beban Penyusutan',
+    // Legacy 3-digit untuk kompatibilitas
+    '101': 'Kas di Tangan',
+    '102': 'Bank',
+    '103': 'Piutang Usaha',
+    '105': 'Persediaan Bahan Baku',
+    '201': 'Hutang Supplier',
+    '301': 'Modal Pemilik',
+    '302': 'Prive Pemilik',
+    '401': 'Pendapatan Penjualan',
+    '402': 'Pendapatan Catering',
+    '501': 'HPP',
+    '601': 'Beban Gaji',
+    '602': 'Beban Sewa',
+    '603': 'Beban Listrik & Air',
+    '604': 'Beban Marketing',
+    '605': 'Beban Kurir',
+    '606': 'Beban Penyusutan'
+  };
+  return coa[String(accCode)] || ('Akun ' + accCode);
+},
 
   async submitJournalEntry() {
     // Validasi balance
