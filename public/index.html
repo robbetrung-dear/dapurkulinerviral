@@ -693,7 +693,7 @@
                 <div class="mt-5 space-y-2 border-t border-stone-100 pt-4">
                   <div class="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Isi Dalam Box:</div>
                   <ul class="space-y-1.5 text-xs text-stone-600">
-                    <template x-for="menuItem in pkg.items" :key="menuItem">
+                    <template x-for="(menuItem, idx) in pkg.items" :key="'pkg-item-' + idx + '-' + menuItem">
                       <li class="flex items-start gap-2">
                         <i class="fa-solid fa-check text-emerald-600 mt-0.5 text-[11px]"></i>
                         <span x-text="menuItem"></span>
