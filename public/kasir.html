@@ -259,10 +259,9 @@
           </div>
           <div class="hidden sm:block">
             <div class="flex items-center gap-1.5">
-              <span class="font-extrabold text-base tracking-tight text-stone-900">Kasir Pintar</span>
-              <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase">POS</span>
-            </div>
-            <p class="text-[11px] text-stone-500 truncate">Dapur Kuliner Viral</p>
+              <span class="font-extrabold text-base tracking-tight text-stone-900" x-text="customKasirTitle || 'Kasir Pintar'"></span>
+<!-- dan -->
+<p class="text-[11px] text-stone-500 truncate" x-text="customKasirSubtitle || 'Dapur Kuliner Viral'"></p>
           </div>
         </a>
 
