@@ -3790,18 +3790,19 @@ window.kasirApp = () => ({
   /**
    * Ambil saldo kas tunai aktif saat ini
    */
-  getCashInHand() {
-    const startCash = Number(this.shiftSummary?.startCash !== undefined ? this.shiftSummary.startCash : 200000);
-    const cashSales = Number(this.shiftSummary?.cashSales || 0);
-    const cashExpenses = Number(this.shiftSummary?.cashExpenses || 0);
-    const shiftCash = Math.max(0, startCash + cashSales - cashExpenses);
-    
-    if (this.accountingSummaryData && this.accountingSummaryData.saldoKas !== undefined) {
-      const acctKas = Math.max(0, Number(this.accountingSummaryData.saldoKas));
-      if (acctKas > 0 && shiftCash === 0) return acctKas;
-    }
-    return shiftCash;
-  },
+ getCashInHand() {
+  // Priority 1: Accounting Summary (data ledger real-time dari backend)
+  if (this.accountingSummaryData && this.accountingSummaryData.saldoKas != undefined) {
+    const acctKas = Math.max(0, Number(this.accountingSummaryData.saldoKas));
+    if (acctKas > 0) return acctKas;
+  }
+
+  // Priority 2: Fallback hitung dari shiftSummary (kalau summary belum ke-load)
+  const startCash = Number(this.shiftSummary?.startCash) || 0;
+  const cashSales = Number(this.shiftSummary?.cashSales) || 0;
+  const cashExpenses = Number(this.shiftSummary?.cashExpenses) || 0;
+  return Math.max(0, startCash + cashSales - cashExpenses);
+},
 
   openAddInventoryModal() {
     this.newInventoryForm = {
