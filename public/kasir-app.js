@@ -703,8 +703,21 @@ window.kasirApp = () => ({
           const val = snapshot.val();
           console.log('[FB-MENU] Menu listener:', val ? Object.keys(val).length + ' items' : 'kosong');
           if (val) {
-            this.menuList = Array.isArray(val) ? JSON.parse(JSON.stringify(val)) : Object.values(val);
-          } else {
+  const rawList = Array.isArray(val) ? val : Object.values(val);
+  // Dedupe by ID — hindari duplicate key x-for
+  const seen = new Map();
+  rawList.forEach(m => {
+    if (m && m.id) {
+      seen.set(m.id, m);
+    } else if (m && m.name) {
+      // Fallback: generate ID dari name kalau kosong
+      m.id = 'menu_' + m.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      seen.set(m.id, m);
+    }
+  });
+  this.menuList = Array.from(seen.values());
+  console.log(`[FB-MENU] Loaded ${this.menuList.length} unique items (raw: ${rawList.length})`);
+} else {
             this.menuList = fallbackMenu;
           }
           this.syncCategoriesWithMainStore();
