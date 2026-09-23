@@ -2605,7 +2605,7 @@ try {
   /**
    * 4. Aksi Rekonsiliasi: rekamTransaksi(orderId)
    */
-  async rekamTransaksi(orderId) {
+   async rekamTransaksi(orderId, skipStockCheck = false) {
     if (!orderId) return false;
 
     // 1. Anti-Duplikat Check
@@ -2628,7 +2628,7 @@ try {
       console.warn('Fetch order detail warning:', err);
     }
 
-    // Fallback ambil dari item di reconciliationList
+    // Fallback ambil dari reconciliationList
     if (!orderData) {
       const found = this.reconciliationList.find(i => i.orderId === orderId);
       if (found) {
@@ -2648,7 +2648,64 @@ try {
       return false;
     }
 
-    // 3. Konversi ke format POS & panggil simpanTransaksi()
+    // 3. ✅ VALIDASI STOK — Cek kesiapan semua item
+    if (!skipStockCheck) {
+      const itemsToCheck = orderData.items || [];
+      const stockCheck = this.checkStockForOrder(itemsToCheck);
+      
+      if (!stockCheck.allReady) {
+        const missingList = stockCheck.notReady
+          .map(x => `${x.name} (butuh ${x.required}, tersedia ${x.available}, kurang: ${x.missing})`)
+          .join('; ');
+        
+        // Tandai postponed di state lokal
+        if (!this.postponedReconcileIds.includes(orderId)) {
+          this.postponedReconcileIds.push(orderId);
+        }
+        
+        // Update status di reconciliationList lokal
+        const item = this.reconciliationList.find(i => i.orderId === orderId);
+        if (item) {
+          item.postponed = true;
+          item.postponedReason = `Stok kurang: ${missingList}`;
+          item.status = 'ditunda';
+        }
+        this.reconciliationList = [...this.reconciliationList];
+        
+        // PATCH ke backend: status = ditunda
+        try {
+          await fetch(`/orders/${encodeURIComponent(orderId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'ditunda',
+              postponed: true,
+              postponedAt: Date.now(),
+              postponedBy: this.kasirInfo.username,
+              postponedReason: `Stok kurang: ${missingList}`
+            })
+          });
+        } catch (e) {
+          console.warn('Patch postpone error:', e);
+        }
+        
+        // Notifikasi
+        this.showToast(
+          `Transaksi ${orderId} belum dapat disetujui — stok menu belum ready, otomatis DITUNDA`,
+          'error'
+        );
+        
+        // Buka modal detail jika sedang di halaman rekonsiliasi
+        this.activeReconcileItem = item || null;
+        this.reconcileModal = false;
+        
+        this.playSound('error');
+        return false;
+      }
+    }
+
+    // 4. ✅ STOK READY — Lanjutkan rekam transaksi
+    //    → simpanTransaksi() akan trigger auto-deduct inventory + auto-jurnal accounting
     const txId = orderData.orderId || ('T' + Date.now());
     await this.simpanTransaksi({
       txId: txId,
@@ -2658,7 +2715,7 @@ try {
       skipReceiptModal: true
     });
 
-    // 4. Tandai PATCH /orders/{orderId}
+    // 5. Tandai PATCH /orders/{orderId} — status settlement
     try {
       await fetch(`/orders/${encodeURIComponent(orderId)}`, {
         method: 'PATCH',
@@ -2674,27 +2731,37 @@ try {
       console.warn('Patch order error:', e);
     }
 
-    // Simpan ke cache anti-duplicate lokal
+    // 6. Simpan ke cache anti-duplicate lokal
     try {
       const cached = JSON.parse(localStorage.getItem('dapur_reconciled_orders') || '{}');
       cached[orderId] = { reconciledAt: Date.now(), shiftId: this.kasirInfo.shiftId };
       localStorage.setItem('dapur_reconciled_orders', JSON.stringify(cached));
     } catch (e) {}
 
-    // Update item di reconciliationList lokal
+    // 7. Update item di reconciliationList lokal
     const itemInList = this.reconciliationList.find(i => i.orderId === orderId);
     if (itemInList) {
       itemInList.reconciled = true;
       itemInList.status = 'berhasil';
       itemInList.rawStatus = 'settlement';
+      itemInList.postponed = false;
+      itemInList.postponedReason = null;
     }
     this.reconciliationList = [...this.reconciliationList];
 
-    // Update count pending
+    // 8. Update count pending
     await this.cekPendingRekonsiliasi();
 
-    // Toast feedback
+    // 9. Refresh accounting summary
+    try {
+      if (typeof this.loadAccountingSummary === 'function') {
+        await this.loadAccountingSummary(true);
+      }
+    } catch (e) {}
+
+    // 10. Feedback sukses
     this.showToast(`Transaksi ${orderId} berhasil diverifikasi & direkam`, 'success');
+    this.playSound('success');
     return true;
   },
 
@@ -4215,6 +4282,44 @@ try {
       }
     }
     return null;
+  },
+
+   /**
+   * Cek kesiapan stok untuk seluruh item dalam satu order
+   * Return: { allReady: boolean, notReady: [{id, name, required, available, missing}] }
+   */
+  checkStockForOrder(items) {
+    const notReady = [];
+    
+    if (!Array.isArray(items)) {
+      return { allReady: true, notReady };
+    }
+    
+    for (const item of items) {
+      const menuId = item.id || item.menuId;
+      const requiredQty = Number(item.qty) || Number(item.quantity) || 1;
+      if (!menuId) continue;
+      
+      // Skip item tanpa resep (menu bebas stok)
+      const recipe = this.menuRecipes[menuId];
+      if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+        continue;
+      }
+      
+      const currentStock = this.getMenuCalculatedStock(menuId);
+      if (currentStock < requiredQty) {
+        const missing = this.getMenuMissingIngredient(menuId);
+        notReady.push({
+          id: menuId,
+          name: item.name || item.menuName || menuId,
+          required: requiredQty,
+          available: currentStock,
+          missing: missing ? missing.name : 'Bahan tidak diketahui'
+        });
+      }
+    }
+    
+    return { allReady: notReady.length === 0, notReady };
   },
 
   /**
