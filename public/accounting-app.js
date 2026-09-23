@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * SISTEM AKUNTANSI & KEUANGAN (DOUBLE-ENTRY ACCOUNTING ENGINE)
- * Dapur Kuliner Viral - Panel Admin & Owner
+ * Dapur Kuliner Viral - Panel Admin & Ownerj.debitName || ('Akun '
  * 
  * Modul:
  * 1. Chart of Accounts (COA) Standar Resto & Catering (Real dari Firebase / Endpoint)
@@ -743,22 +743,44 @@ window.accountingApp = function() {
         this.jurnalList = Array.isArray(list) ? list : [];
 
         // Normalisasi struktur jurnal jika diperlukan
-        this.jurnalList.forEach(j => {
-          if (!j.debitCode && Array.isArray(j.lines)) {
-            const debitLine = j.lines.find(l => Number(l.debit) > 0);
-            const creditLine = j.lines.find(l => Number(l.credit) > 0);
-            if (debitLine) {
-              j.debitCode = debitLine.acc;
-              j.debitAmount = debitLine.debit;
-              j.debitName = j.debitName || ('Akun ' + debitLine.acc);
-            }
-            if (creditLine) {
-              j.creditCode = creditLine.acc;
-              j.creditAmount = creditLine.credit;
-              j.creditName = j.creditName || ('Akun ' + creditLine.acc);
-            }
-          }
-        });
+        // Helper: mapping kode akun → nama
+const _getAccNameById = (code) => {
+  const map = {
+    '1001': 'Kas di Tangan', '1002': 'Bank BCA', '1003': 'Piutang Usaha',
+    '1004': 'Persediaan Bahan Baku', '1005': 'Peralatan & Mesin Dapur',
+    '2001': 'Hutang Dagang / Supplier', '2002': 'Hutang Beban & Operasional',
+    '3001': 'Modal Pemilik', '3002': 'Laba Ditahan', '3003': 'Prive Pemilik',
+    '4001': 'Pendapatan Penjualan POS', '4002': 'Pendapatan Pesanan Catering',
+    '5001': 'Harga Pokok Penjualan (HPP)',
+    '6001': 'Beban Gaji Karyawan', '6002': 'Beban Sewa Tempat & Outlet',
+    '6003': 'Beban Listrik, Air & Gas', '6004': 'Beban Marketing & Iklan',
+    '6005': 'Beban Operasional & Kurir', '6006': 'Beban Penyusutan',
+    // Legacy 3-digit
+    '101':'Kas di Tangan','102':'Bank','103':'Piutang Usaha','105':'Persediaan Bahan Baku',
+    '201':'Hutang Supplier','301':'Modal Pemilik','302':'Prive Pemilik',
+    '401':'Pendapatan Penjualan','402':'Pendapatan Catering','501':'HPP',
+    '601':'Beban Gaji','602':'Beban Sewa','603':'Beban Listrik & Air',
+    '604':'Beban Marketing','605':'Beban Kurir','606':'Beban Penyusutan'
+  };
+  return map[String(code)] || ('Akun ' + code);
+};
+
+this.jurnalList.forEach(j => {
+  if (!j.debitCode && Array.isArray(j.lines)) {
+    const debitLine = j.lines.find(l => Number(l.debit) > 0);
+    const creditLine = j.lines.find(l => Number(l.credit) > 0);
+    if (debitLine) {
+      j.debitCode = debitLine.acc;
+      j.debitAmount = debitLine.debit;
+      j.debitName = j.debitName || _getAccNameById(debitLine.acc);  // ← FIX
+    }
+    if (creditLine) {
+      j.creditCode = creditLine.acc;
+      j.creditAmount = creditLine.credit;
+      j.creditName = j.creditName || _getAccNameById(creditLine.acc);  // ← FIX
+    }
+  }
+});
 
         // Sort timestamp DESC
         this.jurnalList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
