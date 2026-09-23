@@ -249,7 +249,7 @@
   <!-- 1. HEADER (Sticky top-0, z-40)                                         -->
   <!-- ===================================================================== -->
   <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-sm transition-all">
-    <div class="px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+    <div class="px-4 sm:px-6 min-h-[64px] py-2 flex items-center justify-between gap-3">
       
       <!-- Kiri: Logo Mini + Kasir Pintar + Operator Aktif -->
       <div class="flex items-center gap-3 min-w-0">
@@ -258,14 +258,12 @@
             <i class="fa-solid fa-cash-register text-lg"></i>
           </div>
           <div class="hidden sm:block">
-            <div class="hidden sm:flex flex-col">
-  <!-- Baris 1: Judul + Badge POS -->
+          <div class="hidden sm:flex flex-col justify-center leading-tight">
   <div class="flex items-center gap-1.5">
-    <span class="font-extrabold text-base tracking-tight text-stone-900" x-text="customKasirTitle || 'Kasir Pintar'"></span>
-    <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase">POS</span>
+    <span class="font-extrabold text-sm tracking-tight text-stone-900" x-text="customKasirTitle || 'Kasir Pintar'"></span>
+    <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-extrabold uppercase">POS</span>
   </div>
-  <!-- Baris 2: Subtitle di bawah -->
-  <p class="text-[11px] text-stone-500 truncate" x-text="customKasirSubtitle || 'Dapur Kuliner Viral'"></p>
+  <p class="text-[10px] text-stone-500 truncate mt-0.5" x-text="customKasirSubtitle || 'Dapur Kuliner Viral'"></p>
 </div>
         </a>
 
