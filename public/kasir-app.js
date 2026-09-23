@@ -1,4 +1,6 @@
 /**
+ customKasirTitle: 'Kasir Pintar',
+ customKasirSubtitle: 'Dapur Kuliner Viral',
  * /public/kasir-app.js — BAGIAN 1 dari 3 (Transaksi & Pembayaran)
  * Sistem Kasir Pintar POS - Dapur Kuliner Viral & Catering Rumahan
  * 
@@ -516,6 +518,22 @@ window.kasirApp = () => ({
 
     // 4. Inisialisasi Koneksi Firebase Realtime Database
     await this.initFirebaseSDK();
+    // Load custom kasir title dari Firebase site_config
+try {
+  if (this._fbRef && this._fbDb) {
+    const configRef = this._fbRef(this._fbDb, 'site_config');
+    this._fbOnValue(configRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        if (val.kasirTitle) this.customKasirTitle = val.kasirTitle;
+        if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
+        console.log('[KASIR] Custom title loaded:', val.kasirTitle);
+      }
+    });
+  }
+} catch (e) {
+  console.warn('[KASIR] Load custom title error:', e);
+}
 
     // 5. Sinkronkan Kategori dengan Toko Utama & Muat Menu dari Firebase
     this.syncCategoriesWithMainStore();
