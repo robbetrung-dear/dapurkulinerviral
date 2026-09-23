@@ -31,8 +31,12 @@ window.kasirApp = () => ({
     name: 'Kasir Utama',
     shiftId: 'S-2026-09-18-01'
   },
-  currentTime: '',
+    currentTime: '',
   _clockInterval: null,
+  
+  // ✅ Custom Title (dari Admin Panel → Security)
+  customKasirTitle: 'Kasir Pintar',
+  customKasirSubtitle: 'Dapur Kuliner Viral',
 
   // Katalog Menu & Keranjang
   cart: [],
