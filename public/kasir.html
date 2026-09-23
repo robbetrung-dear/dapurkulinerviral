@@ -646,7 +646,7 @@
               x-show="!isLoadingMenu" 
               class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
               
-              <template x-for="menu in filteredMenuList()" :key="menu.id">
+              <template x-for="(menu, idx) in filteredMenuList()" :key="menu.id + '-' + idx">
                 <div 
                   @click="addToCart(menu)"
                   class="bg-white rounded-2xl p-3 border border-stone-200 hover:border-emerald-500 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group cursor-pointer active:scale-98 select-none">
@@ -1640,7 +1640,7 @@
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            <template x-for="menu in filteredProductMenus()" :key="menu.id">
+            <template x-for="(menu, idx) in filteredProductMenus()" :key="menu.id + '-' + idx">
               <div class="bg-white rounded-2xl p-5 border border-stone-200 shadow-xs space-y-3.5 flex flex-col justify-between hover:border-amber-300 transition">
                 <div>
                   <div class="flex items-start justify-between gap-2">
