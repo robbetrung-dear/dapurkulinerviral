@@ -2648,8 +2648,21 @@ try {
       return false;
     }
 
-    // 3. ✅ VALIDASI STOK — Cek kesiapan semua item
+      // 3. ✅ VALIDASI STOK — Cek kesiapan semua item
     if (!skipStockCheck) {
+      // Guard: kalau order tidak punya data items sama sekali
+      if (!orderData.items || !Array.isArray(orderData.items) || orderData.items.length === 0) {
+        const confirmNoItems = confirm(
+          `⚠️ Transaksi ${orderId} tidak memiliki detail menu.\n\n` +
+          `Sistem tidak dapat memverifikasi ketersediaan stok.\n\n` +
+          `Pilih OK untuk tetap merekam (HPP tidak akan dihitung otomatis), ` +
+          `atau Cancel untuk membatalkan.`
+        );
+        if (!confirmNoItems) {
+          this.showToast(`Approve dibatalkan — order tidak punya detail menu`, 'notify');
+          return false;
+        }
+      }
       const itemsToCheck = orderData.items || [];
       const stockCheck = this.checkStockForOrder(itemsToCheck);
       
