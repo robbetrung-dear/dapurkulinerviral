@@ -1648,7 +1648,18 @@ try {
     const pm = (paymentData.method || (orderData && (orderData.paymentMethod || orderData.payment_type)) || this.selectedPaymentMethod || 'cash').toLowerCase();
 
     // Mapping items
-    const rawItems = (orderData && orderData.items && orderData.items.length > 0) ? orderData.items : this.cart;
+    // ✅ Normalize items: handle object / array / array-of-arrays dari Firebase REST
+    let rawItems = [];
+    if (orderData && orderData.items) {
+      if (Array.isArray(orderData.items)) {
+        rawItems = orderData.items;
+      } else if (typeof orderData.items === 'object') {
+        rawItems = Object.values(orderData.items).filter(Boolean);
+      }
+    }
+    if (rawItems.length === 0) {
+      rawItems = Array.isArray(this.cart) ? this.cart : [];
+    }
     const mappedItems = rawItems.length > 0 ? rawItems.map(item => [
       item.id || 'm1',
       Number(item.qty) || 1,
