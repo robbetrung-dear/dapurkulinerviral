@@ -2636,15 +2636,7 @@ try {
    async rekamTransaksi(orderId, skipStockCheck = false) {
     if (!orderId) return false;
 
-    // 1. Anti-Duplikat Check
-    const duplicate = await this.checkDuplicateTransaction(orderId);
-    if (duplicate && duplicate.exists) {
-      alert(`Transaksi sudah direkam di shift ${duplicate.shiftId || this.kasirInfo.shiftId || 'sebelumnya'}`);
-      this.showToast(`Transaksi ${orderId} sudah pernah direkam`, 'notify');
-      return false;
-    }
-
-    // 2. Ambil detail order dari /orders/{orderId}
+    // 1. Ambil detail order dari /orders/{orderId} — DULU
     let orderData = null;
     try {
       const res = await fetch(`/orders/${encodeURIComponent(orderId)}`);
@@ -2700,9 +2692,8 @@ try {
           .join('; ');
         
         // Tandai postponed di state lokal
-                if (!this.postponedReconcileIds.includes(orderId)) {
+          if (!this.postponedReconcileIds.includes(orderId)) {
           this.postponedReconcileIds.push(orderId);
-          // ✅ Persist ke localStorage
           try {
             localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
           } catch (e) {}
@@ -2747,6 +2738,15 @@ try {
         this.playSound('error');
         return false;
       }
+    }
+
+    // 3. ✅ Anti-Duplikat Check — SETELAH validasi stok
+    const duplicate = await this.checkDuplicateTransaction(orderId);
+    if (duplicate && duplicate.exists) {
+      // Kalau order ini sudah "reconciled" (pernah direkam sukses), beri tahu user
+      alert(`Transaksi sudah direkam di shift ${duplicate.shiftId || this.kasirInfo.shiftId || 'sebelumnya'}`);
+      this.showToast(`Transaksi ${orderId} sudah pernah direkam`, 'notify');
+      return false;
     }
 
     // 4. ✅ STOK READY — Lanjutkan rekam transaksi
