@@ -2487,7 +2487,10 @@ try {
     const list = this.reconciliationList.filter(item => !item.archived);
     if (type === 'semua' || type === 'all') return list.length;
     if (type === 'berhasil') return list.filter(i => i.status === 'berhasil' || i.status === 'settlement').length;
-    if (type === 'menggantung' || type === 'pending') return list.filter(i => i.status === 'menggantung' || i.status === 'pending').length;
+    if (type === 'menggantung' || type === 'pending') return list.filter(i => 
+      (i.status === 'menggantung' || i.status === 'pending') && 
+      !this.postponedReconcileIds.includes(i.orderId)
+    ).length;
     if (type === 'ditunda') return (this.postponedReconcileIds || []).length;
     if (type === 'gagal' || type === 'expired') return list.filter(i => i.status === 'gagal' || i.status === 'expired' || i.status === 'cancel').length;
     return 0;
