@@ -1,58 +1,15 @@
-/**
- * functions/inventory/deduct.js
- * Cloudflare Pages Function — Pengurangan Stok Bahan Baku Otomatis Berdasarkan Resep (BOM)
- * 
- * Route: POST /inventory/deduct
- */
-
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
 };
 
-function jsonResponse(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json; charset=utf-8" }
-  });
-}
-
-const toNum = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-
-/**
- * Konversi unit takaran ingredient ke unit stock inventory
- */
-function convertUnitUsage(amount, ingUnit, invUnit) {
-  const uIng = String(ingUnit || '').toLowerCase().trim();
-  const uInv = String(invUnit || '').toLowerCase().trim();
-
-  // kg <-> gram
-  if (uInv === 'kg' && uIng === 'gram') return amount / 1000;
-  if (uInv === 'gram' && uIng === 'kg') return amount * 1000;
-
-  // liter <-> ml
-  if (uInv === 'liter' && (uIng === 'ml' || uIng === 'mili')) return amount / 1000;
-  if ((uInv === 'ml' || uInv === 'mili') && uIng === 'liter') return amount * 1000;
-
-  // Default: rasio 1:1
-  return amount;
-}
+const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const method = request.method.toUpperCase();
-
-  if (method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
-  }
-
-  if (method !== 'POST') {
-    return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
-  }
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
+  if (request.method !== 'POST') return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), { status: 405, headers: CORS_HEADERS });
 
   const dbUrl = (env.FIREBASE_DATABASE_URL || "https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app").replace(/\/$/, "");
   const apiKey = env.FIREBASE_API_KEY || "";
@@ -60,168 +17,96 @@ export async function onRequest(context) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const orderId = body.orderId || body.id || ('ORD-' + Date.now());
-    const kasir = body.kasir || 'kasir';
-    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const orderId = String(body.orderId || '').trim();
+    const items = Array.isArray(body.items) ? body.items : [];
 
-    if (rawItems.length === 0) {
-      return jsonResponse({
-        success: true,
-        orderId,
-        deducted: [],
-        warnings: ['Tidak ada item yang diproses'],
-        processedAt: Date.now()
-      });
+    if (!orderId || items.length === 0) {
+      return new Response(JSON.stringify({ success: false, error: 'orderId dan items wajib diisi' }), { status: 400, headers: CORS_HEADERS });
     }
 
-    // 1. Idempotency Check: Cek apakah orderId sudah pernah di-deduct
-    try {
-      const checkRes = await fetch(`${dbUrl}/inventory_deducted/${encodeURIComponent(orderId)}.json${authParam}`);
-      if (checkRes.ok) {
-        const existing = await checkRes.json();
-        if (existing) {
-          return jsonResponse({
-            success: true,
-            orderId,
-            alreadyProcessed: true,
-            message: `Order #${orderId} sudah pernah diproses pengurangan stok.`,
-            processedAt: existing.timestamp || Date.now()
-          });
-        }
-      }
-    } catch (e) {
-      console.warn('[DEDUCT] Idempotency check warning:', e);
+    // Cek apakah order ini sudah pernah di-deduct (biar tidak double)
+    const idemRes = await fetch(`${dbUrl}/inventory_deducted/${encodeURIComponent(orderId)}.json${authParam}`);
+    const idemData = await idemRes.json();
+    if (idemData) {
+      return new Response(JSON.stringify({ success: true, alreadyProcessed: true, message: `Order ${orderId} sudah di-deduct` }), { status: 200, headers: CORS_HEADERS });
     }
 
-    // 2. Fetch Bulk Data: Resep dan Inventory
-    const [recipesRes, inventoryRes] = await Promise.all([
-      fetch(`${dbUrl}/recipes.json${authParam}`),
-      fetch(`${dbUrl}/inventory.json${authParam}`)
-    ]);
+    const deductions = [];
 
-    const recipesData = (recipesRes.ok ? await recipesRes.json() : {}) || {};
-    const inventoryData = (inventoryRes.ok ? await inventoryRes.json() : {}) || {};
+    for (const item of items) {
+      const menuId = item.id || item.menuId;
+      const qty = toNum(item.qty || item.quantity) || 1;
+      if (!menuId) continue;
 
-    const warnings = [];
-    const usageByItemId = {}; // { [itemId]: totalUsage }
+      // Ambil resep menu (bahan apa saja yang dibutuhkan)
+      const rRes = await fetch(`${dbUrl}/recipes/${encodeURIComponent(menuId)}.json${authParam}`);
+      const recipe = await rRes.json();
+      if (!recipe || !recipe.ingredients) continue;
 
-    // 3. Kalkulasi Pengurangan Stok per Bahan Baku
-    for (const item of rawItems) {
-      const menuId = item.id || item.menuId || item.code;
-      const qty = toNum(item.qty || 1);
+      const ingArr = Array.isArray(recipe.ingredients) ? recipe.ingredients : Object.values(recipe.ingredients);
 
-      if (qty <= 0) continue;
+      for (const ing of ingArr) {
+        const invId = ing.itemId;
+        const ingAmt = toNum(ing.amount);
+        if (!invId || ingAmt <= 0) continue;
 
-      const recipe = recipesData[menuId];
-      if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
-        warnings.push(`Resep untuk menu "${item.name || menuId}" tidak ditemukan atau belum diisi`);
-        continue;
-      }
+        const invRes = await fetch(`${dbUrl}/inventory/${encodeURIComponent(invId)}.json${authParam}`);
+        const inv = await invRes.json();
+        if (!inv) continue;
 
-      for (const ing of recipe.ingredients) {
-        const itemId = ing.itemId || ing.id;
-        const ingAmount = toNum(ing.amount);
-        const ingUnit = ing.unit || 'gram';
+        // Konversi satuan (kg ↔ gram, liter ↔ ml)
+        const itemUnit = (inv.unit || '').toLowerCase();
+        const ingUnit = (ing.unit || '').toLowerCase();
+        let usage = ingAmt * qty;
 
-        if (!itemId || ingAmount <= 0) continue;
+        if (itemUnit === 'kg' && ingUnit === 'gram') usage = usage / 1000;
+        else if (itemUnit === 'gram' && ingUnit === 'kg') usage = usage * 1000;
+        else if (itemUnit === 'liter' && ingUnit === 'ml') usage = usage / 1000;
+        else if (itemUnit === 'ml' && ingUnit === 'liter') usage = usage * 1000;
 
-        const invItem = inventoryData[itemId];
-        if (!invItem) {
-          warnings.push(`Bahan baku ID "${itemId}" tidak ditemukan dalam data inventori`);
-          continue;
-        }
+        const before = toNum(inv.stock || inv.stok || 0);
+        const after = Math.max(0, before - usage);
 
-        const convertedUsage = convertUnitUsage(ingAmount * qty, ingUnit, invItem.unit);
-        usageByItemId[itemId] = (usageByItemId[itemId] || 0) + convertedUsage;
-      }
-    }
-
-    const deducted = [];
-    const now = Date.now();
-    const updatePromises = [];
-
-    // 4. Update Stok & Catat Log Inventory
-    for (const [itemId, totalUsage] of Object.entries(usageByItemId)) {
-      const invItem = inventoryData[itemId];
-      if (!invItem) continue;
-
-      const oldStock = toNum(invItem.stock !== undefined ? invItem.stock : invItem.stok);
-      let newStock = oldStock - totalUsage;
-
-      if (newStock < 0) {
-        warnings.push(`Stok "${invItem.name || itemId}" tidak mencukupi (sisa: ${oldStock}, dibutuhkan: ${totalUsage}). Stok diset ke 0.`);
-        newStock = 0;
-      }
-
-      const logId = 'log_' + now + '_' + Math.random().toString(36).substring(2, 6);
-      const logPayload = {
-        t: now,
-        old: oldStock,
-        new: newStock,
-        diff: -(Math.min(oldStock, totalUsage)),
-        by: `${kasir} (POS #${orderId})`,
-        reason: 'Penjualan POS',
-        changeType: 'auto-pos-sale'
-      };
-
-      deducted.push({
-        itemId,
-        name: invItem.name || itemId,
-        before: oldStock,
-        after: newStock,
-        used: totalUsage,
-        unit: invItem.unit || 'unit'
-      });
-
-      // Update item stok
-      updatePromises.push(
-        fetch(`${dbUrl}/inventory/${encodeURIComponent(itemId)}.json${authParam}`, {
+        // Update stok
+        await fetch(`${dbUrl}/inventory/${encodeURIComponent(invId)}.json${authParam}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            stock: newStock,
-            stok: newStock,
-            lastUpdate: now
-          })
-        })
-      );
+          body: JSON.stringify({ stock: after, stok: after, lastUpdate: Date.now() })
+        });
 
-      // Simpan log pengurangan stok
-      updatePromises.push(
-        fetch(`${dbUrl}/inventory_logs/${encodeURIComponent(itemId)}/${encodeURIComponent(logId)}.json${authParam}`, {
+        // Catat log perubahan stok
+        const logId = `log_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        await fetch(`${dbUrl}/inventory_logs/${encodeURIComponent(invId)}/${logId}.json${authParam}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(logPayload)
-        })
-      );
+          body: JSON.stringify({
+            t: Date.now(),
+            old: before,
+            new: after,
+            diff: after - before,
+            by: body.kasir || 'kasir',
+            reason: `Penjualan POS #${orderId}`,
+            changeType: 'auto-pos-sale'
+          })
+        });
+
+        deductions.push({ itemId: invId, name: inv.name || invId, before, after, used: usage, unit: inv.unit });
+      }
     }
 
-    // 5. Simpan record Idempotency
-    updatePromises.push(
-      fetch(`${dbUrl}/inventory_deducted/${encodeURIComponent(orderId)}.json${authParam}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          timestamp: now,
-          kasir,
-          itemsCount: rawItems.length,
-          deductedCount: deducted.length
-        })
-      })
-    );
-
-    await Promise.all(updatePromises);
-
-    return jsonResponse({
-      success: true,
-      orderId,
-      deducted,
-      warnings,
-      processedAt: now
+    // Tandai agar order ini tidak diproses 2 kali
+    await fetch(`${dbUrl}/inventory_deducted/${encodeURIComponent(orderId)}.json${authParam}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ processedAt: Date.now(), deductions })
     });
+
+    return new Response(JSON.stringify({ success: true, orderId, deducted: deductions, processedAt: Date.now() }), {
+      status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+    });
+
   } catch (err) {
-    console.error('[DEDUCT] Server error:', err);
-    return jsonResponse({ success: false, error: err.message }, 500);
+    console.error('[INV-DEDUCT] Error:', err);
+    return new Response(JSON.stringify({ success: false, error: err.message }), { status: 500, headers: CORS_HEADERS });
   }
 }

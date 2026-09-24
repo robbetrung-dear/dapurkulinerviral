@@ -493,8 +493,24 @@ export async function onRequest(context) {
         const orderId = String(body.orderId || '').trim();
         const dateStr = body.date || new Date().toISOString().split('T')[0];
         const pm = String(body.pm || 'cash').toLowerCase();
-        const total = toNum(body.total);
-        const items = Array.isArray(body.items) ? body.items : [];
+        const total = toNum(body.total || body.totalAmount || body.tot);
+
+        let items = [];
+        if (Array.isArray(body.items)) {
+          items = body.items;
+        } else if (body.items && typeof body.items === 'object') {
+          items = Object.values(body.items).filter(Boolean);
+        }
+        items = items.map(it => {
+          if (Array.isArray(it)) {
+            return { id: it[0], qty: Number(it[1]) || 1, price: Number(it[2]) || 0 };
+          }
+          return {
+            id: it.id || it.menuId,
+            qty: Number(it.qty || it.quantity) || 1,
+            price: Number(it.price || it.harga) || 0
+          };
+        });
 
         if (!orderId || total <= 0) {
           return jsonResponse({ success: false, error: 'orderId dan total wajib diisi' }, 400);

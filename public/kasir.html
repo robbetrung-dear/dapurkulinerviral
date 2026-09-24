@@ -1251,22 +1251,20 @@
                             <span>Verifikasi</span>
                           </button>
                         </template>
-                        <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && !item.postponed">
-                          <template x-if="!item.reconciled">
-                            <button 
-                              type="button" 
-                              @click="rekamTransaksi(item.orderId)"
-                              class="min-h-[38px] px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs">
-                              <i class="fa-solid fa-check text-[11px]"></i>
-                              <span>Rekam</span>
-                            </button>
-                          </template>
-                          <template x-if="item.reconciled">
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-xs border border-emerald-300">
-                              <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
-                              <span>Terverifikasi</span>
-                            </span>
-                          </template>
+                        <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && !item.reconciled && !item.postponed">
+                          <button 
+                            type="button" 
+                            @click="rekamTransaksi(item.orderId)"
+                            class="min-h-[38px] px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs">
+                            <i class="fa-solid fa-check text-[11px]"></i>
+                            <span>Rekam</span>
+                          </button>
+                        </template>
+                        <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && item.reconciled">
+                          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-xs border border-emerald-300">
+                            <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+                            <span>Terekam</span>
+                          </span>
                         </template>
                         <template x-if="item.status === 'gagal' || item.status === 'expired'">
                           <template x-if="!item.archived">
@@ -1368,22 +1366,20 @@
                       <span>Verifikasi Transaksi</span>
                     </button>
                   </template>
-                  <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && !item.postponed">
-                    <template x-if="!item.reconciled">
-                      <button 
-                        type="button" 
-                        @click="rekamTransaksi(item.orderId)"
-                        class="w-full min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs">
-                        <i class="fa-solid fa-check text-xs"></i>
-                        <span>Rekam ke POS</span>
-                      </button>
-                    </template>
-                    <template x-if="item.reconciled">
-                      <div class="w-full py-2.5 px-3 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center gap-2 border border-emerald-300">
-                        <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
-                        <span>Terverifikasi &amp; Direkam</span>
-                      </div>
-                    </template>
+                  <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && !item.reconciled && !item.postponed">
+                    <button 
+                      type="button" 
+                      @click="rekamTransaksi(item.orderId)"
+                      class="w-full min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs">
+                      <i class="fa-solid fa-check text-xs"></i>
+                      <span>Rekam</span>
+                    </button>
+                  </template>
+                  <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && item.reconciled">
+                    <div class="w-full py-2.5 px-3 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center gap-2 border border-emerald-300">
+                      <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+                      <span>Terekam</span>
+                    </div>
                   </template>
                   <template x-if="item.status === 'gagal' || item.status === 'expired'">
                     <template x-if="!item.archived">
@@ -2488,26 +2484,64 @@
 
           <!-- TAMPILAN C: CHART OF ACCOUNTS (COA) -->
           <div x-show="accountingTab === 'coa'" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Aset & Kas -->
+            <div x-show="coaListBackendLoading" class="text-center py-8 text-stone-400 text-sm">
+              <i class="fa-solid fa-spinner fa-spin mr-2"></i>Memuat bagan akun...
+            </div>
+
+            <div x-show="!coaListBackendLoading" class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
                 <h5 class="font-extrabold text-xs uppercase text-emerald-800 flex items-center gap-1.5">
-                  <i class="fa-solid fa-vault"></i> 100 - ASET LANCAR &amp; KAS
+                  <i class="fa-solid fa-vault"></i> 1000 - ASET LANCAR &amp; KAS
                 </h5>
                 <ul class="text-xs space-y-1 font-mono text-stone-700">
-                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200"><span>101 - Kas Dapur &amp; Bank QRIS</span> <strong class="text-emerald-700" x-text="formatRupiah(getAccountingSummary().totalRev)"></strong></li>
-                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200"><span>103 - Persediaan Bahan Baku (BOM)</span> <strong>IDR 3.450.000</strong></li>
+                  <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('1'))" :key="acc.code">
+                    <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                      <span x-text="acc.code + ' - ' + acc.name"></span>
+                      <strong class="text-emerald-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+                    </li>
+                  </template>
                 </ul>
               </div>
 
-              <!-- Pendapatan & HPP -->
               <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
                 <h5 class="font-extrabold text-xs uppercase text-amber-800 flex items-center gap-1.5">
-                  <i class="fa-solid fa-file-invoice"></i> 400 &amp; 501 - PENDAPATAN &amp; HPP
+                  <i class="fa-solid fa-file-invoice"></i> 4000 &amp; 5000 - PENDAPATAN &amp; HPP
                 </h5>
                 <ul class="text-xs space-y-1 font-mono text-stone-700">
-                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200"><span>401 - Pendapatan Penjualan POS</span> <strong x-text="formatRupiah(getAccountingSummary().totalRev)"></strong></li>
-                  <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200"><span>501 - Harga Pokok Penjualan (HPP)</span> <strong class="text-amber-800" x-text="formatRupiah(getAccountingSummary().totalCOGS)"></strong></li>
+                  <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('4') || String(a.code).startsWith('5'))" :key="acc.code">
+                    <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                      <span x-text="acc.code + ' - ' + acc.name"></span>
+                      <strong class="text-emerald-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+
+              <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+                <h5 class="font-extrabold text-xs uppercase text-rose-800 flex items-center gap-1.5">
+                  <i class="fa-solid fa-scale-balanced"></i> 2000 &amp; 3000 - KEWAJIBAN &amp; EKUITAS
+                </h5>
+                <ul class="text-xs space-y-1 font-mono text-stone-700">
+                  <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('2') || String(a.code).startsWith('3'))" :key="acc.code">
+                    <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                      <span x-text="acc.code + ' - ' + acc.name"></span>
+                      <strong class="text-rose-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+
+              <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+                <h5 class="font-extrabold text-xs uppercase text-orange-800 flex items-center gap-1.5">
+                  <i class="fa-solid fa-receipt"></i> 6000 - BEBAN OPERASIONAL
+                </h5>
+                <ul class="text-xs space-y-1 font-mono text-stone-700">
+                  <template x-for="acc in coaListBackend.filter(a => String(a.code).startsWith('6'))" :key="acc.code">
+                    <li class="flex justify-between p-1.5 bg-white rounded border border-stone-200">
+                      <span x-text="acc.code + ' - ' + acc.name"></span>
+                      <strong class="text-orange-700" x-text="formatRupiah(acc.saldo || 0)"></strong>
+                    </li>
+                  </template>
                 </ul>
               </div>
             </div>

@@ -31,8 +31,12 @@ window.kasirApp = () => ({
     name: 'Kasir Utama',
     shiftId: 'S-2026-09-18-01'
   },
-    currentTime: '',
+  currentTime: '',
   _clockInterval: null,
+
+  // Bagan Akun (COA) Backend Integration
+  coaListBackend: [],
+  coaListBackendLoading: false,
   
   // ✅ Custom Title (dari Admin Panel → Security)
   customKasirTitle: 'Kasir Pintar',
@@ -549,6 +553,7 @@ try {
     this.listenMenuItems();
     this.loadPrinterConfig();
     this.loadAccountingSummary(true);
+    await this.loadCOAListFromBackend();
 
     // 6. Muat Inventory Realtime, Resep Bahan Baku & Riwayat Shift (BAGIAN 3)
     this.loadInventory();
@@ -1642,7 +1647,7 @@ try {
 
     // ✅ FIX #1: Normalize field — Firebase pakai short-form (tot, sub, sc, disc)
     const grandTotal = orderData 
-      ? (Number(orderData.total || orderData.tot || orderData.gross_amount) || 0) 
+      ? (Number(orderData.total || orderData.tot || orderData.totalAmount) || 0) 
       : this.getCartGrandTotal();
     const subtotal = orderData 
       ? (Number(orderData.subtotal || orderData.sub) || Math.round(grandTotal / 1.11)) 
@@ -1814,6 +1819,9 @@ try {
     try {
       if (typeof this.loadAccountingSummary === 'function') {
         await this.loadAccountingSummary(true);
+      }
+      if (typeof this.loadCOAListFromBackend === 'function') {
+        await this.loadCOAListFromBackend();
       }
     } catch (e) {}
 
@@ -2451,11 +2459,10 @@ try {
   /**
    * 1. Cek pending rekonsiliasi dengan filter timestamp dan grouping status (SYNCHRONOUS & AMAN DARI REKURSIF)
    */
-    cekPendingRekonsiliasi() {
+  cekPendingRekonsiliasi() {
     const list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
     const activeList = list.filter(item => !item.archived);
 
-    // Transaksi menggantung yang butuh verifikasi (EXCLUDE yang sudah ditunda)
     const menggantung = activeList.filter(i => 
       !i.reconciled && 
       (i.status === 'menggantung' || i.status === 'pending') && 
@@ -2463,29 +2470,30 @@ try {
     );
 
     const berhasil = activeList.filter(i => 
-      i.status === 'berhasil' || i.status === 'settlement'
+      (i.status === 'berhasil' || i.status === 'settlement') && 
+      !this.postponedReconcileIds.includes(i.orderId)
+    );
+
+    const ditunda = activeList.filter(i => 
+      this.postponedReconcileIds.includes(i.orderId) || i.status === 'ditunda'
     );
 
     const gagal = activeList.filter(i => 
       i.status === 'gagal' || i.status === 'expired' || i.status === 'cancel'
     );
 
-    // Update state pendingReconcile murni berdasarkan jumlah transaksi menggantung yang butuh verifikasi
     this.pendingReconcile = menggantung.length;
-    if (this.pendingReconcile === 0) {
-      this.pendingReconcileModal = false;
-    }
+    if (this.pendingReconcile === 0) this.pendingReconcileModal = false;
 
     this.reconcileSummary = {
-      berhasil,
-      menggantung,
-      gagal,
+      berhasil, menggantung, ditunda, gagal,
       berhasilCount: berhasil.length,
       menggantungCount: menggantung.length,
+      ditundaCount: ditunda.length,
       gagalCount: gagal.length
     };
 
-    return { berhasil, menggantung, gagal };
+    return { berhasil, menggantung, ditunda, gagal };
   },
 
   /**
@@ -2495,13 +2503,16 @@ try {
     if (!this.reconciliationList || this.reconciliationList.length === 0) return 0;
     const list = this.reconciliationList.filter(item => !item.archived);
     if (type === 'semua' || type === 'all') return list.length;
-    if (type === 'berhasil') return list.filter(i => i.status === 'berhasil' || i.status === 'settlement').length;
-    if (type === 'menggantung' || type === 'pending') return list.filter(i => 
-      (i.status === 'menggantung' || i.status === 'pending') && 
-      !this.postponedReconcileIds.includes(i.orderId)
+    if (type === 'berhasil') return list.filter(i => 
+      (i.status === 'berhasil' || i.status === 'settlement') && !this.isPostponed(i.orderId)
     ).length;
-    if (type === 'ditunda') return (this.postponedReconcileIds || []).length;
-    if (type === 'gagal' || type === 'expired') return list.filter(i => i.status === 'gagal' || i.status === 'expired' || i.status === 'cancel').length;
+    if (type === 'menggantung' || type === 'pending') return list.filter(i => 
+      (i.status === 'menggantung' || i.status === 'pending') && !this.isPostponed(i.orderId)
+    ).length;
+    if (type === 'ditunda') return list.filter(i => this.isPostponed(i.orderId) || i.status === 'ditunda').length;
+    if (type === 'gagal' || type === 'expired') return list.filter(i => 
+      i.status === 'gagal' || i.status === 'expired' || i.status === 'cancel'
+    ).length;
     return 0;
   },
 
@@ -2531,57 +2542,72 @@ try {
 
     let rawList = [];
     try {
-      const res = await fetch('/pending-orders');
+      // Ambil data langsung dari Firebase
+      const dbUrl = (this._fbConfig && this._fbConfig.databaseURL) 
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
+      const res = await fetch(`${dbUrl.replace(/\/$/, '')}/orders.json`);
       if (res.ok) {
-        const json = await res.json();
-        rawList = json.orders || json.data || (Array.isArray(json) ? json : []);
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          rawList = Object.entries(data).map(([id, v]) => ({ id, orderId: id, ...(v || {}) }));
+        }
       }
     } catch (e) {
       console.warn('Gagal memuat /orders:', e);
     }
 
-    // Fallback seed data berkualitas jika server belum memiliki order sama sekali
-      if (!rawList || rawList.length === 0) {
-      rawList = [];
-      console.log('Tidak ada order pending. Rekonsiliasi kosong.');
-    }
-    // Mapping ke struktur kolom tabel
     const mapped = rawList
       .filter(o => !o.archived)
       .map(o => {
         const st = (o.status || '').toLowerCase();
         let normalizedStatus = 'menggantung';
-        if (['settlement', 'berhasil', 'success', 'dibayar', 'capture'].includes(st)) {
+        if (['settlement', 'berhasil', 'success', 'dibayar', 'capture', 'selesai'].includes(st)) {
           normalizedStatus = 'berhasil';
         } else if (['expired', 'gagal', 'cancel', 'batal', 'ditolak', 'denied'].includes(st)) {
           normalizedStatus = 'gagal';
+        } else if (st === 'ditunda') {
+          normalizedStatus = 'ditunda';
         }
 
-        const formattedTime = this.formatTimeWib(o.createdAt);
-
-                // ✅ Cek postponed dari backend
-        const isPostponedFromBackend = o.postponed === true || String(o.status || '').toLowerCase() === 'ditunda';
-        
-        // Sync ke state lokal supaya badge DITUNDA muncul
+        const isPostponedFromBackend = o.postponed === true || st === 'ditunda';
         if (isPostponedFromBackend && !this.postponedReconcileIds.includes(o.orderId || o.id)) {
           this.postponedReconcileIds.push(o.orderId || o.id);
         }
 
+        // Pastikan items selalu jadi array (bukan object)
+        let itemsArr = [];
+        if (Array.isArray(o.items)) {
+          itemsArr = o.items;
+        } else if (o.items && typeof o.items === 'object') {
+          itemsArr = Object.values(o.items).filter(Boolean);
+        }
+        itemsArr = itemsArr.map(it => {
+          if (Array.isArray(it)) {
+            return { id: it[0], name: it[0], qty: Number(it[1]) || 1, price: Number(it[2]) || 0 };
+          }
+          return {
+            id: it.id || it.menuId,
+            name: it.name || it.menuName || it.id,
+            qty: Number(it.qty || it.quantity) || 1,
+            price: Number(it.price || it.harga) || 0
+          };
+        });
+
         return {
           orderId: o.orderId || o.id,
-          waktu: formattedTime,
-          time: formattedTime,
-          pemesan: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
-          customer: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
-          total: Number(o.total || o.tot || o.gross_amount || 0),
+          waktu: this.formatTimeWib(o.createdAt),
+          time: this.formatTimeWib(o.createdAt),
+          pemesan: o.customer?.name || o.customerName || o.pemesan || 'Pelanggan Umum',
+          customer: o.customer?.name || o.customerName || o.pemesan || 'Pelanggan Umum',
+          customerPhone: o.customer?.phone || o.customerPhone || '',
+          customerAddress: o.customer?.address || o.customerAddress || '',
+          total: Number(o.total || o.totalAmount || o.tot || o.gross_amount || 0),
           status: isPostponedFromBackend ? 'ditunda' : normalizedStatus,
           rawStatus: o.status || normalizedStatus,
-          paymentMethod: o.paymentMethod || o.payment_type || 'QRIS',
+          paymentMethod: o.paymentMethod || o.pm || o.payment_type || 'QRIS',
           midtransId: o.midtransId || o.transaction_id || '-',
           buktiTransfer: o.buktiTransfer || null,
-          items: Array.isArray(o.items) 
-            ? o.items 
-            : Object.values(o.items || {}).filter(Boolean),
+          items: itemsArr,
           createdAt: Number(o.createdAt) || Date.now(),
           reconciled: !!o.reconciled,
           archived: !!o.archived,
@@ -2592,16 +2618,13 @@ try {
         };
       });
 
-    // Sort by waktu DESC
     mapped.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    this.reconciliationList = mapped;
 
-        this.reconciliationList = mapped;
-    
-    // ✅ Persist postponed list
     try {
       localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
     } catch (e) {}
-    
+
     this.cekPendingRekonsiliasi();
     return mapped;
   },
@@ -6260,6 +6283,57 @@ try {
     } finally {
       this.isProcessingApproval = false;
       this.isLoading = false;
+    }
+  },
+
+  async loadCOAListFromBackend() {
+    try {
+      this.coaListBackendLoading = true;
+      const res = await fetch('/accounting/coa');
+      if (!res.ok) { this.coaListBackendLoading = false; return; }
+      const json = await res.json();
+      
+      if (json.success && json.data) {
+        let list = [];
+        if (Array.isArray(json.data)) {
+          list = json.data;
+        } else {
+          list = Object.entries(json.data).map(([code, v]) => ({
+            code, name: v.n || v.name || code, type: v.t || v.type || 'Aset'
+          }));
+        }
+        
+        const summary = this.accountingSummaryData || {};
+        const saldoMap = {
+          '1001': Number(summary.saldoKas) || 0,
+          '1002': Number(summary.saldoBank) || 0,
+          '1003': Number(summary.piutang) || 0,
+          '1004': Number(summary.persediaanAkhir) || 0,
+          '1005': 0,
+          '2001': Number(summary.hutangSupplier) || 0,
+          '2002': 0,
+          '3001': Number(summary.modalPemilik) || 0,
+          '3002': 0,
+          '3003': 0,
+          '4001': Number(summary.pendapatan?.penjualanPos) || 0,
+          '4002': Number(summary.pendapatan?.penjualanCatering) || 0,
+          '5001': Number(summary.hpp?.totalHpp) || 0,
+          '6001': Number(summary.beban?.gaji) || 0,
+          '6002': Number(summary.beban?.sewa) || 0,
+          '6003': Number(summary.beban?.utilitas) || 0,
+          '6004': Number(summary.beban?.marketing) || 0,
+          '6005': Number(summary.beban?.operasional) || 0
+        };
+        
+        list.forEach(item => { item.saldo = saldoMap[item.code] || 0; });
+        list.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+        this.coaListBackend = list;
+        console.log(`[KASIR-COA] Loaded ${list.length} accounts`);
+      }
+    } catch (err) {
+      console.error('[KASIR-COA] Fetch error:', err);
+    } finally {
+      this.coaListBackendLoading = false;
     }
   },
 

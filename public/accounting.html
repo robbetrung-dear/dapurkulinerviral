@@ -144,6 +144,22 @@
     toastMsg: '',
     toastType: 'success',
 
+    accountingMode: 'trial',
+    closedPeriods: [],
+    isPeriodClosed(b) { return (this.closedPeriods || []).includes(b || this.bulanAktif); },
+    prosesTutupBuku() {},
+    mulaiUjiCobaBaru() {},
+    goLiveProduksi() {},
+
+    ledgerData: {
+      account: null,
+      openingBalance: 0,
+      totalDebit: 0,
+      totalCredit: 0,
+      closingBalance: 0,
+      transactions: []
+    },
+
     // Modals
     modalEditSaldo: false,
     modalAddAkun: false,
@@ -433,6 +449,21 @@
           <span>Export & Arsip</span>
         </button>
 
+        <!-- Kategori Baru: Trial / Live -->
+        <div class="px-3 pt-3 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
+          <i class="fa-solid fa-flask-vial"></i>
+          <span>Trial / Live</span>
+        </div>
+
+        <button 
+          type="button" 
+          @click="setTab('trial_live')"
+          :class="activeTab === 'trial_live' ? 'bg-amber-50 text-amber-900 font-extrabold border-amber-300 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
+          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
+          <i class="fa-solid fa-sliders w-5 text-center" :class="activeTab === 'trial_live' ? 'text-amber-600' : 'text-stone-400'"></i>
+          <span>Kelola Siklus Buku</span>
+        </button>
+
       </div>
 
       <!-- Footer Sidebar: Info Periode -->
@@ -443,9 +474,14 @@
             <span class="font-bold text-stone-800 font-mono" x-text="bulanAktif"></span>
           </div>
           <div class="flex items-center justify-between text-stone-500 font-medium">
+            <span>Mode Sistem:</span>
+            <span class="px-1.5 py-0.5 rounded font-extrabold uppercase text-[10px]" :class="accountingMode === 'live' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'" x-text="accountingMode === 'live' ? 'PRODUKSI (LIVE)' : 'TRIAL / UJI COBA'"></span>
+          </div>
+          <div class="flex items-center justify-between text-stone-500 font-medium">
             <span>Status Buku:</span>
-            <span class="inline-flex items-center gap-1 font-bold text-emerald-600">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Terbuka
+            <span class="inline-flex items-center gap-1 font-bold" :class="isPeriodClosed(bulanAktif) ? 'text-rose-600' : 'text-emerald-600'">
+              <span class="w-1.5 h-1.5 rounded-full" :class="isPeriodClosed(bulanAktif) ? 'bg-rose-500' : 'bg-emerald-500'"></span>
+              <span x-text="isPeriodClosed(bulanAktif) ? 'Ditutup' : 'Terbuka'"></span>
             </span>
           </div>
         </div>
@@ -867,20 +903,20 @@
         <!-- Info Saldo Ringkas Akun Terpilih -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-            <span class="text-xs text-stone-500 font-bold uppercase">Saldo Awal</span>
-            <div class="text-lg sm:text-xl font-extrabold text-stone-900 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).initialBalance || 0)"></div>
+            <span class="text-xs text-stone-500 font-bold uppercase">Saldo Awal Bulan</span>
+            <div class="text-xl font-extrabold text-stone-900 font-mono mt-1" x-text="formatRupiah(ledgerData.openingBalance || 0)"></div>
           </div>
           <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-            <span class="text-xs text-emerald-600 font-bold uppercase">Total Debit</span>
-            <div class="text-lg sm:text-xl font-extrabold text-emerald-700 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).totalDebit || 0)"></div>
+            <span class="text-xs text-emerald-600 font-bold uppercase">Total Mutasi Debit</span>
+            <div class="text-xl font-extrabold text-emerald-700 font-mono mt-1" x-text="formatRupiah(ledgerData.totalDebit || 0)"></div>
           </div>
           <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-            <span class="text-xs text-rose-600 font-bold uppercase">Total Kredit</span>
-            <div class="text-lg sm:text-xl font-extrabold text-rose-700 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).totalCredit || 0)"></div>
+            <span class="text-xs text-rose-600 font-bold uppercase">Total Mutasi Kredit</span>
+            <div class="text-xl font-extrabold text-rose-700 font-mono mt-1" x-text="formatRupiah(ledgerData.totalCredit || 0)"></div>
           </div>
           <div class="p-4 rounded-2xl bg-white border border-brand-200 shadow-xs bg-brand-50/30">
-            <span class="text-xs text-brand-700 font-bold uppercase">Saldo Akhir</span>
-            <div class="text-lg sm:text-xl font-extrabold text-brand-800 font-mono mt-1" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).currentBalance || 0)"></div>
+            <span class="text-xs text-brand-700 font-bold uppercase">Saldo Akhir Berjalan</span>
+            <div class="text-xl font-extrabold text-brand-800 font-mono mt-1" x-text="formatRupiah(ledgerData.closingBalance || 0)"></div>
           </div>
         </div>
 
@@ -901,23 +937,23 @@
               <tbody class="divide-y divide-stone-100 font-medium">
                 <!-- Baris Saldo Awal -->
                 <tr class="bg-stone-50/40">
-                  <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-500">2026-09-01</td>
+                  <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-500" x-text="bulanAktif + '-01'"></td>
                   <td class="py-3.5 px-4 font-mono text-stone-400">SALDO-AWAL</td>
                   <td class="py-3.5 px-6 font-bold text-stone-700 italic">Saldo Awal Periode Buku</td>
                   <td class="py-3.5 px-4 text-right font-mono text-stone-400">-</td>
                   <td class="py-3.5 px-4 text-right font-mono text-stone-400">-</td>
-                  <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-bold text-stone-900" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).initialBalance || 0)"></td>
+                  <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-bold text-stone-900" x-text="formatRupiah(ledgerData.openingBalance || 0)"></td>
                 </tr>
 
                 <!-- Mutasi Jurnal yang relevan dengan ledgerAkun -->
-                <template x-for="j in jurnalList.filter(j => j.debitCode === ledgerAkun || j.creditCode === ledgerAkun)" :key="j.id">
+                <template x-for="(t, idx) in (ledgerData.transactions || [])" :key="idx">
                   <tr class="hover:bg-stone-50/70 transition">
-                    <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-800" x-text="j.date"></td>
-                    <td class="py-3.5 px-4 font-mono text-brand-700 font-bold" x-text="j.noEntry"></td>
-                    <td class="py-3.5 px-6 font-bold text-stone-900" x-text="j.desc"></td>
-                    <td class="py-3.5 px-4 text-right font-mono" :class="j.debitCode === ledgerAkun ? 'font-bold text-emerald-700' : 'text-stone-300'" x-text="j.debitCode === ledgerAkun ? formatRupiah(j.debitAmount) : '-'"></td>
-                    <td class="py-3.5 px-4 text-right font-mono" :class="j.creditCode === ledgerAkun ? 'font-bold text-rose-700' : 'text-stone-300'" x-text="j.creditCode === ledgerAkun ? formatRupiah(j.creditAmount) : '-'"></td>
-                    <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-black text-stone-900" x-text="formatRupiah((coaList.find(c => c.code === ledgerAkun) || {}).currentBalance || 0)"></td>
+                    <td class="py-3.5 px-4 sm:px-6 font-mono text-stone-800" x-text="t.date"></td>
+                    <td class="py-3.5 px-4 font-mono text-brand-700 font-bold" x-text="t.ref"></td>
+                    <td class="py-3.5 px-6 font-bold text-stone-900" x-text="t.desc"></td>
+                    <td class="py-3.5 px-4 text-right font-mono" :class="t.debit > 0 ? 'font-bold text-emerald-700' : 'text-stone-300'" x-text="t.debit > 0 ? formatRupiah(t.debit) : '-'"></td>
+                    <td class="py-3.5 px-4 text-right font-mono" :class="t.credit > 0 ? 'font-bold text-rose-700' : 'text-stone-300'" x-text="t.credit > 0 ? formatRupiah(t.credit) : '-'"></td>
+                    <td class="py-3.5 px-4 sm:px-6 text-right font-mono font-black text-stone-900" x-text="formatRupiah(t.runningBalance || 0)"></td>
                   </tr>
                 </template>
               </tbody>
@@ -1634,6 +1670,110 @@
                 </tbody>
               </table>
             </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 8: TRIAL / LIVE (SIKLUS PEMBUKUAN & DATA)                     -->
+      <!-- ================================================================= -->
+      <div x-show="activeTab === 'trial_live'" x-cloak class="space-y-6">
+        
+        <!-- Header Trial / Live -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-stone-200">
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Manajemen Siklus Pembukuan (Trial / Live)</h2>
+              <span class="px-2.5 py-0.5 rounded-full font-extrabold text-xs uppercase" :class="accountingMode === 'live' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'" x-text="accountingMode === 'live' ? 'Mode Produksi (Live)' : 'Mode Trial / Simulasi'"></span>
+            </div>
+            <p class="text-xs sm:text-sm text-stone-500 font-medium">Pengelolaan siklus tutup buku bulanan, reset data simulasi uji coba, dan transisi Go-Live produksi.</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-stone-500 uppercase">Periode Aktif:</span>
+            <input 
+              type="month" 
+              x-model="bulanAktif" 
+              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500" 
+            />
+          </div>
+        </div>
+
+        <!-- 3 KARTU AKSI UTAMA TRIAL / LIVE -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          <!-- KARTU 1: PROSES TUTUP BUKU -->
+          <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs flex flex-col justify-between space-y-5 hover:border-emerald-300 transition">
+            <div class="space-y-3">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold border border-emerald-100">
+                <i class="fa-solid fa-lock"></i>
+              </div>
+              <div>
+                <h4 class="font-extrabold text-stone-900 text-base">Tutup Buku Periode</h4>
+                <p class="text-xs text-stone-500 mt-1 leading-relaxed">
+                  Kunci mutasi periode <span class="font-mono font-bold text-stone-800" x-text="bulanAktif"></span>, hitung laba bersih berjalan, alokasikan ke Laba Ditahan (3002), dan siapkan saldo awal periode baru.
+                </p>
+              </div>
+            </div>
+
+            <button 
+              type="button" 
+              @click="prosesTutupBuku()"
+              :disabled="loading"
+              class="w-full h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50">
+              <i class="fa-solid fa-calculator"></i>
+              <span>Proses Tutup Buku (Akhiri Periode saat ini)</span>
+            </button>
+          </div>
+
+          <!-- KARTU 2: MULAI UJI COBA BARU -->
+          <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs flex flex-col justify-between space-y-5 hover:border-amber-300 transition">
+            <div class="space-y-3">
+              <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold border border-amber-100">
+                <i class="fa-solid fa-rotate-left"></i>
+              </div>
+              <div>
+                <h4 class="font-extrabold text-stone-900 text-base">Mulai Uji Coba Baru</h4>
+                <p class="text-xs text-stone-500 mt-1 leading-relaxed">
+                  Hapus entri jurnal simulasi & reset saldo seluruh akun ke Rp 0 untuk memulai sesi latihan atau validasi transaksi baru dari nol bersih.
+                </p>
+              </div>
+            </div>
+
+            <button 
+              type="button" 
+              @click="mulaiUjiCobaBaru()"
+              :disabled="loading"
+              class="w-full h-11 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50">
+              <i class="fa-solid fa-trash-can"></i>
+              <span>Mulai Uji Coba baru (hapus data dan mulai dari nol)</span>
+            </button>
+          </div>
+
+          <!-- KARTU 3: GO-LIVE PRODUKSI -->
+          <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs flex flex-col justify-between space-y-5 hover:border-brand-300 transition bg-gradient-to-br from-brand-50/30 to-white">
+            <div class="space-y-3">
+              <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold border border-brand-100">
+                <i class="fa-solid fa-rocket"></i>
+              </div>
+              <div>
+                <h4 class="font-extrabold text-stone-900 text-base">Go-Live Produksi</h4>
+                <p class="text-xs text-stone-500 mt-1 leading-relaxed">
+                  Arsipkan seluruh data simulasi pengujian, beralih ke Mode Resmi Pembukuan Produksi, dan siap digunakan untuk operasional nyata.
+                </p>
+              </div>
+            </div>
+
+            <button 
+              type="button" 
+              @click="goLiveProduksi()"
+              :disabled="loading"
+              class="w-full h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+              <span>Go-Live (Arsipkan data uji coba, mulai pembukuan produksi)</span>
+            </button>
           </div>
 
         </div>
