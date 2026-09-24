@@ -1776,13 +1776,50 @@ try {
       }).catch(e => console.warn('Receipt endpoint note:', e));
     } catch (e) {}
 
-    // 6.2 Trigger Auto-Jurnal Akuntansi (Double-Entry Hook)
+        // 6.2 ✅ Trigger Auto-Jurnal Akuntansi via Backend /accounting/journal/pos
+    //      Backend akan:
+    //      1. Bikin jurnal Revenue (Debit Kas/Bank, Kredit 4001)
+    //      2. Baca resep tiap menu, hitung HPP otomatis
+    //      3. Bikin jurnal HPP (Debit 5001, Kredit 1004)
+    //      4. Update Ledger + Summary
     try {
-      if (typeof window.recordAccountingEntry === 'function') {
-        window.recordAccountingEntry(this.currentOrder);
-      }
+      const acctItems = (rawItems || []).map(i => {
+        if (Array.isArray(i)) {
+          return { id: i[0], qty: Number(i[1]) || 1, price: Number(i[2]) || 0 };
+        }
+        return {
+          id: i.id || i.menuId,
+          qty: Number(i.qty || i.quantity) || 1,
+          price: Number(i.price) || 0
+        };
+      });
+
+      const acctBody = {
+        orderId: txId,
+        date: dateStr,
+        pm: pm,
+        total: grandTotal,
+        items: acctItems
+      };
+
+      console.log('[KASIR→ACCT] Sending journal:', acctBody);
+
+      fetch('/accounting/journal/pos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(acctBody)
+      })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) {
+          console.log('[KASIR→ACCT] ✅ Revenue:', j.totalRev, '| HPP:', j.totalHpp, '| Journal IDs:', j.revId, j.hppId);
+        } else {
+          console.warn('[KASIR→ACCT] ⚠️', j.error);
+        }
+      })
+      .catch(e => console.warn('[KASIR→ACCT] ❌', e.message));
     } catch (accErr) {
-      console.warn('Accounting entry trigger note:', accErr);
+      console.warn('[KASIR→ACCT] Exception:', accErr);
     }
 
     // 7. Update ringkasan shift kasir aktif
