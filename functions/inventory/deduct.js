@@ -84,7 +84,6 @@ export async function onRequest(context) {
             success: true,
             orderId,
             alreadyProcessed: true,
-            totalHpp: existing.totalHpp || 0,
             message: `Order #${orderId} sudah pernah diproses pengurangan stok.`,
             processedAt: existing.timestamp || Date.now()
           });
@@ -109,7 +108,7 @@ export async function onRequest(context) {
     // 3. Kalkulasi Pengurangan Stok per Bahan Baku
     for (const item of rawItems) {
       const menuId = item.id || item.menuId || item.code;
-      const qty = toNum(item.qty || item.quantity || 1);
+      const qty = toNum(item.qty || 1);
 
       if (qty <= 0) continue;
 
@@ -140,16 +139,11 @@ export async function onRequest(context) {
     const deducted = [];
     const now = Date.now();
     const updatePromises = [];
-    let totalHpp = 0;
 
     // 4. Update Stok & Catat Log Inventory
     for (const [itemId, totalUsage] of Object.entries(usageByItemId)) {
       const invItem = inventoryData[itemId];
       if (!invItem) continue;
-
-      const unitCost = toNum(invItem.purchasePrice !== undefined ? invItem.purchasePrice : (invItem.hargaBeli !== undefined ? invItem.hargaBeli : (invItem.price || 0)));
-      const itemHpp = totalUsage * unitCost;
-      totalHpp += itemHpp;
 
       const oldStock = toNum(invItem.stock !== undefined ? invItem.stock : invItem.stok);
       let newStock = oldStock - totalUsage;
@@ -176,9 +170,7 @@ export async function onRequest(context) {
         before: oldStock,
         after: newStock,
         used: totalUsage,
-        unit: invItem.unit || 'unit',
-        unitCost,
-        itemHpp: Math.round(itemHpp)
+        unit: invItem.unit || 'unit'
       });
 
       // Update item stok
@@ -213,7 +205,6 @@ export async function onRequest(context) {
           orderId,
           timestamp: now,
           kasir,
-          totalHpp: Math.round(totalHpp),
           itemsCount: rawItems.length,
           deductedCount: deducted.length
         })
@@ -226,7 +217,6 @@ export async function onRequest(context) {
       success: true,
       orderId,
       deducted,
-      totalHpp: Math.round(totalHpp),
       warnings,
       processedAt: now
     });

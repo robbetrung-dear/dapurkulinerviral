@@ -404,10 +404,7 @@ app.get(['/inventory/menu_stock/:menuId', '/api/inventory/menu_stock/:menuId'], 
 });
 
 // POST /inventory/:itemId (Add new item)
-app.post(['/inventory/:itemId', '/api/inventory/:itemId', '/inventory', '/api/inventory'], (req, res, next) => {
-  if (req.params.itemId === 'deduct') {
-    return next();
-  }
+app.post(['/inventory/:itemId', '/api/inventory/:itemId', '/inventory', '/api/inventory'], (req, res) => {
   try {
     const itemId = req.params.itemId || req.body.id || ('inv_' + Date.now());
     const { name, category, stock, minStock, min, unit, purchasePrice, hargaBeli, isCountable } = req.body || {};
@@ -497,26 +494,117 @@ app.post(['/inventory_logs/:itemId/:logId', '/api/inventory_logs/:itemId/:logId'
 
 let inventoryDeductedStore: Record<string, any> = {};
 
-app.post(['/inventory/deduct', '/api/inventory/deduct'], async (req, res) => {
+app.post(['/inventory/deduct', '/api/inventory/deduct'], (req, res) => {
   try {
-    const { onRequest } = await import('./functions/inventory/deduct.js');
-    const fullUrl = `http://${req.get('host') || '127.0.0.1:3000'}/inventory/deduct`;
-    const webReq = new Request(fullUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body || {})
-    });
-    const webRes = await onRequest({ request: webReq, env: process.env });
-    const json = await webRes.json();
+    const { orderId = ('ORD-' + Date.now()), kasir = 'kasir', items = [] } = req.body || {};
     
-    // Also sync to local posInventory in memory if applicable
-    if (json && json.deducted && Array.isArray(json.deducted)) {
-      json.deducted.forEach((d: any) => {
-        const item = posInventory.find(i => i.id === d.itemId);
-        if (item) item.stock = d.after;
+    if (inventoryDeductedStore[orderId]) {
+      return res.json({
+        success: true,
+        orderId,
+        alreadyProcessed: true,
+        message: `Order #${orderId} sudah pernah diproses pengurangan stok.`,
+        processedAt: inventoryDeductedStore[orderId].timestamp || Date.now()
       });
     }
-    return res.status(webRes.status).json(json);
+
+    const deducted: any[] = [];
+    const warnings: string[] = [];
+    const now = Date.now();
+
+    // Kurangi stok bahan baku berdasarkan formulasi resep jika terdaftar
+    for (const orderItem of items) {
+      const menuId = orderItem.id || orderItem.menuId;
+      const qty = Number(orderItem.qty) || 1;
+      const recipe = menuRecipesStore[menuId];
+      
+      if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+        warnings.push(`Resep untuk menu "${orderItem.name || menuId}" belum diatur`);
+        continue;
+      }
+
+      for (const ing of recipe.ingredients) {
+        const inv = posInventory.find(i => i.id === ing.itemId);
+        if (!inv) {
+          warnings.push(`Bahan baku "${ing.itemId}" tidak ditemukan di inventori`);
+          continue;
+        }
+
+        if (inv.isCountable !== false) {
+          const reqAmt = Number(ing.amount) || 0;
+          const itemUnit = (inv.unit || '').toLowerCase();
+          const ingUnit = (ing.unit || '').toLowerCase();
+          
+          let deduction = reqAmt * qty;
+          if (itemUnit === 'kg' && ingUnit === 'gram') deduction = deduction / 1000;
+          else if (itemUnit === 'gram' && ingUnit === 'kg') deduction = deduction * 1000;
+          else if (itemUnit === 'liter' && ingUnit === 'ml') deduction = deduction / 1000;
+          else if (itemUnit === 'ml' && ingUnit === 'liter') deduction = deduction * 1000;
+
+          const oldStock = inv.stock;
+          let newStock = Math.round((inv.stock - deduction) * 1000) / 1000;
+          if (newStock < 0) {
+            warnings.push(`Stok ${inv.name} tidak cukup (sisa ${oldStock}, butuh ${deduction})`);
+            newStock = 0;
+          }
+          inv.stock = newStock;
+
+          const logId = 'log_' + now + '_' + Math.random().toString(36).substring(2, 6);
+          const logData = {
+            t: now,
+            old: oldStock,
+            new: newStock,
+            diff: -deduction,
+            by: `${kasir} (POS #${orderId})`,
+            reason: 'Penjualan POS',
+            changeType: 'auto-pos-sale'
+          };
+          if (!inventoryLogsStore[inv.id]) inventoryLogsStore[inv.id] = [];
+          inventoryLogsStore[inv.id].unshift({ id: logId, itemId: inv.id, ...logData });
+
+          deducted.push({
+            itemId: inv.id,
+            name: inv.name,
+            before: oldStock,
+            after: newStock,
+            used: deduction,
+            unit: inv.unit
+          });
+        }
+      }
+    }
+
+    // Default kemasan paper bowl jika ada
+    const bowl = posInventory.find(i => i.id === 'inv7');
+    if (bowl && items.length > 0) {
+      const oldBowl = bowl.stock;
+      bowl.stock = Math.max(0, bowl.stock - items.length);
+      deducted.push({
+        itemId: bowl.id,
+        name: bowl.name,
+        before: oldBowl,
+        after: bowl.stock,
+        used: items.length,
+        unit: bowl.unit
+      });
+    }
+
+    inventoryDeductedStore[orderId] = {
+      orderId,
+      timestamp: now,
+      kasir,
+      itemsCount: items.length,
+      deductedCount: deducted.length
+    };
+
+    res.json({
+      success: true,
+      orderId,
+      deducted,
+      warnings,
+      processedAt: now,
+      inventory: posInventory
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -750,21 +838,6 @@ app.get(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan'], async 
 app.post(['/accounting/journal/:bulan', '/api/accounting/journal/:bulan', '/accounting/journal', '/api/accounting/journal'], async (req, res) => {
   try {
     const body = req.body || {};
-    
-    // Khusus endpoint /accounting/journal/pos -> delegasikan ke functions/accounting/[[path]].js
-    if (req.params.bulan === 'pos' || req.path.endsWith('/pos') || req.path.includes('/journal/pos')) {
-      const { onRequest } = await import('./functions/accounting/[[path]].js');
-      const fullUrl = `http://${req.get('host') || '127.0.0.1:3000'}/accounting/journal/pos`;
-      const webReq = new Request(fullUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const webRes = await onRequest({ request: webReq, env: process.env });
-      const json = await webRes.json();
-      return res.status(webRes.status).json(json);
-    }
-
     const now = new Date();
     const currentBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const bulan = req.params.bulan || body.date?.slice(0, 7) || currentBulan;
@@ -1366,63 +1439,15 @@ app.get(['/orders/:orderId', '/api/orders/:orderId'], (req, res) => {
   res.json({ success: true, data: order });
 });
 
-// PATCH /orders/:orderId & PUT /orders/:orderId
-app.all(['/orders/:orderId', '/api/orders/:orderId'], async (req, res) => {
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-  if (!['PATCH', 'PUT'].includes(req.method)) {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
-  }
+// PATCH /orders/:orderId
+app.patch(['/orders/:orderId', '/api/orders/:orderId'], (req, res) => {
   const { orderId } = req.params;
-  let order = ordersStore[orderId];
+  const order = ordersStore[orderId];
   if (!order) {
-    order = { orderId, ...(req.body || {}) };
-    ordersStore[orderId] = order;
-  } else {
-    Object.assign(order, req.body);
+    return res.status(404).json({ success: false, error: "Order tidak ditemukan" });
   }
-
-  // Also sync to Firebase Realtime DB if available
-  const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
-  const apiKey = process.env.FIREBASE_API_KEY || "";
-  const auth = apiKey ? `?auth=${apiKey}` : "";
-  if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
-    try {
-      await fetch(`${databaseUrl}/orders/${encodeURIComponent(orderId)}.json${auth}`, {
-        method: req.method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(req.body || {})
-      });
-    } catch (e) {
-      console.warn('[SERVER] Sync order to Firebase warning:', e);
-    }
-  }
-
+  Object.assign(order, req.body);
   res.json({ success: true, data: order });
-});
-
-// POST /orders
-app.post(['/orders', '/api/orders'], async (req, res) => {
-  const body = req.body || {};
-  const orderId = body.orderId || body.id || ('ORD-' + Date.now());
-  const newOrder = { ...body, orderId, createdAt: body.createdAt || Date.now() };
-  ordersStore[orderId] = newOrder;
-
-  const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
-  const apiKey = process.env.FIREBASE_API_KEY || "";
-  const auth = apiKey ? `?auth=${apiKey}` : "";
-  if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
-    try {
-      await fetch(`${databaseUrl}/orders/${encodeURIComponent(orderId)}.json${auth}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder)
-      });
-    } catch (e) {}
-  }
-
-  res.status(201).json({ success: true, orderId, data: newOrder });
 });
 
 // Anti-Duplikat Check: GET /pos/transactions/:date/:txId
@@ -1629,18 +1654,10 @@ app.get(['/pos/transactions', '/api/pos/transactions'], (req, res) => {
   }
 });
 
-// GET & POST /pos/summary/daily/:today (Laporan Hari Ini)
-app.all(['/pos/summary/daily/:today', '/api/pos/summary/daily/:today'], (req, res) => {
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
+// GET /pos/summary/daily/:today (Laporan Hari Ini)
+app.get(['/pos/summary/daily/:today', '/api/pos/summary/daily/:today'], (req, res) => {
   try {
     const { today } = req.params;
-    const body = req.body || {};
-    
-    // If POST provided summary data, update in-memory cache and Firebase
-    if (req.method === 'POST' && body.sales !== undefined) {
-      return res.json({ success: true, date: today, data: body });
-    }
-
     const txList = Object.entries(posTransactionsStore)
       .filter(([key]) => key.startsWith(today))
       .map(([, val]) => val);
@@ -1676,9 +1693,8 @@ app.all(['/pos/summary/daily/:today', '/api/pos/summary/daily/:today'], (req, re
   }
 });
 
-// GET & POST /pos/summary/monthly/:month (Laporan Bulanan)
-app.all(['/pos/summary/monthly/:month', '/api/pos/summary/monthly/:month'], (req, res) => {
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
+// GET /pos/summary/monthly/:month (Laporan Bulanan)
+app.get(['/pos/summary/monthly/:month', '/api/pos/summary/monthly/:month'], (req, res) => {
   try {
     const { month } = req.params;
     const txList = Object.entries(posTransactionsStore)
