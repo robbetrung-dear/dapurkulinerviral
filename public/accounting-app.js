@@ -139,6 +139,35 @@ window.accountingApp = function() {
     jurnalFilterAkun: 'all',
     jurnalSearch: '',
     ledgerAkun: '1001',
+
+    // Trial/Live State
+    isProductionMode: false,
+    productionStartDate: '',
+    dataPreview: { journals: 0, ledgers: 0, orders: 0, transactions: 0 },
+    isNeracaBalanced: false,
+    isPeriodClosed: false,
+
+    // Modal state
+    showClosePeriodModal: false,
+    showResetModal: false,
+    showGoLiveModal: false,
+
+    // Confirm text & password
+    closePeriodConfirmText: '',
+    closePeriodPassword: '',
+    resetConfirmText: '',
+    resetPassword1: '',
+    resetPassword2: '',
+    goLiveConfirmText: '',
+    goLivePassword1: '',
+    goLivePassword2: '',
+
+    // Go-Live validation
+    goLiveValidation: {
+      neracaBalance: false,
+      noDraftJournals: true,
+      noPendingOrders: true
+    },
     
     // Status UI
     loading: false,
@@ -309,6 +338,9 @@ window.accountingApp = function() {
         if (this.activeTab === 'ledger') {
           await this.loadLedger(this.ledgerAkun, newVal);
         }
+        if (this.activeTab === 'trial-live') {
+          await this.loadTrialPreview();
+        }
         this.loading = false;
       });
 
@@ -325,7 +357,10 @@ window.accountingApp = function() {
         this.renderCashFlowChart();
       });
 
-      // 8. Daftarkan hook global ke window
+      // 8. Load status Trial/Live
+      await this.loadTrialPreview();
+
+      // 9. Daftarkan hook global ke window
       window._accountingAppInstance = this;
       console.log('[ACCT-APP] Accounting App initialized with real data');
     },
@@ -1759,157 +1794,153 @@ this.jurnalList.forEach(j => {
         this.loadLabaRugi(this.bulanAktif);
         this.loadArusKas(this.bulanAktif);
         this.loadNeraca(this.bulanAktif);
+      } else if (tab === 'trial-live' || tab === 'trial_live') {
+        this.loadTrialPreview();
       }
     },
 
-    // ------------------------------------------------------------------------
-    // KATEGORI: TRIAL / LIVE (SIKLUS PEMBUKUAN & MANAJEMEN DATA)
-    // ------------------------------------------------------------------------
-    accountingMode: localStorage.getItem('dapur_accounting_mode') || 'trial', // 'trial' | 'live'
-    closedPeriods: JSON.parse(localStorage.getItem('dapur_closed_periods') || '[]'),
+    // ========================================================================
+    // TRIAL / LIVE MANAGEMENT
+    // ========================================================================
 
-    isPeriodClosed(bulan) {
-      const b = bulan || this.bulanAktif;
-      return this.closedPeriods.includes(b);
+    async loadTrialPreview() {
+      try {
+        const res = await fetch('/accounting/trial?action=preview');
+        const json = await res.json();
+        if (json.success) {
+          this.dataPreview = json.preview || { journals: 0, ledgers: 0, orders: 0, transactions: 0 };
+          this.isProductionMode = json.mode === 'production';
+          this.productionStartDate = json.productionStartedAt 
+            ? new Date(json.productionStartedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            : '';
+          this.isNeracaBalanced = json.validation?.neracaBalance || false;
+          this.goLiveValidation = {
+            neracaBalance: !!json.validation?.neracaBalance,
+            noDraftJournals: !!json.validation?.noDraftJournals,
+            noPendingOrders: !!json.validation?.noPendingOrders
+          };
+          
+          // Cek periode ditutup
+          const bulan = this.bulanAktif || new Date().toISOString().slice(0, 7);
+          try {
+            const cpRes = await fetch(`/accounting/closed_periods/${bulan}.json`);
+            if (cpRes.ok) {
+              const cpData = await cpRes.json();
+              this.isPeriodClosed = !!cpData;
+            } else {
+              this.isPeriodClosed = false;
+            }
+          } catch (e) {
+            this.isPeriodClosed = false;
+          }
+        }
+      } catch (e) {
+        console.warn('[TRIAL] Preview error:', e);
+      }
     },
 
-    /**
-     * 1. Tombol: Proses Tutup Buku (Akhiri Periode saat ini)
-     */
-    async prosesTutupBuku() {
-      const bulan = this.bulanAktif;
-      if (this.isPeriodClosed(bulan)) {
-        this.showToast(`Periode ${bulan} sudah ditutup sebelumnya.`, 'notify');
+    openClosePeriodModal() {
+      this.closePeriodConfirmText = '';
+      this.closePeriodPassword = '';
+      this.showClosePeriodModal = true;
+    },
+
+    async executeClosePeriod() {
+      if (this.closePeriodConfirmText !== 'TUTUP BUKU') return;
+      if (!this.closePeriodPassword) return;
+
+      try {
+        const res = await fetch('/accounting/trial?action=close-period', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bulan: this.bulanAktif,
+            adminName: 'Admin',
+            password: this.closePeriodPassword
+          })
+        });
+        const json = await res.json();
+        if (json.success) {
+          alert('✅ ' + json.message);
+          this.showClosePeriodModal = false;
+          await this.loadTrialPreview();
+        } else {
+          alert('❌ ' + json.error);
+        }
+      } catch (e) {
+        alert('Gagal: ' + e.message);
+      }
+    },
+
+    openResetModal() {
+      this.resetConfirmText = '';
+      this.resetPassword1 = '';
+      this.resetPassword2 = '';
+      this.showResetModal = true;
+    },
+
+    async executeReset() {
+      if (this.resetConfirmText !== 'RESET') return;
+      if (this.resetPassword1 !== this.resetPassword2 || !this.resetPassword1) return;
+
+      try {
+        const res = await fetch('/accounting/trial?action=reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: this.resetPassword1 })
+        });
+        const json = await res.json();
+        if (json.success) {
+          alert('✅ Reset berhasil!\n\nData diarsipkan ke:\n' + json.archivedTo);
+          this.showResetModal = false;
+          await this.loadTrialPreview();
+          await this.loadSummary(this.bulanAktif);
+          await this.loadJournal(this.bulanAktif);
+        } else {
+          alert('❌ ' + json.error);
+        }
+      } catch (e) {
+        alert('Gagal: ' + e.message);
+      }
+    },
+
+    openGoLiveModal() {
+      this.goLiveConfirmText = '';
+      this.goLivePassword1 = '';
+      this.goLivePassword2 = '';
+      this.showGoLiveModal = true;
+      // Refresh validation
+      this.loadTrialPreview();
+    },
+
+    async executeGoLive() {
+      if (this.goLiveConfirmText !== 'GO-LIVE') return;
+      if (this.goLivePassword1 !== this.goLivePassword2 || !this.goLivePassword1) return;
+      if (!this.goLiveValidation.neracaBalance) {
+        alert('❌ Neraca tidak balance. Perbaiki dulu sebelum Go-Live.');
         return;
       }
-      const confirmTutup = confirm(
-        `PERINGATAN TUTUP BUKU PERIODE ${bulan}:\n\n` +
-        `• Seluruh akun nominal (Pendapatan & Beban) akan dihitung laba bersihnya.\n` +
-        `• Laba/Rugi bersih akan dipindahkan ke Laba Ditahan (Akun 3002).\n` +
-        `• Saldo akhir Aset, Kewajiban, & Ekuitas akan menjadi Saldo Awal periode berikutnya.\n\n` +
-        `Apakah Anda yakin ingin memproses Tutup Buku periode ini?`
-      );
-      if (!confirmTutup) return;
+
+      if (!confirm('⚠️ Yakin Go-Live? Setelah ini tidak bisa kembali ke mode trial.')) return;
 
       try {
-        this.loading = true;
-        await this.loadAccountingSummary(bulan, true);
-        
-        if (!this.closedPeriods.includes(bulan)) {
-          this.closedPeriods.push(bulan);
-          localStorage.setItem('dapur_closed_periods', JSON.stringify(this.closedPeriods));
+        const res = await fetch('/accounting/trial?action=go-live', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: this.goLivePassword1 })
+        });
+        const json = await res.json();
+        if (json.success) {
+          alert('🚀 ' + json.message + '\n\nArchive: ' + json.archivedTo);
+          this.showGoLiveModal = false;
+          await this.loadTrialPreview();
+          await this.loadSummary(this.bulanAktif);
+          await this.loadJournal(this.bulanAktif);
+        } else {
+          alert('❌ ' + json.error);
         }
-
-        const snapshotKey = `dapur_closing_snapshot_${bulan}`;
-        const closingData = {
-          bulan,
-          closedAt: Date.now(),
-          closedBy: 'admin',
-          summary: this.summaryMetrics,
-          coaList: this.coaList
-        };
-        localStorage.setItem(snapshotKey, JSON.stringify(closingData));
-
-        this.showToast(`✅ Tutup Buku Periode ${bulan} berhasil diselesaikan!`, 'success');
-        await this.loadCOA(bulan);
-        await this.loadAccountingSummary(bulan, true);
-      } catch (err) {
-        console.error('Error proses tutup buku:', err);
-        this.showToast('Gagal memproses tutup buku: ' + err.message, 'error');
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    /**
-     * 2. Tombol: Mulai Uji Coba baru (hapus data dan mulai dari nol)
-     */
-    async mulaiUjiCobaBaru() {
-      const confirmReset = confirm(
-        `⚠️ KONFIRMASI MULAI UJI COBA BARU:\n\n` +
-        `• Semua data transaksi uji coba & entri jurnal simulasi akan dihapus.\n` +
-        `• Seluruh saldo akun (COA) akan dikembalikan ke Rp 0.\n` +
-        `• Sistem siap digunakan untuk simulasi transaksi baru dari nol.\n\n` +
-        `Ketik OK untuk melanjutkan proses reset uji coba.`
-      );
-      if (!confirmReset) return;
-
-      try {
-        this.loading = true;
-        localStorage.removeItem('dapur_accounting_summary_cache');
-        localStorage.removeItem('dapur_accounting_pending_queue');
-        
-        this.coaList = DEFAULT_COA.map(c => ({
-          ...c,
-          initialBalance: 0,
-          currentBalance: 0,
-          totalDebit: 0,
-          totalCredit: 0
-        }));
-        this.jurnalList = [];
-        this.ledgerData = {
-          account: null,
-          openingBalance: 0,
-          totalDebit: 0,
-          totalCredit: 0,
-          closingBalance: 0,
-          transactions: []
-        };
-        this.summary = {
-          totalAset: 0,
-          totalKewajiban: 0,
-          totalEkuitas: 0,
-          labaBulanIni: 0,
-          kas: 0,
-          bank: 0,
-          piutang: 0,
-          hutang: 0
-        };
-
-        this.showToast('✨ Simulasi uji coba baru berhasil dimulai dari nol (Rp 0)!', 'success');
-        this.renderCashFlowChart();
-      } catch (err) {
-        console.error('Error reset uji coba:', err);
-        this.showToast('Gagal memulai uji coba baru: ' + err.message, 'error');
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    /**
-     * 3. Tombol: Go-Live (Arsipkan data uji coba, mulai pembukuan produksi)
-     */
-    async goLiveProduksi() {
-      const confirmLive = confirm(
-        `🚀 KONFIRMASI GO-LIVE PRODUKSI:\n\n` +
-        `• Seluruh data transaksi uji coba akan diarsipkan secara permanen.\n` +
-        `• Sistem akuntansi beralih ke Mode RESMI / PRODUKSI (Live).\n` +
-        `• Anda dapat memasukkan Saldo Awal Neraca resmi melalui menu Edit Saldo Awal.\n\n` +
-        `Apakah Anda yakin ingin Go-Live sekarang?`
-      );
-      if (!confirmLive) return;
-
-      try {
-        this.loading = true;
-        const archiveKey = `dapur_trial_archive_${Date.now()}`;
-        const archiveData = {
-          archivedAt: Date.now(),
-          mode: 'trial_archive',
-          jurnals: this.jurnalList,
-          coa: this.coaList,
-          summary: this.summaryMetrics
-        };
-        localStorage.setItem(archiveKey, JSON.stringify(archiveData));
-        
-        this.accountingMode = 'live';
-        localStorage.setItem('dapur_accounting_mode', 'live');
-
-        this.showToast('🎉 Mode GO-LIVE PRODUKSI Aktif! Data uji coba telah diarsipkan.', 'success');
-      } catch (err) {
-        console.error('Error Go-Live:', err);
-        this.showToast('Gagal memproses Go-Live: ' + err.message, 'error');
-      } finally {
-        this.loading = false;
+      } catch (e) {
+        alert('Gagal: ' + e.message);
       }
     },
 

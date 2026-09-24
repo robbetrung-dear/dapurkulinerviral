@@ -145,11 +145,38 @@
     toastType: 'success',
 
     accountingMode: 'trial',
-    closedPeriods: [],
-    isPeriodClosed(b) { return (this.closedPeriods || []).includes(b || this.bulanAktif); },
-    prosesTutupBuku() {},
-    mulaiUjiCobaBaru() {},
-    goLiveProduksi() {},
+    isProductionMode: false,
+    productionStartDate: '',
+    dataPreview: { journals: 0, ledgers: 0, orders: 0, transactions: 0 },
+    isNeracaBalanced: false,
+    isPeriodClosed: false,
+
+    showClosePeriodModal: false,
+    showResetModal: false,
+    showGoLiveModal: false,
+
+    closePeriodConfirmText: '',
+    closePeriodPassword: '',
+    resetConfirmText: '',
+    resetPassword1: '',
+    resetPassword2: '',
+    goLiveConfirmText: '',
+    goLivePassword1: '',
+    goLivePassword2: '',
+
+    goLiveValidation: {
+      neracaBalance: false,
+      noDraftJournals: true,
+      noPendingOrders: true
+    },
+
+    openClosePeriodModal() { this.showClosePeriodModal = true; },
+    executeClosePeriod() {},
+    openResetModal() { this.showResetModal = true; },
+    executeReset() {},
+    openGoLiveModal() { this.showGoLiveModal = true; },
+    executeGoLive() {},
+    loadTrialPreview() {},
 
     ledgerData: {
       account: null,
@@ -449,19 +476,14 @@
           <span>Export & Arsip</span>
         </button>
 
-        <!-- Kategori Baru: Trial / Live -->
-        <div class="px-3 pt-3 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
-          <i class="fa-solid fa-flask-vial"></i>
-          <span>Trial / Live</span>
-        </div>
-
+        <!-- Tab Baru: Trial / Live -->
         <button 
-          type="button" 
-          @click="setTab('trial_live')"
-          :class="activeTab === 'trial_live' ? 'bg-amber-50 text-amber-900 font-extrabold border-amber-300 shadow-xs' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900 border-transparent'"
-          class="w-full h-11 px-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold transition text-left cursor-pointer">
-          <i class="fa-solid fa-sliders w-5 text-center" :class="activeTab === 'trial_live' ? 'text-amber-600' : 'text-stone-400'"></i>
-          <span>Kelola Siklus Buku</span>
+          type="button"
+          @click="setTab('trial-live')"
+          :class="activeTab === 'trial-live' ? 'bg-brand-50 text-brand-700 font-bold border-l-4 border-brand-600 shadow-xs' : 'text-stone-600 hover:bg-stone-100'"
+          class="w-full flex items-center gap-3 px-4 py-3 text-left transition cursor-pointer rounded-xl">
+          <i class="fa-solid fa-flask text-sm" :class="activeTab === 'trial-live' ? 'text-brand-600' : 'text-stone-400'"></i>
+          <span class="text-sm">Trial / Live</span>
         </button>
 
       </div>
@@ -1679,106 +1701,125 @@
       <!-- ================================================================= -->
       <!-- TAB 8: TRIAL / LIVE (SIKLUS PEMBUKUAN & DATA)                     -->
       <!-- ================================================================= -->
-      <div x-show="activeTab === 'trial_live'" x-cloak class="space-y-6">
-        
-        <!-- Header Trial / Live -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-stone-200">
-          <div>
-            <div class="flex items-center gap-2.5">
-              <h2 class="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">Manajemen Siklus Pembukuan (Trial / Live)</h2>
-              <span class="px-2.5 py-0.5 rounded-full font-extrabold text-xs uppercase" :class="accountingMode === 'live' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'" x-text="accountingMode === 'live' ? 'Mode Produksi (Live)' : 'Mode Trial / Simulasi'"></span>
-            </div>
-            <p class="text-xs sm:text-sm text-stone-500 font-medium">Pengelolaan siklus tutup buku bulanan, reset data simulasi uji coba, dan transisi Go-Live produksi.</p>
-          </div>
+      <section x-show="activeTab === 'trial-live'" x-cloak class="space-y-6">
 
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-stone-500 uppercase">Periode Aktif:</span>
-            <input 
-              type="month" 
-              x-model="bulanAktif" 
-              class="h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 shadow-2xs focus:ring-2 focus:ring-brand-500" 
-            />
+        <!-- Banner Status Mode -->
+        <div :class="isProductionMode ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'"
+             class="p-5 rounded-2xl border-2 flex items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div :class="isProductionMode ? 'bg-emerald-600' : 'bg-amber-500'"
+                 class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl shadow-md">
+              <i :class="isProductionMode ? 'fa-solid fa-rocket' : 'fa-solid fa-flask'"></i>
+            </div>
+            <div>
+              <h3 class="font-extrabold text-lg" :class="isProductionMode ? 'text-emerald-950' : 'text-amber-950'"
+                  x-text="isProductionMode ? '🚀 Mode Produksi Aktif' : '🧪 Mode Trial (Uji Coba)'"></h3>
+              <p class="text-xs mt-1" :class="isProductionMode ? 'text-emerald-800' : 'text-amber-800'">
+                <template x-if="isProductionMode">
+                  <span>Data produksi aktif. Periode dimulai: <strong x-text="productionStartDate"></strong></span>
+                </template>
+                <template x-if="!isProductionMode">
+                  <span>Data uji coba. Anda bisa reset kapan saja sebelum Go-Live.</span>
+                </template>
+              </p>
+            </div>
           </div>
         </div>
 
-        <!-- 3 KARTU AKSI UTAMA TRIAL / LIVE -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
-          <!-- KARTU 1: PROSES TUTUP BUKU -->
-          <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs flex flex-col justify-between space-y-5 hover:border-emerald-300 transition">
-            <div class="space-y-3">
-              <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold border border-emerald-100">
-                <i class="fa-solid fa-lock"></i>
-              </div>
-              <div>
-                <h4 class="font-extrabold text-stone-900 text-base">Tutup Buku Periode</h4>
-                <p class="text-xs text-stone-500 mt-1 leading-relaxed">
-                  Kunci mutasi periode <span class="font-mono font-bold text-stone-800" x-text="bulanAktif"></span>, hitung laba bersih berjalan, alokasikan ke Laba Ditahan (3002), dan siapkan saldo awal periode baru.
-                </p>
-              </div>
-            </div>
-
-            <button 
-              type="button" 
-              @click="prosesTutupBuku()"
-              :disabled="loading"
-              class="w-full h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50">
-              <i class="fa-solid fa-calculator"></i>
-              <span>Proses Tutup Buku (Akhiri Periode saat ini)</span>
-            </button>
+        <!-- Preview Jumlah Data -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+            <span class="text-[10px] font-bold uppercase text-stone-500">Jurnal</span>
+            <p class="text-xl font-black font-mono mt-1" x-text="(dataPreview.journals || 0) + ' entry'"></p>
           </div>
-
-          <!-- KARTU 2: MULAI UJI COBA BARU -->
-          <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs flex flex-col justify-between space-y-5 hover:border-amber-300 transition">
-            <div class="space-y-3">
-              <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold border border-amber-100">
-                <i class="fa-solid fa-rotate-left"></i>
-              </div>
-              <div>
-                <h4 class="font-extrabold text-stone-900 text-base">Mulai Uji Coba Baru</h4>
-                <p class="text-xs text-stone-500 mt-1 leading-relaxed">
-                  Hapus entri jurnal simulasi & reset saldo seluruh akun ke Rp 0 untuk memulai sesi latihan atau validasi transaksi baru dari nol bersih.
-                </p>
-              </div>
-            </div>
-
-            <button 
-              type="button" 
-              @click="mulaiUjiCobaBaru()"
-              :disabled="loading"
-              class="w-full h-11 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50">
-              <i class="fa-solid fa-trash-can"></i>
-              <span>Mulai Uji Coba baru (hapus data dan mulai dari nol)</span>
-            </button>
+          <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+            <span class="text-[10px] font-bold uppercase text-stone-500">Ledger</span>
+            <p class="text-xl font-black font-mono mt-1" x-text="(dataPreview.ledgers || 0) + ' akun'"></p>
           </div>
-
-          <!-- KARTU 3: GO-LIVE PRODUKSI -->
-          <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs flex flex-col justify-between space-y-5 hover:border-brand-300 transition bg-gradient-to-br from-brand-50/30 to-white">
-            <div class="space-y-3">
-              <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold border border-brand-100">
-                <i class="fa-solid fa-rocket"></i>
-              </div>
-              <div>
-                <h4 class="font-extrabold text-stone-900 text-base">Go-Live Produksi</h4>
-                <p class="text-xs text-stone-500 mt-1 leading-relaxed">
-                  Arsipkan seluruh data simulasi pengujian, beralih ke Mode Resmi Pembukuan Produksi, dan siap digunakan untuk operasional nyata.
-                </p>
-              </div>
-            </div>
-
-            <button 
-              type="button" 
-              @click="goLiveProduksi()"
-              :disabled="loading"
-              class="w-full h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i>
-              <span>Go-Live (Arsipkan data uji coba, mulai pembukuan produksi)</span>
-            </button>
+          <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+            <span class="text-[10px] font-bold uppercase text-stone-500">Order</span>
+            <p class="text-xl font-black font-mono mt-1" x-text="(dataPreview.orders || 0) + ' pesanan'"></p>
           </div>
-
+          <div class="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+            <span class="text-[10px] font-bold uppercase text-stone-500">Transaksi POS</span>
+            <p class="text-xl font-black font-mono mt-1" x-text="(dataPreview.transactions || 0) + ' transaksi'"></p>
+          </div>
         </div>
 
-      </div>
+        <!-- 3 TOMBOL AKSI -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <!-- TOMBOL 1: Proses Tutup Buku -->
+          <div class="p-6 rounded-2xl bg-white border-2 border-amber-200 hover:border-amber-500 transition shadow-xs">
+            <div class="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center text-xl mb-4">
+              <i class="fa-solid fa-lock"></i>
+            </div>
+            <h4 class="font-extrabold text-lg text-stone-900 mb-2">Proses Tutup Buku</h4>
+            <p class="text-xs text-stone-500 mb-4 leading-relaxed">
+              Akhiri periode <strong x-text="bulanAktif"></strong> dan kunci semua jurnal bulan ini. Setelah ditutup, jurnal bulan ini tidak bisa diubah lagi.
+            </p>
+            <button 
+              @click="openClosePeriodModal()"
+              :disabled="isPeriodClosed || !isNeracaBalanced"
+              :class="isPeriodClosed || !isNeracaBalanced ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-600 cursor-pointer'"
+              class="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-sm transition">
+              <i class="fa-solid fa-lock mr-2"></i>
+              <span x-text="isPeriodClosed ? 'Periode Sudah Ditutup' : 'Tutup Buku Sekarang'"></span>
+            </button>
+            <p x-show="!isNeracaBalanced && !isPeriodClosed" class="text-[10px] text-red-600 mt-2 font-bold">
+              ⚠️ Neraca belum balance. Perbaiki dulu sebelum tutup buku.
+            </p>
+          </div>
+
+          <!-- TOMBOL 2: Mulai Uji Coba Baru -->
+          <div class="p-6 rounded-2xl bg-white border-2 border-red-200 hover:border-red-500 transition shadow-xs"
+               :class="isProductionMode ? 'opacity-50 pointer-events-none' : ''">
+            <div class="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center text-xl mb-4">
+              <i class="fa-solid fa-rotate-left"></i>
+            </div>
+            <h4 class="font-extrabold text-lg text-stone-900 mb-2">Mulai Uji Coba Baru</h4>
+            <p class="text-xs text-stone-500 mb-4 leading-relaxed">
+              Hapus semua data trial (jurnal, ledger, order, transaksi) dan mulai dari nol. Data akan di-backup otomatis sebelum dihapus.
+            </p>
+            <button 
+              @click="openResetModal()"
+              :disabled="isProductionMode"
+              class="w-full py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+              <i class="fa-solid fa-rotate-left mr-2"></i>
+              <span x-text="isProductionMode ? 'Tidak Tersedia di Mode Produksi' : 'Reset Data Trial'"></span>
+            </button>
+          </div>
+
+          <!-- TOMBOL 3: Go-Live -->
+          <div class="p-6 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-lg border-2 border-emerald-400">
+            <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-xs text-white flex items-center justify-center text-xl mb-4">
+              <i class="fa-solid fa-rocket"></i>
+            </div>
+            <h4 class="font-extrabold text-lg mb-2">Go-Live (Mulai Produksi)</h4>
+            <p class="text-xs text-emerald-100 mb-4 leading-relaxed">
+              Arsipkan semua data trial ke <code>/archive/</code>, lalu mulai pembukuan produksi yang bersih. Bisa dilakukan sekali saja.
+            </p>
+            <button 
+              @click="openGoLiveModal()"
+              :disabled="isProductionMode || !isNeracaBalanced"
+              class="w-full py-3 rounded-xl bg-white text-emerald-700 hover:bg-emerald-50 font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+              <i class="fa-solid fa-rocket mr-2"></i>
+              <span x-text="isProductionMode ? '✓ Produksi Sudah Aktif' : 'Go-Live Sekarang'"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Info Terakhir -->
+        <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 text-xs text-stone-600 leading-relaxed shadow-xs">
+          <p><i class="fa-solid fa-circle-info text-stone-400 mr-1"></i> <strong>Info:</strong></p>
+          <ul class="list-disc ml-6 mt-2 space-y-1">
+            <li><strong>Proses Tutup Buku</strong> — dilakukan setiap akhir bulan. Mencegah perubahan jurnal bulan lalu.</li>
+            <li><strong>Reset Data Trial</strong> — hanya bisa dipakai saat mode Trial. Untuk uji coba berulang.</li>
+            <li><strong>Go-Live</strong> — diklik sekali seumur hidup. Setelah aktif, tidak bisa kembali ke mode Trial.</li>
+          </ul>
+        </div>
+
+      </section>
 
     </main>
 
@@ -2008,6 +2049,161 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODALS: TRIAL / LIVE CONFIRMATION                                     -->
+  <!-- ===================================================================== -->
+
+  <!-- MODAL: TUTUP BUKU -->
+  <div x-cloak x-show="showClosePeriodModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div @click.away="showClosePeriodModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4">
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 mx-auto flex items-center justify-center text-2xl mb-3">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <h3 class="font-black text-stone-900 text-xl">Tutup Buku Periode <span x-text="bulanAktif"></span>?</h3>
+        <p class="text-xs text-stone-500 mt-1">Setelah ditutup, jurnal periode ini tidak bisa diedit/hapus.</p>
+      </div>
+
+      <div class="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
+        <div class="flex justify-between"><span>Jurnal akan dikunci:</span><strong x-text="(dataPreview.journals || 0) + ' entry'"></strong></div>
+        <div class="flex justify-between"><span>Ledger akan dikunci:</span><strong x-text="(dataPreview.ledgers || 0) + ' akun'"></strong></div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-stone-700 mb-1">Ketik <code class="bg-amber-100 px-1.5 py-0.5 rounded">TUTUP BUKU</code> untuk konfirmasi:</label>
+        <input type="text" x-model="closePeriodConfirmText" placeholder="TUTUP BUKU" 
+               class="w-full p-2.5 rounded-xl border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-hidden" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-stone-700 mb-1">Password Admin:</label>
+        <input type="password" x-model="closePeriodPassword" placeholder="••••••••"
+               class="w-full p-2.5 rounded-xl border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-hidden" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <button type="button" @click="showClosePeriodModal = false" class="py-2.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs cursor-pointer">Batal</button>
+        <button type="button" @click="executeClosePeriod()" 
+                :disabled="closePeriodConfirmText !== 'TUTUP BUKU' || !closePeriodPassword"
+                class="py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+          Tutup Buku Sekarang
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RESET TRIAL -->
+  <div x-cloak x-show="showResetModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div @click.away="showResetModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-red-200 space-y-4">
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-3xl bg-red-100 text-red-600 mx-auto flex items-center justify-center text-2xl mb-3">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <h3 class="font-black text-red-700 text-xl">⚠️ Reset Semua Data Trial?</h3>
+        <p class="text-xs text-stone-500 mt-1">Data akan di-backup dulu, lalu dihapus. Tidak bisa di-undo!</p>
+      </div>
+
+      <div class="p-3 bg-red-50 rounded-xl border border-red-200 text-xs space-y-1">
+        <p class="font-bold text-red-900 mb-2">Data yang akan DIHAPUS:</p>
+        <div class="flex justify-between"><span>• Jurnal</span><strong x-text="(dataPreview.journals || 0) + ' entry'"></strong></div>
+        <div class="flex justify-between"><span>• Ledger</span><strong x-text="(dataPreview.ledgers || 0) + ' akun'"></strong></div>
+        <div class="flex justify-between"><span>• Order customer</span><strong x-text="(dataPreview.orders || 0) + ' pesanan'"></strong></div>
+        <div class="flex justify-between"><span>• Transaksi POS</span><strong x-text="(dataPreview.transactions || 0) + ' transaksi'"></strong></div>
+        <p class="font-bold text-emerald-700 mt-3 pt-2 border-t border-red-200">Data yang DIPERTAHANKAN:</p>
+        <div class="text-emerald-700">✓ COA, Inventory, Menu, Resep, Kategori</div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-stone-700 mb-1">Ketik <code class="bg-red-100 px-1.5 py-0.5 rounded">RESET</code> untuk konfirmasi:</label>
+        <input type="text" x-model="resetConfirmText" placeholder="RESET" 
+               class="w-full p-2.5 rounded-xl border border-red-300 text-sm font-mono focus:ring-2 focus:ring-red-500 focus:outline-hidden" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-stone-700 mb-1">Password Admin (Ketik 2× untuk verifikasi):</label>
+        <input type="password" x-model="resetPassword1" placeholder="Password pertama" 
+               class="w-full p-2.5 rounded-xl border border-stone-300 text-sm font-mono mb-2" />
+        <input type="password" x-model="resetPassword2" placeholder="Ulangi password" 
+               class="w-full p-2.5 rounded-xl border border-stone-300 text-sm font-mono" />
+        <p x-show="resetPassword1 && resetPassword2 && resetPassword1 !== resetPassword2" class="text-[10px] text-red-600 mt-1 font-bold">
+          Password tidak sama!
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <button type="button" @click="showResetModal = false" class="py-2.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs cursor-pointer">Batal</button>
+        <button type="button" @click="executeReset()" 
+                :disabled="resetConfirmText !== 'RESET' || resetPassword1 !== resetPassword2 || !resetPassword1"
+                class="py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+          Reset Sekarang
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: GO-LIVE -->
+  <div x-cloak x-show="showGoLiveModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div @click.away="showGoLiveModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-emerald-300 space-y-4">
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center text-2xl mb-3">
+          <i class="fa-solid fa-rocket"></i>
+        </div>
+        <h3 class="font-black text-emerald-700 text-xl">🚀 Go-Live ke Mode Produksi?</h3>
+        <p class="text-xs text-stone-500 mt-1">Data trial akan diarsipkan, lalu sistem mulai pembukuan produksi.</p>
+      </div>
+
+      <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs space-y-1">
+        <p class="font-bold text-emerald-900 mb-2">Yang akan terjadi:</p>
+        <div class="text-emerald-800 space-y-1">
+          <div>1. Data trial di-backup ke <code>/archive/trial-{tanggal}/</code></div>
+          <div>2. File backup JSON bisa di-download</div>
+          <div>3. Semua data trial akan dihapus dari sistem</div>
+          <div>4. Sistem mulai mode produksi bersih</div>
+        </div>
+      </div>
+
+      <!-- Validation Checklist -->
+      <div class="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-2">
+        <p class="font-bold text-stone-700">Validasi Sebelum Go-Live:</p>
+        <div class="flex items-center gap-2" :class="goLiveValidation.neracaBalance ? 'text-emerald-700' : 'text-red-700'">
+          <i :class="goLiveValidation.neracaBalance ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark'"></i>
+          <span x-text="goLiveValidation.neracaBalance ? 'Neraca balance ✓' : 'Neraca TIDAK balance ✗'"></span>
+        </div>
+        <div class="flex items-center gap-2" :class="goLiveValidation.noDraftJournals ? 'text-emerald-700' : 'text-amber-700'">
+          <i :class="goLiveValidation.noDraftJournals ? 'fa-solid fa-circle-check' : 'fa-solid fa-triangle-exclamation'"></i>
+          <span x-text="goLiveValidation.noDraftJournals ? 'Tidak ada jurnal draft ✓' : 'Ada jurnal draft ✗'"></span>
+        </div>
+        <div class="flex items-center gap-2" :class="goLiveValidation.noPendingOrders ? 'text-emerald-700' : 'text-amber-700'">
+          <i :class="goLiveValidation.noPendingOrders ? 'fa-solid fa-circle-check' : 'fa-solid fa-triangle-exclamation'"></i>
+          <span x-text="goLiveValidation.noPendingOrders ? 'Tidak ada order menggantung ✓' : 'Ada order menggantung ✗'"></span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-stone-700 mb-1">Ketik <code class="bg-emerald-100 px-1.5 py-0.5 rounded">GO-LIVE</code> untuk konfirmasi:</label>
+        <input type="text" x-model="goLiveConfirmText" placeholder="GO-LIVE" 
+               class="w-full p-2.5 rounded-xl border border-emerald-300 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-hidden" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-stone-700 mb-1">Password Admin (Ketik 2× untuk verifikasi):</label>
+        <input type="password" x-model="goLivePassword1" placeholder="Password pertama" 
+               class="w-full p-2.5 rounded-xl border border-stone-300 text-sm font-mono mb-2" />
+        <input type="password" x-model="goLivePassword2" placeholder="Ulangi password" 
+               class="w-full p-2.5 rounded-xl border border-stone-300 text-sm font-mono" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <button type="button" @click="showGoLiveModal = false" class="py-2.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs cursor-pointer">Batal</button>
+        <button type="button" @click="executeGoLive()" 
+                :disabled="goLiveConfirmText !== 'GO-LIVE' || goLivePassword1 !== goLivePassword2 || !goLivePassword1 || !goLiveValidation.neracaBalance"
+                class="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+          🚀 Go-Live Sekarang
+        </button>
+      </div>
     </div>
   </div>
 

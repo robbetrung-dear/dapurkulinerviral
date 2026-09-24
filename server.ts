@@ -1813,6 +1813,48 @@ app.post(['/aggregate', '/api/aggregate', '/functions/aggregate'], async (req, r
 });
 
 // =========================================================================
+// ACCOUNTING TRIAL / LIVE LIFECYCLE MANAGEMENT API
+// =========================================================================
+app.all(['/accounting/trial', '/accounting/trial/*', '/api/accounting/trial', '/api/accounting/trial/*'], async (req, res) => {
+  try {
+    const { onRequest } = await import('./functions/accounting/trial.js');
+    const targetPath = req.originalUrl.replace(/^\/api/, '');
+    const fullUrl = `http://${req.get('host') || '127.0.0.1:3000'}${targetPath}`;
+    const headers = new Headers();
+    Object.entries(req.headers).forEach(([k, v]) => {
+      if (v) headers.set(k, Array.isArray(v) ? v.join(', ') : v);
+    });
+    if (!headers.has('content-type')) {
+      headers.set('content-type', 'application/json');
+    }
+
+    const hasBody = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+    const bodyStr = hasBody ? JSON.stringify(req.body || {}) : undefined;
+
+    const webReq = new Request(fullUrl, {
+      method: req.method,
+      headers,
+      body: bodyStr
+    });
+
+    const webRes = await onRequest({
+      request: webReq,
+      env: process.env
+    });
+
+    res.status(webRes.status);
+    webRes.headers.forEach((val, key) => {
+      res.setHeader(key, val);
+    });
+    const bodyText = await webRes.text();
+    res.send(bodyText);
+  } catch (err: any) {
+    console.error('Accounting trial proxy error:', err);
+    res.status(500).json({ success: false, error: err?.message || 'Server error' });
+  }
+});
+
+// =========================================================================
 // ACCOUNTING (AKUNTANSI) BACKEND API ROUTES -> Delegated to functions/accounting/[[path]].js
 // =========================================================================
 app.all(['/accounting', '/accounting/*', '/api/accounting', '/api/accounting/*'], async (req, res) => {
