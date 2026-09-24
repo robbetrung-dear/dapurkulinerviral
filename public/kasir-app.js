@@ -2388,44 +2388,6 @@ try {
   /**
    * Filter daftar rekonsiliasi sesuai filter tab aktif
    */
-  filteredReconciliationList() {
-    let list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
-    const f = (this.reconcileFilter || this.reconciliationFilter || 'semua').toLowerCase();
-    if (f !== 'semua' && f !== 'all') {
-      list = list.filter(item => {
-        if (f === 'berhasil' || f === 'settlement') {
-          return item.status === 'berhasil' || item.rawStatus === 'settlement';
-        }
-        if (f === 'menggantung' || f === 'pending') {
-          return item.status === 'menggantung' || item.rawStatus === 'pending';
-        }
-        if (f === 'gagal' || f === 'expired') {
-          return item.status === 'gagal' || item.rawStatus === 'expired';
-        }
-        return item.status === f;
-      });
-    }
-
-    if (this.reconcileDateRange && this.reconcileDateRange !== 'all') {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const yesterdayStart = todayStart - 86400000;
-      const last7DaysStart = todayStart - (7 * 86400000);
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-
-      list = list.filter(item => {
-        const itemTime = Number(item.timestamp || item.time || (item.createdAt ? new Date(item.createdAt).getTime() : 0));
-        if (!itemTime) return true;
-        if (this.reconcileDateRange === 'today') return itemTime >= todayStart;
-        if (this.reconcileDateRange === 'yesterday') return itemTime >= yesterdayStart && itemTime < todayStart;
-        if (this.reconcileDateRange === 'last7days') return itemTime >= last7DaysStart;
-        if (this.reconcileDateRange === 'month') return itemTime >= monthStart;
-        return true;
-      });
-    }
-
-    return list;
-  },
 
   /**
    * Toggle pilih semua checkbox transaksi
@@ -2444,13 +2406,15 @@ try {
   /**
    * 1. Cek pending rekonsiliasi dengan filter timestamp dan grouping status (SYNCHRONOUS & AMAN DARI REKURSIF)
    */
-  cekPendingRekonsiliasi() {
+    cekPendingRekonsiliasi() {
     const list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
     const activeList = list.filter(item => !item.archived);
 
-    // Transaksi menggantung yang butuh verifikasi (status menggantung/pending dan belum direkonsiliasi)
+    // Transaksi menggantung yang butuh verifikasi (EXCLUDE yang sudah ditunda)
     const menggantung = activeList.filter(i => 
-      !i.reconciled && (i.status === 'menggantung' || i.status === 'pending')
+      !i.reconciled && 
+      (i.status === 'menggantung' || i.status === 'pending') && 
+      !this.postponedReconcileIds.includes(i.orderId)
     );
 
     const berhasil = activeList.filter(i => 
@@ -2570,7 +2534,9 @@ try {
           paymentMethod: o.paymentMethod || o.payment_type || 'QRIS',
           midtransId: o.midtransId || o.transaction_id || '-',
           buktiTransfer: o.buktiTransfer || null,
-          items: o.items || [],
+          items: Array.isArray(o.items) 
+            ? o.items 
+            : Object.values(o.items || {}).filter(Boolean),
           createdAt: Number(o.createdAt) || Date.now(),
           reconciled: !!o.reconciled,
           archived: !!o.archived,
@@ -2683,7 +2649,9 @@ try {
           return false;
         }
       }
-      const itemsToCheck = orderData.items || [];
+      const itemsToCheck = Array.isArray(orderData.items) 
+        ? orderData.items 
+        : Object.values(orderData.items || {}).filter(Boolean);
       const stockCheck = this.checkStockForOrder(itemsToCheck);
       
       if (!stockCheck.allReady) {
