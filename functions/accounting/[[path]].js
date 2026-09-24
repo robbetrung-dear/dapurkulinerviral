@@ -11,6 +11,12 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
 };
 
+// Helper: konversi aman ke number
+const toNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
 // Default Chart of Accounts jika database belum diinisialisasi
 const DEFAULT_COA = {
   "101": { n: "Kas di Tangan", t: "asset" },
