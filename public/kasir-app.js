@@ -4070,17 +4070,59 @@ try {
   /**
    * Muat formulasi resep menu dari backend
    */
-  async loadMenuRecipes() {
+    async loadMenuRecipes() {
+    let recipesData = null;
+
+    // 1. Coba fetch dari endpoint /inventory/recipes
     try {
       const res = await fetch('/inventory/recipes');
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          this.menuRecipes = json.data;
+          recipesData = json.data;
+          console.log('[MENU-RECIPES] Loaded from /inventory/recipes:', Object.keys(recipesData).length);
         }
       }
     } catch (e) {
-      console.warn('Gagal memuat resep menu:', e);
+      console.warn('[MENU-RECIPES] Endpoint /inventory/recipes error:', e.message);
+    }
+
+    // 2. Fallback: fetch langsung dari Firebase REST API
+    if (!recipesData) {
+      try {
+        const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
+          || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
+        const res = await fetch(`${fbUrl.replace(/\/$/, '')}/recipes.json`);
+        if (res.ok) {
+          recipesData = await res.json();
+          console.log('[MENU-RECIPES] Loaded from Firebase fallback:', Object.keys(recipesData || {}).length);
+        }
+      } catch (e) {
+        console.warn('[MENU-RECIPES] Firebase fallback error:', e.message);
+      }
+    }
+
+    // 3. Normalize ingredients: object → array
+    if (recipesData && typeof recipesData === 'object') {
+      const normalized = {};
+      Object.entries(recipesData).forEach(([menuId, recipe]) => {
+        if (recipe && typeof recipe === 'object') {
+          const rawIngredients = recipe.ingredients;
+          const ingredientsArray = Array.isArray(rawIngredients)
+            ? rawIngredients
+            : Object.values(rawIngredients || {}).filter(Boolean);
+
+          normalized[menuId] = {
+            ...recipe,
+            ingredients: ingredientsArray
+          };
+        }
+      });
+      this.menuRecipes = normalized;
+      console.log(`[MENU-RECIPES] ✅ Total ${Object.keys(normalized).length} recipes siap`);
+    } else {
+      console.warn('[MENU-RECIPES] ⚠️ Tidak ada resep ter-load');
+      this.menuRecipes = {};
     }
   },
 
@@ -4308,33 +4350,63 @@ try {
    * Cek kesiapan stok untuk seluruh item dalam satu order
    * Return: { allReady: boolean, notReady: [{id, name, required, available, missing}] }
    */
-  checkStockForOrder(items) {
+    checkStockForOrder(items) {
     const notReady = [];
     
-    if (!Array.isArray(items)) {
+    if (!items) {
       return { allReady: true, notReady };
     }
     
-    for (const item of items) {
-      const menuId = item.id || item.menuId;
-      const requiredQty = Number(item.qty) || Number(item.quantity) || 1;
+    // Normalize items: object→array, array-of-arrays→array-of-objects
+    let itemsArr;
+    if (Array.isArray(items)) {
+      itemsArr = items;
+    } else {
+      itemsArr = Object.values(items).filter(Boolean);
+    }
+    
+    for (const rawItem of itemsArr) {
+      let menuId, menuName, requiredQty;
+      
+      // Handle format array [id, qty, price] (format hemat dari POS)
+      if (Array.isArray(rawItem)) {
+        menuId = rawItem[0];
+        requiredQty = Number(rawItem[1]) || 1;
+        menuName = menuId;
+      } else {
+        // Format object {id, name, qty, price}
+        menuId = rawItem.id || rawItem.menuId;
+        requiredQty = Number(rawItem.qty || rawItem.quantity) || 1;
+        menuName = rawItem.name || rawItem.menuName || menuId;
+      }
+      
       if (!menuId) continue;
       
-      // Skip item tanpa resep (menu bebas stok)
+      // Cek apakah ada resep untuk menu ini
       const recipe = this.menuRecipes[menuId];
+      
+      // Case A: Menu TIDAK punya resep → tidak bisa dijual (stok = 0 by default)
       if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+        notReady.push({
+          id: menuId,
+          name: menuName,
+          required: requiredQty,
+          available: 0,
+          missing: 'Resep belum diset'
+        });
         continue;
       }
       
+      // Case B: Menu punya resep, cek stok
       const currentStock = this.getMenuCalculatedStock(menuId);
       if (currentStock < requiredQty) {
         const missing = this.getMenuMissingIngredient(menuId);
         notReady.push({
           id: menuId,
-          name: item.name || item.menuName || menuId,
+          name: menuName,
           required: requiredQty,
           available: currentStock,
-          missing: missing ? missing.name : 'Bahan tidak diketahui'
+          missing: missing ? missing.name : 'Bahan kurang'
         });
       }
     }
