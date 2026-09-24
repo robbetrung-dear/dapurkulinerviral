@@ -693,7 +693,7 @@
                 <div class="mt-5 space-y-2 border-t border-stone-100 pt-4">
                   <div class="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Isi Dalam Box:</div>
                   <ul class="space-y-1.5 text-xs text-stone-600">
-                    <template x-for="(menuItem, idx) in pkg.items" :key="'pkg-item-' + idx + '-' + menuItem">
+                    <template x-for="menuItem in pkg.items" :key="menuItem">
                       <li class="flex items-start gap-2">
                         <i class="fa-solid fa-check text-emerald-600 mt-0.5 text-[11px]"></i>
                         <span x-text="menuItem"></span>
@@ -3710,65 +3710,6 @@ git push -u origin main</pre>
             <h4 class="font-extrabold text-stone-900 text-sm">Ubah Password Keamanan Panel Admin</h4>
             <p class="text-xs text-stone-500">Ganti password masuk admin dengan standar keamanan ketat.</p>
           </div>
-          
-          <!-- KUSTOMISASI JUDUL PANEL KASIR -->
-          <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-4">
-            <div>
-              <h4 class="font-extrabold text-stone-900 text-sm flex items-center gap-2">
-                <i class="fa-solid fa-pen-nib text-emerald-600"></i>
-                <span>Kustomisasi Judul Panel Kasir</span>
-              </h4>
-              <p class="text-xs text-stone-600 mt-1">Ubah nama brand yang tampil di header POS Kasir. Perubahan langsung tersinkron ke <code>/kasir</code>.</p>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Judul Utama (Nama Toko)</label>
-                <input 
-                  type="text" 
-                  x-model="siteConfig.kasirTitle" 
-                  placeholder="Kasir Pintar" 
-                  class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-bold" 
-                />
-                <p class="text-[10px] text-stone-500 mt-1">Contoh: "Kasir Pintar", "Kasir Cerdas", "POS Dapur"</p>
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Subtitle (Nama Brand)</label>
-                <input 
-                  type="text" 
-                  x-model="siteConfig.kasirSubtitle" 
-                  placeholder="Dapur Kuliner Viral" 
-                  class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white font-bold" 
-                />
-                <p class="text-[10px] text-stone-500 mt-1">Tampil di bawah judul utama</p>
-              </div>
-            </div>
-
-            <!-- Live Preview -->
-            <div class="p-3 bg-white rounded-xl border border-emerald-200 flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white shadow-sm">
-                <i class="fa-solid fa-cash-register text-lg"></i>
-              </div>
-              <div>
-                <div class="flex items-center gap-1.5">
-                  <span class="font-extrabold text-base tracking-tight text-stone-900" x-text="siteConfig.kasirTitle || 'Kasir Pintar'"></span>
-                  <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase">POS</span>
-                </div>
-                <p class="text-[11px] text-stone-500" x-text="siteConfig.kasirSubtitle || 'Dapur Kuliner Viral'"></p>
-              </div>
-            </div>
-
-            <div class="flex justify-end">
-              <button 
-                type="button" 
-                @click="saveSiteConfig()" 
-                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer">
-                <i class="fa-solid fa-floppy-disk"></i>
-                <span>Simpan Judul Kasir</span>
-              </button>
-            </div>
-          </div>
 
           <form @submit.prevent="saveNewAdminPassword()" class="max-w-md space-y-4">
             <div>
@@ -4294,27 +4235,29 @@ git push -u origin main</pre>
     <span x-text="adminToast"></span>
   </div>
 
-  <!-- FLOATING TRACKER BUTTON (ICON ONLY) -->
+  <!-- FLOATING TRACKER BUTTON (Selalu Muncul di Mobile, Tablet & Desktop) -->
   <aside aria-label="Lacak Pesanan" class="fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-[60] pointer-events-auto">
     <button 
       type="button"
       @click="isTrackerOpen = true" 
-      class="w-12 h-12 sm:w-14 sm:h-14 bg-white hover:bg-stone-50 text-brand-600 rounded-full flex items-center justify-center shadow-2xl border-2 border-brand-500/20 hover:scale-110 active:scale-95 transition-all duration-200 group"
+      class="h-11 sm:h-13 px-3.5 sm:px-4 bg-white hover:bg-stone-50 text-brand-600 rounded-full flex items-center gap-2 shadow-2xl border-2 border-brand-500/20 hover:scale-105 active:scale-95 transition-all duration-200 group"
       title="Lacak Pesanan Realtime"
       aria-label="Lacak Pesanan Realtime">
-      <i class="fa-solid fa-satellite-dish text-xl sm:text-2xl group-hover:animate-pulse"></i>
+      <i class="fa-solid fa-satellite-dish text-lg sm:text-xl group-hover:animate-pulse"></i>
+      <span class="text-xs font-black tracking-wide text-stone-900">Lacak</span>
     </button>
   </aside>
 
-  <!-- FLOATING WHATSAPP BUTTON (ICON ONLY) -->
+  <!-- FLOATING WHATSAPP BUTTON (Selalu Muncul di Mobile, Tablet & Desktop) -->
   <aside aria-label="Bantuan WhatsApp" class="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-[60] pointer-events-auto">
     <button 
       type="button"
       @click="openWhatsAppOrder()" 
-      class="group relative w-12 h-12 sm:w-14 sm:h-14 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-full shadow-2xl hover:shadow-emerald-500/50 transition-all transform hover:scale-110 active:scale-95 flex items-center justify-center"
+      class="group relative bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black h-11 sm:h-13 px-3.5 sm:px-5 rounded-full shadow-2xl hover:shadow-emerald-500/50 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"
       title="Chat WhatsApp Admin"
       aria-label="Chat WhatsApp Admin">
-      <i class="fa-brands fa-whatsapp text-2xl sm:text-3xl"></i>
+      <i class="fa-brands fa-whatsapp text-xl sm:text-2xl"></i>
+      <span class="text-xs font-black tracking-wide">WhatsApp</span>
       <span x-show="cartTotalCount > 0" class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-600 text-white text-[10px] font-black flex items-center justify-center border-2 border-white shadow-xs" x-text="cartTotalCount"></span>
     </button>
   </aside>
@@ -4935,11 +4878,6 @@ git push -u origin main</pre>
             facebook: 'https://facebook.com/dapurkulinerviral',
             tiktok: 'https://tiktok.com/@dapurkulinerviral'
           },
-
-          // ✅ TAMBAHKAN INI
-          kasirTitle: 'Kasir Pintar',
-          kasirSubtitle: 'Dapur Kuliner Viral',
-          
           // PENGATURAN PEMBAYARAN, QRIS & GATEWAY
           paymentConfig: {
             enableEwalletTransfer: true,

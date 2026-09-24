@@ -37,9 +37,19 @@ export async function onRequest(context) {
       });
     }
 
-    // 1. GET /pos/summary/daily/{date} — Ringkasan penjualan harian (YYYY-MM-DD)
-    if (method === 'GET' && parts[0] === 'summary' && parts[1] === 'daily' && parts[2]) {
+    // 1. GET & POST /pos/summary/daily/{date} — Ringkasan penjualan harian (YYYY-MM-DD)
+    if ((method === 'GET' || method === 'POST') && parts[0] === 'summary' && parts[1] === 'daily' && parts[2]) {
       const date = parts[2];
+      if (method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        if (body && Object.keys(body).length > 0) {
+          await fetch(`${dbUrl}/pos/summary/daily/${encodeURIComponent(date)}.json${authParam}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+        }
+      }
       const res = await fetch(`${dbUrl}/pos/summary/daily/${encodeURIComponent(date)}.json${authParam}`);
       const data = await res.json() || {};
       return new Response(JSON.stringify({ 
@@ -58,9 +68,19 @@ export async function onRequest(context) {
       });
     }
 
-    // 2. GET /pos/summary/monthly/{month} — Ringkasan penjualan bulanan (YYYY-MM)
-    if (method === 'GET' && parts[0] === 'summary' && parts[1] === 'monthly' && parts[2]) {
+    // 2. GET & POST /pos/summary/monthly/{month} — Ringkasan penjualan bulanan (YYYY-MM)
+    if ((method === 'GET' || method === 'POST') && parts[0] === 'summary' && parts[1] === 'monthly' && parts[2]) {
       const month = parts[2];
+      if (method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        if (body && Object.keys(body).length > 0) {
+          await fetch(`${dbUrl}/pos/summary/monthly/${encodeURIComponent(month)}.json${authParam}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+        }
+      }
       const res = await fetch(`${dbUrl}/pos/summary/monthly/${encodeURIComponent(month)}.json${authParam}`);
       const data = await res.json() || {};
       return new Response(JSON.stringify({ 

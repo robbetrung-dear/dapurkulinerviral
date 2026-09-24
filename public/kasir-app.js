@@ -1,6 +1,4 @@
 /**
- customKasirTitle: 'Kasir Pintar',
- customKasirSubtitle: 'Dapur Kuliner Viral',
  * /public/kasir-app.js — BAGIAN 1 dari 3 (Transaksi & Pembayaran)
  * Sistem Kasir Pintar POS - Dapur Kuliner Viral & Catering Rumahan
  * 
@@ -31,12 +29,8 @@ window.kasirApp = () => ({
     name: 'Kasir Utama',
     shiftId: 'S-2026-09-18-01'
   },
-    currentTime: '',
+  currentTime: '',
   _clockInterval: null,
-  
-  // ✅ Custom Title (dari Admin Panel → Security)
-  customKasirTitle: 'Kasir Pintar',
-  customKasirSubtitle: 'Dapur Kuliner Viral',
 
   // Katalog Menu & Keranjang
   cart: [],
@@ -161,7 +155,7 @@ window.kasirApp = () => ({
   _reconcileInterval: null,
 
   // Shift, Inventory & Laporan State (BAGIAN 3)
-    shiftSummary: {
+  shiftSummary: {
     totalSales: 2450000,
     cashSales: 980000,
     qrisSales: 1120000,
@@ -171,35 +165,6 @@ window.kasirApp = () => ({
     startCash: 200000,
     startTime: '08:00 WIB'
   },
-
-  /**
-   * GETTER: Saldo Kas Laci Aktual
-   * = Modal Awal + Penjualan Tunai − Pengeluaran Tunai (dari jurnal hari ini)
-   */
-  get saldoKasLaci() {
-    const modalAwal = Number(this.shiftSummary?.startCash) || 0;
-    const penjualanTunai = Number(this.shiftSummary?.cashSales) || 0;
-    
-    // Hitung pengeluaran tunai dari jurnal hari ini
-    const today = new Date().toISOString().slice(0, 10);
-    let pengeluaranTunai = 0;
-    const list = Array.isArray(this.accountingJournalList) ? this.accountingJournalList : [];
-    
-    list.forEach(j => {
-      if (j.date !== today) return;
-      if (j.status === 'rejected') return;
-      (j.lines || []).forEach(l => {
-        const acc = String(l.acc || '').trim();
-        // Kredit ke Kas = uang keluar
-        if ((acc === '1001' || acc === '101') && Number(l.credit) > 0) {
-          pengeluaranTunai += Number(l.credit) || 0;
-        }
-      });
-    });
-    
-    return Math.max(0, modalAwal + penjualanTunai - pengeluaranTunai);
-  },
-
   shiftData: {
     startTime: '08:00 WIB',
     duration: '5 jam 30 menit',
@@ -441,12 +406,7 @@ window.kasirApp = () => ({
     ingredients: []
   },
   menuRecipes: {}, // { menuId: { ingredients: [...] } }
-  postponedReconcileIds: (() => {
-    try {
-      return JSON.parse(localStorage.getItem('dapur_postponed_reconcile') || '[]');
-    } catch (e) { return []; }
-  })(),
- // Daftar orderId yang ditunda rekonsiliasinya
+  postponedReconcileIds: [], // Daftar orderId yang ditunda rekonsiliasinya
 
   // Chart References & Timers
   _topMenuChart: null,
@@ -527,22 +487,6 @@ window.kasirApp = () => ({
 
     // 4. Inisialisasi Koneksi Firebase Realtime Database
     await this.initFirebaseSDK();
-    // Load custom kasir title dari Firebase site_config
-try {
-  if (this._fbRef && this._fbDb) {
-    const configRef = this._fbRef(this._fbDb, 'site_config');
-    this._fbOnValue(configRef, (snapshot) => {
-      const val = snapshot.val();
-      if (val) {
-        if (val.kasirTitle) this.customKasirTitle = val.kasirTitle;
-        if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
-        console.log('[KASIR] Custom title loaded:', val.kasirTitle);
-      }
-    });
-  }
-} catch (e) {
-  console.warn('[KASIR] Load custom title error:', e);
-}
 
     // 5. Sinkronkan Kategori dengan Toko Utama & Muat Menu dari Firebase
     this.syncCategoriesWithMainStore();
@@ -730,21 +674,8 @@ try {
           const val = snapshot.val();
           console.log('[FB-MENU] Menu listener:', val ? Object.keys(val).length + ' items' : 'kosong');
           if (val) {
-  const rawList = Array.isArray(val) ? val : Object.values(val);
-  // Dedupe by ID — hindari duplicate key x-for
-  const seen = new Map();
-  rawList.forEach(m => {
-    if (m && m.id) {
-      seen.set(m.id, m);
-    } else if (m && m.name) {
-      // Fallback: generate ID dari name kalau kosong
-      m.id = 'menu_' + m.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      seen.set(m.id, m);
-    }
-  });
-  this.menuList = Array.from(seen.values());
-  console.log(`[FB-MENU] Loaded ${this.menuList.length} unique items (raw: ${rawList.length})`);
-} else {
+            this.menuList = Array.isArray(val) ? JSON.parse(JSON.stringify(val)) : Object.values(val);
+          } else {
             this.menuList = fallbackMenu;
           }
           this.syncCategoriesWithMainStore();
@@ -1629,7 +1560,7 @@ try {
   /**
    * Simpan Transaksi Lengkap ke Firebase Cloud & Jalankan Otomasi POS
    */
-    async simpanTransaksi(paymentData = {}) {
+  async simpanTransaksi(paymentData = {}) {
     const txId = paymentData.txId || ('T' + Date.now());
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -1640,55 +1571,22 @@ try {
     const isReconciliation = !!paymentData.isReconciliation || !!paymentData.orderData;
     const orderData = paymentData.orderData || null;
 
-    // ✅ FIX #1: Normalize field — Firebase pakai short-form (tot, sub, sc, disc)
-    const grandTotal = orderData 
-      ? (Number(orderData.total || orderData.tot || orderData.gross_amount) || 0) 
-      : this.getCartGrandTotal();
-    const subtotal = orderData 
-      ? (Number(orderData.subtotal || orderData.sub) || Math.round(grandTotal / 1.11)) 
-      : this.getCartSubtotal();
-    const tax = orderData 
-      ? (Number(orderData.tax) || (grandTotal - subtotal)) 
-      : this.getCartTax();
-    const serviceCharge = orderData 
-      ? (Number(orderData.serviceCharge || orderData.sc) || 0) 
-      : this.getCartServiceCharge();
-    const disc = orderData 
-      ? (Number(orderData.discount || orderData.disc) || 0) 
-      : (Number(this.discountAmount) || 0);
-    const pm = (paymentData.method || (orderData && (orderData.paymentMethod || orderData.payment_type || orderData.pm)) || this.selectedPaymentMethod || 'cash').toLowerCase();
+    const grandTotal = orderData ? (Number(orderData.total || orderData.gross_amount) || 0) : this.getCartGrandTotal();
+    const subtotal = orderData ? (orderData.subtotal || Math.round(grandTotal / 1.11)) : this.getCartSubtotal();
+    const tax = orderData ? (orderData.tax || (grandTotal - subtotal)) : this.getCartTax();
+    const serviceCharge = orderData ? (orderData.serviceCharge || 0) : this.getCartServiceCharge();
+    const disc = orderData ? (orderData.discount || 0) : (Number(this.discountAmount) || 0);
+    const pm = (paymentData.method || (orderData && (orderData.paymentMethod || orderData.payment_type)) || this.selectedPaymentMethod || 'cash').toLowerCase();
 
-    // ✅ FIX #2: Normalize items — handle object / array / array-of-arrays
-    let rawItems = [];
-    if (orderData && orderData.items) {
-      if (Array.isArray(orderData.items)) {
-        rawItems = orderData.items;
-      } else if (typeof orderData.items === 'object') {
-        rawItems = Object.values(orderData.items).filter(Boolean);
-      }
-    }
-    if (rawItems.length === 0) {
-      rawItems = Array.isArray(this.cart) ? this.cart.slice() : [];
-    }
+    // Mapping items
+    const rawItems = (orderData && orderData.items && orderData.items.length > 0) ? orderData.items : this.cart;
+    const mappedItems = rawItems.length > 0 ? rawItems.map(item => [
+      item.id || 'm1',
+      Number(item.qty) || 1,
+      Number(item.price) || 0
+    ]) : [['m1', 1, grandTotal]];
 
-    // ✅ FIX #3: Normalize ke format uniform {id, qty, price} untuk backend
-    const normalizedItems = rawItems.map(item => {
-      if (Array.isArray(item)) {
-        return { id: item[0] || 'm1', qty: Number(item[1]) || 1, price: Number(item[2]) || 0 };
-      }
-      return {
-        id: item.id || item.menuId || 'm1',
-        qty: Number(item.qty || item.quantity) || 1,
-        price: Number(item.price || item.harga) || 0
-      };
-    });
-
-    const mappedItems = normalizedItems.map(i => [i.id, i.qty, i.price]);
-    if (mappedItems.length === 0) {
-      mappedItems.push(['m1', 1, grandTotal]);
-    }
-
-    // 1. Format transaksi hemat
+    // 1. Format transaksi hemat (numeric / concise keys):
     const txRecord = {
       t: Date.now(),
       items: mappedItems,
@@ -1710,11 +1608,12 @@ try {
       }
     };
 
+    // Objek ramah cetak struk & UI
     this.currentOrder = {
       id: txId,
       date: this.formatDate(Date.now()),
       time: this.formatTime(Date.now()),
-      items: normalizedItems.length > 0 ? JSON.parse(JSON.stringify(normalizedItems)) : [{ id: 'm1', name: 'Menu Pesanan', qty: 1, price: grandTotal }],
+      items: rawItems.length > 0 ? JSON.parse(JSON.stringify(rawItems)) : [{ id: 'm1', name: 'Menu Pesanan', qty: 1, price: grandTotal }],
       subtotal: subtotal,
       tax: tax,
       serviceCharge: serviceCharge,
@@ -1747,91 +1646,115 @@ try {
       console.warn('Firebase save warning:', err);
     }
 
-    // 3. Offline queue
+    // 3. Tangani Offline Mode: simpan ke antrian localStorage
     if (!savedToFirebase) {
       try {
         const pendingQueue = JSON.parse(localStorage.getItem('dapur_pending_tx') || '[]');
-        pendingQueue.push({ path: `pos/transactions/${dateStr}/${txId}`, data: txRecord, createdAt: Date.now() });
+        pendingQueue.push({
+          path: `pos/transactions/${dateStr}/${txId}`,
+          data: txRecord,
+          createdAt: Date.now()
+        });
         localStorage.setItem('dapur_pending_tx', JSON.stringify(pendingQueue));
-      } catch (e) {}
+        if (!isReconciliation) {
+          this.showToast('Transaksi tersimpan lokal, akan sync otomatis saat online', 'notify');
+        }
+      } catch (e) {
+        console.warn('LocalStorage queue error:', e);
+      }
     }
 
-    // 4. ✅ AWAIT: Inventory deduct
+    // 4. Panggil endpoint /aggregate (Update summary di server)
     try {
-      console.log('[INV-DEDUCT] Sending:', { orderId: txId, items: normalizedItems });
-      const invRes = await fetch('/inventory/deduct', {
+      await fetch('/aggregate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateStr, tx: txRecord })
+      });
+    } catch (e) {
+      console.warn('Aggregate endpoint note:', e);
+    }
+
+    // 5. Normalisasi item untuk pengurangan stok & kalkulasi HPP
+    const normalizedItemsForDeduct = rawItems.map(it => {
+      if (Array.isArray(it)) {
+        return { id: it[0], name: it[0], qty: Number(it[1]) || 1, price: Number(it[2]) || 0 };
+      }
+      return {
+        id: it.id || it.menuId || it.code,
+        name: it.name || it.menuName || it.id || 'Item',
+        qty: Number(it.qty || it.quantity || it.amount || 1),
+        price: Number(it.price || it.harga || 0)
+      };
+    });
+
+    // Kurangi inventory untuk bahan baku & kemasan (AWAIT agar stok & HPP terupdate)
+    let deductResult = null;
+    try {
+      const deductRes = await fetch('/inventory/deduct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: this.currentOrder?.id || txId,
+          date: dateStr,
+          kasir: this.kasirInfo?.name || this.kasirInfo?.username || 'kasir',
+          items: normalizedItemsForDeduct
+        })
+      });
+      if (deductRes.ok) {
+        deductResult = await deductRes.json();
+        if (deductResult && deductResult.success && Array.isArray(deductResult.deducted)) {
+          // Update local inventory state
+          deductResult.deducted.forEach(d => {
+            const it = this.inventoryList.find(i => i.id === d.itemId);
+            if (it) {
+              it.stock = d.after;
+              it.stok = d.after;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Inventory deduct note:', e);
+    }
+
+    // 6. Panggil /receipt endpoint
+    try {
+      fetch('/receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.currentOrder)
+      }).catch(e => console.warn('Receipt endpoint note:', e));
+    } catch (e) {}
+
+    // 6.2 Trigger Auto-Jurnal Akuntansi (AWAIT agar P&L dan Dashboard langsung sync)
+    try {
+      const calculatedHpp = Number(deductResult?.totalHpp || 0);
+      const journalRes = await fetch('/accounting/journal/pos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: txId,
+          total: grandTotal,
+          tot: grandTotal,
+          totalAmount: grandTotal,
+          paymentMethod: pm,
+          pm: pm,
+          items: normalizedItemsForDeduct,
+          hpp: calculatedHpp,
           date: dateStr,
-          kasir: this.kasirInfo?.name || this.kasirInfo?.username || 'kasir',
-          items: normalizedItems
+          kasir: this.kasirInfo?.name || this.kasirInfo?.username || 'kasir'
         })
       });
-      const invJson = await invRes.json();
-      if (invJson.success && Array.isArray(invJson.deducted)) {
-        invJson.deducted.forEach(d => {
-          const it = this.inventoryList.find(i => i.id === d.itemId);
-          if (it) { it.stock = d.after; it.stok = d.after; }
-        });
-        console.log('[INV-DEDUCT] ✅', invJson.deducted.length, 'items updated');
-      } else {
-        console.warn('[INV-DEDUCT] ⚠️', invJson.error || 'No deducted array');
-      }
-    } catch (e) {
-      console.warn('[INV-DEDUCT] ❌', e.message);
-    }
-
-    // 5. ✅ AWAIT: Auto-Jurnal Akuntansi
-    try {
-      const acctBody = {
-        orderId: txId,
-        date: dateStr,
-        pm: pm,
-        total: grandTotal,
-        items: normalizedItems
-      };
-      console.log('[KASIR→ACCT] Sending:', acctBody);
-
-      const acctRes = await fetch('/accounting/journal/pos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(acctBody)
-      });
-      const acctJson = await acctRes.json();
-      
-      if (acctJson.success) {
-        console.log('[KASIR→ACCT] ✅ Revenue:', acctJson.totalRev, '| HPP:', acctJson.totalHpp);
-      } else {
-        console.warn('[KASIR→ACCT] ⚠️', acctJson.error);
-      }
-    } catch (e) {
-      console.warn('[KASIR→ACCT] ❌', e.message);
-    }
-
-    // 6. ✅ Refresh accounting summary SETELAH semua selesai
-    try {
-      if (typeof this.loadAccountingSummary === 'function') {
+      if (journalRes.ok) {
+        await journalRes.json();
         await this.loadAccountingSummary(true);
       }
-    } catch (e) {}
+    } catch (accErr) {
+      console.warn('Accounting entry trigger note:', accErr);
+    }
 
-    // 7. Aggregate endpoint (background, no await)
-    fetch('/aggregate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: dateStr, tx: txRecord })
-    }).catch(() => {});
-
-    // 8. Receipt endpoint (background)
-    fetch('/receipt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(this.currentOrder)
-    }).catch(() => {});
-
-    // 9. Update shift summary
+    // 7. Update ringkasan shift kasir aktif
     if (this.shiftSummary) {
       this.shiftSummary.transactionCount = (this.shiftSummary.transactionCount || 0) + 1;
       this.shiftSummary.totalSales = (this.shiftSummary.totalSales || 0) + grandTotal;
@@ -1845,12 +1768,12 @@ try {
     }
     this.todayTotalRevenue = (this.todayTotalRevenue || 0) + grandTotal;
 
-    // 10. Auto-download struk (hanya kasir langsung)
+    // 8. Auto-download struk PDF (hanya untuk kasir langsung)
     if (!paymentData.skipReceiptModal) {
       this.downloadStrukPDF(this.currentOrder);
     }
 
-    // 11. Clear cart
+    // 9. Kosongkan keranjang & bersihkan draft tersimpan jika checkout reguler
     if (!isReconciliation) {
       this.cart = [];
       this.orderNote = '';
@@ -1858,10 +1781,11 @@ try {
       localStorage.removeItem('dapur_pos_draft_cart');
     }
 
-    // 12. Sound & Toast
+    // 10. Sound & Toast Feedback
     this.playSound('success');
     if (!isReconciliation) {
       this.showToast('Transaksi berhasil!', 'success');
+      // 11. Tampilkan modal preview struk
       this.receiptModal = true;
     }
   },
@@ -2433,6 +2357,34 @@ try {
   /**
    * Filter daftar rekonsiliasi sesuai filter tab aktif
    */
+  filteredReconciliationList() {
+    let list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
+    const filter = (this.reconcileFilter || this.reconciliationFilter || 'semua').toLowerCase();
+
+    if (filter === 'semua' || filter === 'all') return list;
+    if (filter === 'ditunda' || filter === 'postponed') {
+      return list.filter(item => (this.postponedReconcileIds || []).includes(item.orderId) || item.status === 'ditunda');
+    }
+    if (filter === 'berhasil' || filter === 'settlement') {
+      return list.filter(item => 
+        (item.status === 'berhasil' || item.status === 'settlement' || item.rawStatus === 'settlement' || item.reconciled) &&
+        !(this.postponedReconcileIds || []).includes(item.orderId)
+      );
+    }
+    if (filter === 'menggantung' || filter === 'pending') {
+      return list.filter(item => 
+        !item.reconciled &&
+        (item.status === 'menggantung' || item.status === 'pending' || item.rawStatus === 'pending') &&
+        !(this.postponedReconcileIds || []).includes(item.orderId)
+      );
+    }
+    if (filter === 'gagal' || filter === 'expired' || filter === 'cancel') {
+      return list.filter(item => 
+        item.status === 'gagal' || item.status === 'expired' || item.status === 'cancel' || item.rawStatus === 'expired'
+      );
+    }
+    return list.filter(item => item.status === filter);
+  },
 
   /**
    * Toggle pilih semua checkbox transaksi
@@ -2451,26 +2403,28 @@ try {
   /**
    * 1. Cek pending rekonsiliasi dengan filter timestamp dan grouping status (SYNCHRONOUS & AMAN DARI REKURSIF)
    */
-    cekPendingRekonsiliasi() {
+  cekPendingRekonsiliasi() {
     const list = Array.isArray(this.reconciliationList) ? this.reconciliationList : [];
     const activeList = list.filter(item => !item.archived);
 
-    // Transaksi menggantung yang butuh verifikasi (EXCLUDE yang sudah ditunda)
     const menggantung = activeList.filter(i => 
       !i.reconciled && 
       (i.status === 'menggantung' || i.status === 'pending') && 
-      !this.postponedReconcileIds.includes(i.orderId)
+      !(this.postponedReconcileIds || []).includes(i.orderId)
     );
 
     const berhasil = activeList.filter(i => 
-      i.status === 'berhasil' || i.status === 'settlement'
+      i.status === 'berhasil' || i.status === 'settlement' || i.rawStatus === 'settlement' || i.reconciled
+    );
+
+    const ditunda = activeList.filter(i => 
+      (this.postponedReconcileIds || []).includes(i.orderId) || i.status === 'ditunda'
     );
 
     const gagal = activeList.filter(i => 
       i.status === 'gagal' || i.status === 'expired' || i.status === 'cancel'
     );
 
-    // Update state pendingReconcile murni berdasarkan jumlah transaksi menggantung yang butuh verifikasi
     this.pendingReconcile = menggantung.length;
     if (this.pendingReconcile === 0) {
       this.pendingReconcileModal = false;
@@ -2479,13 +2433,15 @@ try {
     this.reconcileSummary = {
       berhasil,
       menggantung,
+      ditunda,
       gagal,
       berhasilCount: berhasil.length,
       menggantungCount: menggantung.length,
+      ditundaCount: ditunda.length,
       gagalCount: gagal.length
     };
 
-    return { berhasil, menggantung, gagal };
+    return { berhasil, menggantung, ditunda, gagal };
   },
 
   /**
@@ -2494,14 +2450,20 @@ try {
   getReconcileCount(type = 'semua') {
     if (!this.reconciliationList || this.reconciliationList.length === 0) return 0;
     const list = this.reconciliationList.filter(item => !item.archived);
-    if (type === 'semua' || type === 'all') return list.length;
-    if (type === 'berhasil') return list.filter(i => i.status === 'berhasil' || i.status === 'settlement').length;
-    if (type === 'menggantung' || type === 'pending') return list.filter(i => 
-      (i.status === 'menggantung' || i.status === 'pending') && 
-      !this.postponedReconcileIds.includes(i.orderId)
-    ).length;
-    if (type === 'ditunda') return (this.postponedReconcileIds || []).length;
-    if (type === 'gagal' || type === 'expired') return list.filter(i => i.status === 'gagal' || i.status === 'expired' || i.status === 'cancel').length;
+    const t = (type || 'semua').toLowerCase();
+    if (t === 'semua' || t === 'all') return list.length;
+    if (t === 'berhasil' || t === 'settlement') {
+      return list.filter(i => (i.status === 'berhasil' || i.status === 'settlement' || i.rawStatus === 'settlement' || i.reconciled) && !(this.postponedReconcileIds || []).includes(i.orderId)).length;
+    }
+    if (t === 'menggantung' || t === 'pending') {
+      return list.filter(i => !i.reconciled && (i.status === 'menggantung' || i.status === 'pending' || i.rawStatus === 'pending') && !(this.postponedReconcileIds || []).includes(i.orderId)).length;
+    }
+    if (t === 'ditunda' || t === 'postponed') {
+      return list.filter(i => (this.postponedReconcileIds || []).includes(i.orderId) || i.status === 'ditunda').length;
+    }
+    if (t === 'gagal' || t === 'expired' || t === 'cancel') {
+      return list.filter(i => i.status === 'gagal' || i.status === 'expired' || i.status === 'cancel').length;
+    }
     return 0;
   },
 
@@ -2521,7 +2483,7 @@ try {
   },
 
   /**
-   * 3. Ambil detail transaksi dari /orders dan map ke format tabel rekonsiliasi
+   * 3. Ambil detail transaksi dari Firebase REST API dan map ke format tabel rekonsiliasi
    */
   async loadRekonsiliasiList(filter = 'all') {
     if (filter !== 'all') {
@@ -2531,57 +2493,74 @@ try {
 
     let rawList = [];
     try {
-      const res = await fetch('/pending-orders');
+      // Direct fetch dari Firebase REST
+      const dbUrl = (this._fbConfig && this._fbConfig.databaseURL) 
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
+      const res = await fetch(`${dbUrl.replace(/\/$/, '')}/orders.json`);
       if (res.ok) {
-        const json = await res.json();
-        rawList = json.orders || json.data || (Array.isArray(json) ? json : []);
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          rawList = Object.entries(data).map(([id, v]) => ({ id, orderId: id, ...(v || {}) }));
+        }
       }
     } catch (e) {
       console.warn('Gagal memuat /orders:', e);
     }
 
-    // Fallback seed data berkualitas jika server belum memiliki order sama sekali
-      if (!rawList || rawList.length === 0) {
-      rawList = [];
-      console.log('Tidak ada order pending. Rekonsiliasi kosong.');
-    }
-    // Mapping ke struktur kolom tabel
+    // Mapping + normalize
     const mapped = rawList
       .filter(o => !o.archived)
       .map(o => {
         const st = (o.status || '').toLowerCase();
         let normalizedStatus = 'menggantung';
-        if (['settlement', 'berhasil', 'success', 'dibayar', 'capture'].includes(st)) {
+        if (['settlement', 'berhasil', 'success', 'dibayar', 'capture', 'selesai'].includes(st)) {
           normalizedStatus = 'berhasil';
         } else if (['expired', 'gagal', 'cancel', 'batal', 'ditolak', 'denied'].includes(st)) {
           normalizedStatus = 'gagal';
+        } else if (st === 'ditunda') {
+          normalizedStatus = 'ditunda';
         }
 
-        const formattedTime = this.formatTimeWib(o.createdAt);
-
-                // ✅ Cek postponed dari backend
-        const isPostponedFromBackend = o.postponed === true || String(o.status || '').toLowerCase() === 'ditunda';
-        
-        // Sync ke state lokal supaya badge DITUNDA muncul
+        const isPostponedFromBackend = o.postponed === true || st === 'ditunda';
         if (isPostponedFromBackend && !this.postponedReconcileIds.includes(o.orderId || o.id)) {
           this.postponedReconcileIds.push(o.orderId || o.id);
         }
 
+        // Normalize items: object → array
+        let itemsArr = [];
+        if (Array.isArray(o.items)) {
+          itemsArr = o.items;
+        } else if (o.items && typeof o.items === 'object') {
+          itemsArr = Object.values(o.items).filter(Boolean);
+        }
+        // Normalize array-of-arrays [id, qty, price] → object
+        itemsArr = itemsArr.map(it => {
+          if (Array.isArray(it)) {
+            return { id: it[0], name: it[0], qty: Number(it[1]) || 1, price: Number(it[2]) || 0 };
+          }
+          return {
+            id: it.id || it.menuId,
+            name: it.name || it.menuName || it.id,
+            qty: Number(it.qty || it.quantity) || 1,
+            price: Number(it.price || it.harga) || 0
+          };
+        });
+
         return {
           orderId: o.orderId || o.id,
-          waktu: formattedTime,
-          time: formattedTime,
-          pemesan: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
-          customer: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
-          total: Number(o.total || o.tot || o.gross_amount || 0),
+          waktu: this.formatTimeWib(o.createdAt),
+          time: this.formatTimeWib(o.createdAt),
+          pemesan: o.customer?.name || o.customerName || o.pemesan || 'Pelanggan Umum',
+          customer: o.customer?.name || o.customerName || o.pemesan || 'Pelanggan Umum',
+          customerPhone: o.customer?.phone || o.customerPhone || '',
+          customerAddress: o.customer?.address || o.customerAddress || '',
+          total: Number(o.total || o.totalAmount || o.tot || o.gross_amount || 0),
           status: isPostponedFromBackend ? 'ditunda' : normalizedStatus,
           rawStatus: o.status || normalizedStatus,
-          paymentMethod: o.paymentMethod || o.payment_type || 'QRIS',
+          paymentMethod: o.paymentMethod || o.pm || o.payment_type || 'QRIS',
           midtransId: o.midtransId || o.transaction_id || '-',
           buktiTransfer: o.buktiTransfer || null,
-          items: Array.isArray(o.items) 
-            ? o.items 
-            : Object.values(o.items || {}).filter(Boolean),
+          items: itemsArr,
           createdAt: Number(o.createdAt) || Date.now(),
           reconciled: !!o.reconciled,
           archived: !!o.archived,
@@ -2592,16 +2571,14 @@ try {
         };
       });
 
-    // Sort by waktu DESC
     mapped.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-        this.reconciliationList = mapped;
-    
-    // ✅ Persist postponed list
+    this.reconciliationList = mapped;
+
     try {
       localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
     } catch (e) {}
-    
+
     this.cekPendingRekonsiliasi();
     return mapped;
   },
@@ -2617,15 +2594,7 @@ try {
     const dd = String(now.getDate()).padStart(2, '0');
     const dateStr = `${yyyy}-${mm}-${dd}`;
 
-    // 1. Cek cache lokal
-    try {
-      const cached = JSON.parse(localStorage.getItem('dapur_reconciled_orders') || '{}');
-      if (cached[orderId]) {
-        return { exists: true, shiftId: cached[orderId].shiftId || this.kasirInfo.shiftId };
-      }
-    } catch (e) {}
-
-    // 2. Query endpoint server /pos/transactions/{date}/{txId}?orderId={orderId}
+    // 1. Query endpoint server /pos/transactions/{date}/{txId}?orderId={orderId}
     try {
       const res = await fetch(`/pos/transactions/${dateStr}/${encodeURIComponent(orderId)}?orderId=${encodeURIComponent(orderId)}`);
       if (res.ok) {
@@ -2638,16 +2607,47 @@ try {
       console.warn('Anti-duplicate check warning:', err);
     }
 
+    // 2. Query Firebase RTDB jika server belum update / offline
+    try {
+      const dbUrl = (this._fbConfig && this._fbConfig.databaseURL) 
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
+      const fbCheck = await fetch(`${dbUrl.replace(/\/$/, '')}/pos/transactions/${dateStr}/${encodeURIComponent(orderId)}.json`);
+      if (fbCheck.ok) {
+        const tx = await fbCheck.json();
+        if (tx) {
+          return { exists: true, transaction: tx, shiftId: tx.shf || tx.shiftId };
+        }
+      }
+    } catch (e) {}
+
+    // 3. Cek cache lokal: Jika transaksi TIDAK ditemukan di server/Firebase (misal admin baru menghapus transaksi untuk re-record),
+    // bersihkan stale cache di localStorage agar kasir bisa retry / re-record tanpa ter-block!
+    try {
+      const cached = JSON.parse(localStorage.getItem('dapur_reconciled_orders') || '{}');
+      if (cached[orderId]) {
+        delete cached[orderId];
+        localStorage.setItem('dapur_reconciled_orders', JSON.stringify(cached));
+      }
+    } catch (e) {}
+
     return null;
   },
 
   /**
    * 4. Aksi Rekonsiliasi: rekamTransaksi(orderId)
    */
-   async rekamTransaksi(orderId, skipStockCheck = false) {
+  async rekamTransaksi(orderId) {
     if (!orderId) return false;
 
-    // 1. Ambil detail order dari /orders/{orderId} — DULU
+    // 1. Anti-Duplikat Check (aman retry jika entry sudah dihapus di Firebase)
+    const duplicate = await this.checkDuplicateTransaction(orderId);
+    if (duplicate && duplicate.exists) {
+      alert(`Transaksi sudah direkam di shift ${duplicate.shiftId || this.kasirInfo.shiftId || 'sebelumnya'}`);
+      this.showToast(`Transaksi ${orderId} sudah pernah direkam`, 'notify');
+      return false;
+    }
+
+    // 2. Ambil detail order dari /orders/{orderId} atau Firebase
     let orderData = null;
     try {
       const res = await fetch(`/orders/${encodeURIComponent(orderId)}`);
@@ -2659,7 +2659,7 @@ try {
       console.warn('Fetch order detail warning:', err);
     }
 
-    // Fallback ambil dari reconciliationList
+    // Fallback ambil dari item di reconciliationList
     if (!orderData) {
       const found = this.reconciliationList.find(i => i.orderId === orderId);
       if (found) {
@@ -2679,91 +2679,7 @@ try {
       return false;
     }
 
-      // 3. ✅ VALIDASI STOK — Cek kesiapan semua item
-    if (!skipStockCheck) {
-      // Guard: kalau order tidak punya data items sama sekali
-      if (!orderData.items || !Array.isArray(orderData.items) || orderData.items.length === 0) {
-        const confirmNoItems = confirm(
-          `⚠️ Transaksi ${orderId} tidak memiliki detail menu.\n\n` +
-          `Sistem tidak dapat memverifikasi ketersediaan stok.\n\n` +
-          `Pilih OK untuk tetap merekam (HPP tidak akan dihitung otomatis), ` +
-          `atau Cancel untuk membatalkan.`
-        );
-        if (!confirmNoItems) {
-          this.showToast(`Approve dibatalkan — order tidak punya detail menu`, 'notify');
-          return false;
-        }
-      }
-      const itemsToCheck = Array.isArray(orderData.items) 
-        ? orderData.items 
-        : Object.values(orderData.items || {}).filter(Boolean);
-      const stockCheck = this.checkStockForOrder(itemsToCheck);
-      
-      if (!stockCheck.allReady) {
-        const missingList = stockCheck.notReady
-          .map(x => `${x.name} (butuh ${x.required}, tersedia ${x.available}, kurang: ${x.missing})`)
-          .join('; ');
-        
-        // Tandai postponed di state lokal
-          if (!this.postponedReconcileIds.includes(orderId)) {
-          this.postponedReconcileIds.push(orderId);
-          try {
-            localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
-          } catch (e) {}
-        }
-        
-        // Update status di reconciliationList lokal
-        const item = this.reconciliationList.find(i => i.orderId === orderId);
-        if (item) {
-          item.postponed = true;
-          item.postponedReason = `Stok kurang: ${missingList}`;
-          item.status = 'ditunda';
-        }
-        this.reconciliationList = [...this.reconciliationList];
-        
-        // PATCH ke backend: status = ditunda
-        try {
-          await fetch(`/orders/${encodeURIComponent(orderId)}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'ditunda',
-              postponed: true,
-              postponedAt: Date.now(),
-              postponedBy: this.kasirInfo.username,
-              postponedReason: `Stok kurang: ${missingList}`
-            })
-          });
-        } catch (e) {
-          console.warn('Patch postpone error:', e);
-        }
-        
-        // Notifikasi
-        this.showToast(
-          `Transaksi ${orderId} belum dapat disetujui — stok menu belum ready, otomatis DITUNDA`,
-          'error'
-        );
-        
-        // Buka modal detail jika sedang di halaman rekonsiliasi
-        this.activeReconcileItem = item || null;
-        this.reconcileModal = false;
-        
-        this.playSound('error');
-        return false;
-      }
-    }
-
-    // 3. ✅ Anti-Duplikat Check — SETELAH validasi stok
-    const duplicate = await this.checkDuplicateTransaction(orderId);
-    if (duplicate && duplicate.exists) {
-      // Kalau order ini sudah "reconciled" (pernah direkam sukses), beri tahu user
-      alert(`Transaksi sudah direkam di shift ${duplicate.shiftId || this.kasirInfo.shiftId || 'sebelumnya'}`);
-      this.showToast(`Transaksi ${orderId} sudah pernah direkam`, 'notify');
-      return false;
-    }
-
-    // 4. ✅ STOK READY — Lanjutkan rekam transaksi
-    //    → simpanTransaksi() akan trigger auto-deduct inventory + auto-jurnal accounting
+    // 3. Konversi ke format POS & panggil simpanTransaksi()
     const txId = orderData.orderId || ('T' + Date.now());
     await this.simpanTransaksi({
       txId: txId,
@@ -2773,54 +2689,57 @@ try {
       skipReceiptModal: true
     });
 
-    // 5. Tandai PATCH /orders/{orderId} — status settlement
+    // 4. Update status order di server & Firebase
+    const patchPayload = {
+      reconciled: true,
+      reconciledAt: Date.now(),
+      reconciledBy: this.kasirInfo.username,
+      status: 'settlement'
+    };
+
     try {
       await fetch(`/orders/${encodeURIComponent(orderId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reconciled: true,
-          reconciledAt: Date.now(),
-          reconciledBy: this.kasirInfo.username,
-          status: 'settlement'
-        })
+        body: JSON.stringify(patchPayload)
       });
     } catch (e) {
-      console.warn('Patch order error:', e);
+      console.warn('Patch order endpoint warning:', e);
     }
 
-    // 6. Simpan ke cache anti-duplicate lokal
+    try {
+      const dbUrl = (this._fbConfig && this._fbConfig.databaseURL) 
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
+      await fetch(`${dbUrl.replace(/\/$/, '')}/orders/${encodeURIComponent(orderId)}.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchPayload)
+      });
+    } catch (fbErr) {
+      console.warn('Firebase patch order warning:', fbErr);
+    }
+
+    // Simpan ke cache anti-duplicate lokal
     try {
       const cached = JSON.parse(localStorage.getItem('dapur_reconciled_orders') || '{}');
       cached[orderId] = { reconciledAt: Date.now(), shiftId: this.kasirInfo.shiftId };
       localStorage.setItem('dapur_reconciled_orders', JSON.stringify(cached));
     } catch (e) {}
 
-    // 7. Update item di reconciliationList lokal
+    // Update item di reconciliationList lokal
     const itemInList = this.reconciliationList.find(i => i.orderId === orderId);
     if (itemInList) {
       itemInList.reconciled = true;
       itemInList.status = 'berhasil';
       itemInList.rawStatus = 'settlement';
-      itemInList.postponed = false;
-      itemInList.postponedReason = null;
     }
     this.reconciliationList = [...this.reconciliationList];
 
-    // 8. Update count pending
-    await this.cekPendingRekonsiliasi();
+    // Update count pending
+    this.cekPendingRekonsiliasi();
 
-    // 9. Refresh inventory + accounting summary (sudah di-handle di simpanTransaksi)
-    try {
-      await this.loadInventory();
-      await this.loadAccountingSummary(true);
-    } catch (e) {
-      console.warn('[RECON] Refresh warning:', e);
-    }
-
-    // 10. Feedback sukses
+    // Toast feedback
     this.showToast(`Transaksi ${orderId} berhasil diverifikasi & direkam`, 'success');
-    this.playSound('success');
     return true;
   },
 
@@ -3009,11 +2928,8 @@ try {
     if (filter === 'berhasil' || filter === 'settlement') {
       return list.filter(item => item.status === 'berhasil' || item.status === 'settlement');
     }
-        if (filter === 'menggantung' || filter === 'pending') {
-      return list.filter(item => 
-        (item.status === 'menggantung' || item.status === 'pending') && 
-        !this.isPostponed(item.orderId)
-      );
+    if (filter === 'menggantung' || filter === 'pending') {
+      return list.filter(item => item.status === 'menggantung' || item.status === 'pending');
     }
     if (filter === 'gagal' || filter === 'expired') {
       return list.filter(item => item.status === 'gagal' || item.status === 'expired');
@@ -3071,7 +2987,7 @@ try {
   /**
    * Tunda / Postpone Rekonsiliasi (Order dipertahankan & ditandai kedip aktif)
    */
-    postponeReconciliation(orderId) {
+  postponeReconciliation(orderId) {
     if (!orderId) return;
     if (this.postponedReconcileIds.includes(orderId)) {
       this.postponedReconcileIds = this.postponedReconcileIds.filter(id => id !== orderId);
@@ -3080,10 +2996,6 @@ try {
       this.postponedReconcileIds.push(orderId);
       this.showToast(`Rekonsiliasi ${orderId} ditunda sementara`, 'notify');
     }
-    // ✅ Persist ke localStorage
-    try {
-      localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
-    } catch (e) {}
     if (this.reconcileModal) this.reconcileModal = false;
   },
 
@@ -3941,19 +3853,18 @@ try {
   /**
    * Ambil saldo kas tunai aktif saat ini
    */
- getCashInHand() {
-  // Priority 1: Accounting Summary (data ledger real-time dari backend)
-  if (this.accountingSummaryData && this.accountingSummaryData.saldoKas != undefined) {
-    const acctKas = Math.max(0, Number(this.accountingSummaryData.saldoKas));
-    if (acctKas > 0) return acctKas;
-  }
-
-  // Priority 2: Fallback hitung dari shiftSummary (kalau summary belum ke-load)
-  const startCash = Number(this.shiftSummary?.startCash) || 0;
-  const cashSales = Number(this.shiftSummary?.cashSales) || 0;
-  const cashExpenses = Number(this.shiftSummary?.cashExpenses) || 0;
-  return Math.max(0, startCash + cashSales - cashExpenses);
-},
+  getCashInHand() {
+    const startCash = Number(this.shiftSummary?.startCash !== undefined ? this.shiftSummary.startCash : 200000);
+    const cashSales = Number(this.shiftSummary?.cashSales || 0);
+    const cashExpenses = Number(this.shiftSummary?.cashExpenses || 0);
+    const shiftCash = Math.max(0, startCash + cashSales - cashExpenses);
+    
+    if (this.accountingSummaryData && this.accountingSummaryData.saldoKas !== undefined) {
+      const acctKas = Math.max(0, Number(this.accountingSummaryData.saldoKas));
+      if (acctKas > 0 && shiftCash === 0) return acctKas;
+    }
+    return shiftCash;
+  },
 
   openAddInventoryModal() {
     this.newInventoryForm = {
@@ -4116,59 +4027,17 @@ try {
   /**
    * Muat formulasi resep menu dari backend
    */
-    async loadMenuRecipes() {
-    let recipesData = null;
-
-    // 1. Coba fetch dari endpoint /inventory/recipes
+  async loadMenuRecipes() {
     try {
       const res = await fetch('/inventory/recipes');
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          recipesData = json.data;
-          console.log('[MENU-RECIPES] Loaded from /inventory/recipes:', Object.keys(recipesData).length);
+          this.menuRecipes = json.data;
         }
       }
     } catch (e) {
-      console.warn('[MENU-RECIPES] Endpoint /inventory/recipes error:', e.message);
-    }
-
-    // 2. Fallback: fetch langsung dari Firebase REST API
-    if (!recipesData) {
-      try {
-        const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
-          || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
-        const res = await fetch(`${fbUrl.replace(/\/$/, '')}/recipes.json`);
-        if (res.ok) {
-          recipesData = await res.json();
-          console.log('[MENU-RECIPES] Loaded from Firebase fallback:', Object.keys(recipesData || {}).length);
-        }
-      } catch (e) {
-        console.warn('[MENU-RECIPES] Firebase fallback error:', e.message);
-      }
-    }
-
-    // 3. Normalize ingredients: object → array
-    if (recipesData && typeof recipesData === 'object') {
-      const normalized = {};
-      Object.entries(recipesData).forEach(([menuId, recipe]) => {
-        if (recipe && typeof recipe === 'object') {
-          const rawIngredients = recipe.ingredients;
-          const ingredientsArray = Array.isArray(rawIngredients)
-            ? rawIngredients
-            : Object.values(rawIngredients || {}).filter(Boolean);
-
-          normalized[menuId] = {
-            ...recipe,
-            ingredients: ingredientsArray
-          };
-        }
-      });
-      this.menuRecipes = normalized;
-      console.log(`[MENU-RECIPES] ✅ Total ${Object.keys(normalized).length} recipes siap`);
-    } else {
-      console.warn('[MENU-RECIPES] ⚠️ Tidak ada resep ter-load');
-      this.menuRecipes = {};
+      console.warn('Gagal memuat resep menu:', e);
     }
   },
 
@@ -4390,74 +4259,6 @@ try {
       }
     }
     return null;
-  },
-
-   /**
-   * Cek kesiapan stok untuk seluruh item dalam satu order
-   * Return: { allReady: boolean, notReady: [{id, name, required, available, missing}] }
-   */
-    checkStockForOrder(items) {
-    const notReady = [];
-    
-    if (!items) {
-      return { allReady: true, notReady };
-    }
-    
-    // Normalize items: object→array, array-of-arrays→array-of-objects
-    let itemsArr;
-    if (Array.isArray(items)) {
-      itemsArr = items;
-    } else {
-      itemsArr = Object.values(items).filter(Boolean);
-    }
-    
-    for (const rawItem of itemsArr) {
-      let menuId, menuName, requiredQty;
-      
-      // Handle format array [id, qty, price] (format hemat dari POS)
-      if (Array.isArray(rawItem)) {
-        menuId = rawItem[0];
-        requiredQty = Number(rawItem[1]) || 1;
-        menuName = menuId;
-      } else {
-        // Format object {id, name, qty, price}
-        menuId = rawItem.id || rawItem.menuId;
-        requiredQty = Number(rawItem.qty || rawItem.quantity) || 1;
-        menuName = rawItem.name || rawItem.menuName || menuId;
-      }
-      
-      if (!menuId) continue;
-      
-      // Cek apakah ada resep untuk menu ini
-      const recipe = this.menuRecipes[menuId];
-      
-      // Case A: Menu TIDAK punya resep → tidak bisa dijual (stok = 0 by default)
-      if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
-        notReady.push({
-          id: menuId,
-          name: menuName,
-          required: requiredQty,
-          available: 0,
-          missing: 'Resep belum diset'
-        });
-        continue;
-      }
-      
-      // Case B: Menu punya resep, cek stok
-      const currentStock = this.getMenuCalculatedStock(menuId);
-      if (currentStock < requiredQty) {
-        const missing = this.getMenuMissingIngredient(menuId);
-        notReady.push({
-          id: menuId,
-          name: menuName,
-          required: requiredQty,
-          available: currentStock,
-          missing: missing ? missing.name : 'Bahan kurang'
-        });
-      }
-    }
-    
-    return { allReady: notReady.length === 0, notReady };
   },
 
   /**
@@ -5926,47 +5727,27 @@ try {
   },
 
   getAccountName(accCode) {
-  const coa = {
-    // 4-digit (primary — kode standar sekarang)
-    '1001': 'Kas di Tangan',
-    '1002': 'Bank BCA',
-    '1003': 'Piutang Usaha',
-    '1004': 'Persediaan Bahan Baku',
-    '1005': 'Peralatan & Mesin Dapur',
-    '2001': 'Hutang Dagang / Supplier',
-    '2002': 'Hutang Beban & Operasional',
-    '3001': 'Modal Pemilik',
-    '3002': 'Laba Ditahan',
-    '3003': 'Prive Pemilik',
-    '4001': 'Pendapatan Penjualan POS',
-    '4002': 'Pendapatan Pesanan Catering',
-    '5001': 'Harga Pokok Penjualan (HPP)',
-    '6001': 'Beban Gaji Karyawan',
-    '6002': 'Beban Sewa Tempat & Outlet',
-    '6003': 'Beban Listrik, Air & Gas',
-    '6004': 'Beban Marketing & Iklan',
-    '6005': 'Beban Operasional & Kurir',
-    '6006': 'Beban Penyusutan',
-    // Legacy 3-digit untuk kompatibilitas
-    '101': 'Kas di Tangan',
-    '102': 'Bank',
-    '103': 'Piutang Usaha',
-    '105': 'Persediaan Bahan Baku',
-    '201': 'Hutang Supplier',
-    '301': 'Modal Pemilik',
-    '302': 'Prive Pemilik',
-    '401': 'Pendapatan Penjualan',
-    '402': 'Pendapatan Catering',
-    '501': 'HPP',
-    '601': 'Beban Gaji',
-    '602': 'Beban Sewa',
-    '603': 'Beban Listrik & Air',
-    '604': 'Beban Marketing',
-    '605': 'Beban Kurir',
-    '606': 'Beban Penyusutan'
-  };
-  return coa[String(accCode)] || ('Akun ' + accCode);
-},
+    const coa = {
+      '101': 'Kas di Tangan',
+      '102': 'Bank',
+      '103': 'Piutang',
+      '105': 'Persediaan Bahan Baku',
+      '111': 'Akum. Penyusutan',
+      '201': 'Hutang Supplier',
+      '301': 'Modal Pemilik',
+      '302': 'Prive',
+      '401': 'Pendapatan Penjualan',
+      '402': 'Pendapatan Catering',
+      '501': 'HPP',
+      '601': 'Beban Gaji',
+      '602': 'Beban Sewa',
+      '603': 'Beban Listrik & Air',
+      '604': 'Beban Marketing',
+      '605': 'Beban Kurir',
+      '606': 'Beban Penyusutan'
+    };
+    return coa[accCode] || ('Akun ' + accCode);
+  },
 
   async submitJournalEntry() {
     // Validasi balance
