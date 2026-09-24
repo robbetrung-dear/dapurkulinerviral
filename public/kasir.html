@@ -1251,7 +1251,7 @@
                             <span>Verifikasi</span>
                           </button>
                         </template>
-                        <template x-if="item.status === 'berhasil' || item.status === 'settlement'">
+                        <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && !item.postponed">
                           <template x-if="!item.reconciled">
                             <button 
                               type="button" 
@@ -1368,7 +1368,7 @@
                       <span>Verifikasi Transaksi</span>
                     </button>
                   </template>
-                  <template x-if="item.status === 'berhasil' || item.status === 'settlement'">
+                  <template x-if="(item.status === 'berhasil' || item.status === 'settlement') && !item.postponed">
                     <template x-if="!item.reconciled">
                       <button 
                         type="button" 
