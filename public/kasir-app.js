@@ -441,7 +441,12 @@ window.kasirApp = () => ({
     ingredients: []
   },
   menuRecipes: {}, // { menuId: { ingredients: [...] } }
-  postponedReconcileIds: [], // Daftar orderId yang ditunda rekonsiliasinya
+  postponedReconcileIds: (() => {
+    try {
+      return JSON.parse(localStorage.getItem('dapur_postponed_reconcile') || '[]');
+    } catch (e) { return []; }
+  })(),
+ // Daftar orderId yang ditunda rekonsiliasinya
 
   // Chart References & Timers
   _topMenuChart: null,
@@ -2542,6 +2547,14 @@ try {
 
         const formattedTime = this.formatTimeWib(o.createdAt);
 
+                // ✅ Cek postponed dari backend
+        const isPostponedFromBackend = o.postponed === true || String(o.status || '').toLowerCase() === 'ditunda';
+        
+        // Sync ke state lokal supaya badge DITUNDA muncul
+        if (isPostponedFromBackend && !this.postponedReconcileIds.includes(o.orderId || o.id)) {
+          this.postponedReconcileIds.push(o.orderId || o.id);
+        }
+
         return {
           orderId: o.orderId || o.id,
           waktu: formattedTime,
@@ -2549,7 +2562,7 @@ try {
           pemesan: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
           customer: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
           total: Number(o.total || o.gross_amount || 0),
-          status: normalizedStatus,
+          status: isPostponedFromBackend ? 'ditunda' : normalizedStatus,
           rawStatus: o.status || normalizedStatus,
           paymentMethod: o.paymentMethod || o.payment_type || 'QRIS',
           midtransId: o.midtransId || o.transaction_id || '-',
@@ -2558,6 +2571,8 @@ try {
           createdAt: Number(o.createdAt) || Date.now(),
           reconciled: !!o.reconciled,
           archived: !!o.archived,
+          postponed: isPostponedFromBackend,
+          postponedReason: o.postponedReason || '',
           note: o.note || '',
           rawOrder: o
         };
@@ -2566,7 +2581,13 @@ try {
     // Sort by waktu DESC
     mapped.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-    this.reconciliationList = mapped;
+        this.reconciliationList = mapped;
+    
+    // ✅ Persist postponed list
+    try {
+      localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
+    } catch (e) {}
+    
     this.cekPendingRekonsiliasi();
     return mapped;
   },
@@ -2676,8 +2697,12 @@ try {
           .join('; ');
         
         // Tandai postponed di state lokal
-        if (!this.postponedReconcileIds.includes(orderId)) {
+                if (!this.postponedReconcileIds.includes(orderId)) {
           this.postponedReconcileIds.push(orderId);
+          // ✅ Persist ke localStorage
+          try {
+            localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
+          } catch (e) {}
         }
         
         // Update status di reconciliationList lokal
@@ -2967,8 +2992,11 @@ try {
     if (filter === 'berhasil' || filter === 'settlement') {
       return list.filter(item => item.status === 'berhasil' || item.status === 'settlement');
     }
-    if (filter === 'menggantung' || filter === 'pending') {
-      return list.filter(item => item.status === 'menggantung' || item.status === 'pending');
+        if (filter === 'menggantung' || filter === 'pending') {
+      return list.filter(item => 
+        (item.status === 'menggantung' || item.status === 'pending') && 
+        !this.isPostponed(item.orderId)
+      );
     }
     if (filter === 'gagal' || filter === 'expired') {
       return list.filter(item => item.status === 'gagal' || item.status === 'expired');
@@ -3026,7 +3054,7 @@ try {
   /**
    * Tunda / Postpone Rekonsiliasi (Order dipertahankan & ditandai kedip aktif)
    */
-  postponeReconciliation(orderId) {
+    postponeReconciliation(orderId) {
     if (!orderId) return;
     if (this.postponedReconcileIds.includes(orderId)) {
       this.postponedReconcileIds = this.postponedReconcileIds.filter(id => id !== orderId);
@@ -3035,6 +3063,10 @@ try {
       this.postponedReconcileIds.push(orderId);
       this.showToast(`Rekonsiliasi ${orderId} ditunda sementara`, 'notify');
     }
+    // ✅ Persist ke localStorage
+    try {
+      localStorage.setItem('dapur_postponed_reconcile', JSON.stringify(this.postponedReconcileIds));
+    } catch (e) {}
     if (this.reconcileModal) this.reconcileModal = false;
   },
 
