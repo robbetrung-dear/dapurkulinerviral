@@ -1660,11 +1660,21 @@ try {
     if (rawItems.length === 0) {
       rawItems = Array.isArray(this.cart) ? this.cart : [];
     }
-    const mappedItems = rawItems.length > 0 ? rawItems.map(item => [
-      item.id || 'm1',
-      Number(item.qty) || 1,
-      Number(item.price) || 0
-    ]) : [['m1', 1, grandTotal]];
+        // ✅ Normalize mappedItems — handle object {qty|quantity} & array [id, qty, price]
+    const mappedItems = rawItems.length > 0 ? rawItems.map(item => {
+      if (Array.isArray(item)) {
+        return [
+          item[0] || 'm1',
+          Number(item[1]) || 1,
+          Number(item[2]) || 0
+        ];
+      }
+      return [
+        item.id || item.menuId || 'm1',
+        Number(item.qty || item.quantity) || 1,  // ✅ Handle BOTH fields
+        Number(item.price || item.harga) || 0
+      ];
+    }) : [['m1', 1, grandTotal]];
 
     // 1. Format transaksi hemat (numeric / concise keys):
     const txRecord = {
@@ -1753,6 +1763,17 @@ try {
       }).catch(e => console.warn('Aggregate endpoint note:', e));
     } catch (e) {}
 
+       // ✅ Normalize items untuk backend (uniform {id, qty, price})
+    const normalizedBackendItems = rawItems.map(item => {
+      if (Array.isArray(item)) {
+        return { id: item[0], qty: Number(item[1]) || 1, price: Number(item[2]) || 0 };
+      }
+      return {
+        id: item.id || item.menuId,
+        qty: Number(item.qty || item.quantity) || 1,
+        price: Number(item.price || item.harga) || 0
+      };
+    });
     // 5. Kurangi inventory untuk bahan baku & kemasan
     try {
       fetch('/inventory/deduct', {
@@ -1762,7 +1783,7 @@ try {
           orderId: this.currentOrder?.id || txId,
           date: dateStr,
           kasir: this.kasirInfo?.name || this.kasirInfo?.username || 'kasir',
-          items: rawItems
+          items: normalizedBackendItems
         })
       }).then(r => r.json()).then(res => {
         if (res && res.success && Array.isArray(res.deducted)) {
@@ -1794,16 +1815,7 @@ try {
     //      3. Bikin jurnal HPP (Debit 5001, Kredit 1004)
     //      4. Update Ledger + Summary
     try {
-      const acctItems = (rawItems || []).map(i => {
-        if (Array.isArray(i)) {
-          return { id: i[0], qty: Number(i[1]) || 1, price: Number(i[2]) || 0 };
-        }
-        return {
-          id: i.id || i.menuId,
-          qty: Number(i.qty || i.quantity) || 1,
-          price: Number(i.price) || 0
-        };
-      });
+      const acctItems = normalizedBackendItems;
 
       const acctBody = {
         orderId: txId,
