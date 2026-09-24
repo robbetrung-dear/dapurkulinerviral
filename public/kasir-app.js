@@ -2599,7 +2599,7 @@ try {
           time: formattedTime,
           pemesan: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
           customer: o.customer || o.customerName || o.pemesan || 'Pelanggan Umum',
-          total: Number(o.total || o.gross_amount || 0),
+          total: Number(o.total || o.tot || o.gross_amount || 0),
           status: isPostponedFromBackend ? 'ditunda' : normalizedStatus,
           rawStatus: o.status || normalizedStatus,
           paymentMethod: o.paymentMethod || o.payment_type || 'QRIS',
