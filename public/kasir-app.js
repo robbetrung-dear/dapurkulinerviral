@@ -1640,11 +1640,22 @@ try {
     const isReconciliation = !!paymentData.isReconciliation || !!paymentData.orderData;
     const orderData = paymentData.orderData || null;
 
-    const grandTotal = orderData ? (Number(orderData.total || orderData.gross_amount) || 0) : this.getCartGrandTotal();
-    const subtotal = orderData ? (orderData.subtotal || Math.round(grandTotal / 1.11)) : this.getCartSubtotal();
-    const tax = orderData ? (orderData.tax || (grandTotal - subtotal)) : this.getCartTax();
-    const serviceCharge = orderData ? (orderData.serviceCharge || 0) : this.getCartServiceCharge();
-    const disc = orderData ? (orderData.discount || 0) : (Number(this.discountAmount) || 0);
+    // ✅ Normalize field: Firebase pakai short-form (tot, sub, disc)
+    const grandTotal = orderData 
+      ? (Number(orderData.total || orderData.tot || orderData.gross_amount) || 0) 
+      : this.getCartGrandTotal();
+    const subtotal = orderData 
+      ? (Number(orderData.subtotal || orderData.sub) || Math.round(grandTotal / 1.11)) 
+      : this.getCartSubtotal();
+    const tax = orderData 
+      ? (Number(orderData.tax) || (grandTotal - subtotal)) 
+      : this.getCartTax();
+    const serviceCharge = orderData 
+      ? (Number(orderData.serviceCharge || orderData.sc) || 0) 
+      : this.getCartServiceCharge();
+    const disc = orderData 
+      ? (Number(orderData.discount || orderData.disc) || 0) 
+      : (Number(this.discountAmount) || 0);
     const pm = (paymentData.method || (orderData && (orderData.paymentMethod || orderData.payment_type)) || this.selectedPaymentMethod || 'cash').toLowerCase();
 
     // Mapping items
