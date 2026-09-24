@@ -1629,7 +1629,7 @@ try {
   /**
    * Simpan Transaksi Lengkap ke Firebase Cloud & Jalankan Otomasi POS
    */
-  async simpanTransaksi(paymentData = {}) {
+    async simpanTransaksi(paymentData = {}) {
     const txId = paymentData.txId || ('T' + Date.now());
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -1640,7 +1640,7 @@ try {
     const isReconciliation = !!paymentData.isReconciliation || !!paymentData.orderData;
     const orderData = paymentData.orderData || null;
 
-    // ✅ Normalize field: Firebase pakai short-form (tot, sub, disc)
+    // ✅ FIX #1: Normalize field — Firebase pakai short-form (tot, sub, sc, disc)
     const grandTotal = orderData 
       ? (Number(orderData.total || orderData.tot || orderData.gross_amount) || 0) 
       : this.getCartGrandTotal();
@@ -1656,10 +1656,9 @@ try {
     const disc = orderData 
       ? (Number(orderData.discount || orderData.disc) || 0) 
       : (Number(this.discountAmount) || 0);
-    const pm = (paymentData.method || (orderData && (orderData.paymentMethod || orderData.payment_type)) || this.selectedPaymentMethod || 'cash').toLowerCase();
+    const pm = (paymentData.method || (orderData && (orderData.paymentMethod || orderData.payment_type || orderData.pm)) || this.selectedPaymentMethod || 'cash').toLowerCase();
 
-    // Mapping items
-    // ✅ Normalize items: handle object / array / array-of-arrays dari Firebase REST
+    // ✅ FIX #2: Normalize items — handle object / array / array-of-arrays
     let rawItems = [];
     if (orderData && orderData.items) {
       if (Array.isArray(orderData.items)) {
@@ -1669,25 +1668,27 @@ try {
       }
     }
     if (rawItems.length === 0) {
-      rawItems = Array.isArray(this.cart) ? this.cart : [];
+      rawItems = Array.isArray(this.cart) ? this.cart.slice() : [];
     }
-        // ✅ Normalize mappedItems — handle object {qty|quantity} & array [id, qty, price]
-    const mappedItems = rawItems.length > 0 ? rawItems.map(item => {
-      if (Array.isArray(item)) {
-        return [
-          item[0] || 'm1',
-          Number(item[1]) || 1,
-          Number(item[2]) || 0
-        ];
-      }
-      return [
-        item.id || item.menuId || 'm1',
-        Number(item.qty || item.quantity) || 1,  // ✅ Handle BOTH fields
-        Number(item.price || item.harga) || 0
-      ];
-    }) : [['m1', 1, grandTotal]];
 
-    // 1. Format transaksi hemat (numeric / concise keys):
+    // ✅ FIX #3: Normalize ke format uniform {id, qty, price} untuk backend
+    const normalizedItems = rawItems.map(item => {
+      if (Array.isArray(item)) {
+        return { id: item[0] || 'm1', qty: Number(item[1]) || 1, price: Number(item[2]) || 0 };
+      }
+      return {
+        id: item.id || item.menuId || 'm1',
+        qty: Number(item.qty || item.quantity) || 1,
+        price: Number(item.price || item.harga) || 0
+      };
+    });
+
+    const mappedItems = normalizedItems.map(i => [i.id, i.qty, i.price]);
+    if (mappedItems.length === 0) {
+      mappedItems.push(['m1', 1, grandTotal]);
+    }
+
+    // 1. Format transaksi hemat
     const txRecord = {
       t: Date.now(),
       items: mappedItems,
@@ -1709,12 +1710,11 @@ try {
       }
     };
 
-    // Objek ramah cetak struk & UI
     this.currentOrder = {
       id: txId,
       date: this.formatDate(Date.now()),
       time: this.formatTime(Date.now()),
-      items: rawItems.length > 0 ? JSON.parse(JSON.stringify(rawItems)) : [{ id: 'm1', name: 'Menu Pesanan', qty: 1, price: grandTotal }],
+      items: normalizedItems.length > 0 ? JSON.parse(JSON.stringify(normalizedItems)) : [{ id: 'm1', name: 'Menu Pesanan', qty: 1, price: grandTotal }],
       subtotal: subtotal,
       tax: tax,
       serviceCharge: serviceCharge,
@@ -1747,116 +1747,91 @@ try {
       console.warn('Firebase save warning:', err);
     }
 
-    // 3. Tangani Offline Mode: simpan ke antrian localStorage
+    // 3. Offline queue
     if (!savedToFirebase) {
       try {
         const pendingQueue = JSON.parse(localStorage.getItem('dapur_pending_tx') || '[]');
-        pendingQueue.push({
-          path: `pos/transactions/${dateStr}/${txId}`,
-          data: txRecord,
-          createdAt: Date.now()
-        });
+        pendingQueue.push({ path: `pos/transactions/${dateStr}/${txId}`, data: txRecord, createdAt: Date.now() });
         localStorage.setItem('dapur_pending_tx', JSON.stringify(pendingQueue));
-        if (!isReconciliation) {
-          this.showToast('Transaksi tersimpan lokal, akan sync otomatis saat online', 'notify');
-        }
-      } catch (e) {
-        console.warn('LocalStorage queue error:', e);
-      }
+      } catch (e) {}
     }
 
-    // 4. Panggil endpoint /aggregate (Update summary di server)
+    // 4. ✅ AWAIT: Inventory deduct
     try {
-      fetch('/aggregate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dateStr, tx: txRecord })
-      }).catch(e => console.warn('Aggregate endpoint note:', e));
-    } catch (e) {}
-
-       // ✅ Normalize items untuk backend (uniform {id, qty, price})
-    const normalizedBackendItems = rawItems.map(item => {
-      if (Array.isArray(item)) {
-        return { id: item[0], qty: Number(item[1]) || 1, price: Number(item[2]) || 0 };
-      }
-      return {
-        id: item.id || item.menuId,
-        qty: Number(item.qty || item.quantity) || 1,
-        price: Number(item.price || item.harga) || 0
-      };
-    });
-    // 5. Kurangi inventory untuk bahan baku & kemasan
-    try {
-      fetch('/inventory/deduct', {
+      console.log('[INV-DEDUCT] Sending:', { orderId: txId, items: normalizedItems });
+      const invRes = await fetch('/inventory/deduct', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: this.currentOrder?.id || txId,
+          orderId: txId,
           date: dateStr,
           kasir: this.kasirInfo?.name || this.kasirInfo?.username || 'kasir',
-          items: normalizedBackendItems
+          items: normalizedItems
         })
-      }).then(r => r.json()).then(res => {
-        if (res && res.success && Array.isArray(res.deducted)) {
-          // Update local inventory state
-          res.deducted.forEach(d => {
-            const it = this.inventoryList.find(i => i.id === d.itemId);
-            if (it) {
-              it.stock = d.after;
-              it.stok = d.after;
-            }
-          });
-        }
-      }).catch(e => console.warn('Inventory deduct note:', e));
-    } catch (e) {}
+      });
+      const invJson = await invRes.json();
+      if (invJson.success && Array.isArray(invJson.deducted)) {
+        invJson.deducted.forEach(d => {
+          const it = this.inventoryList.find(i => i.id === d.itemId);
+          if (it) { it.stock = d.after; it.stok = d.after; }
+        });
+        console.log('[INV-DEDUCT] ✅', invJson.deducted.length, 'items updated');
+      } else {
+        console.warn('[INV-DEDUCT] ⚠️', invJson.error || 'No deducted array');
+      }
+    } catch (e) {
+      console.warn('[INV-DEDUCT] ❌', e.message);
+    }
 
-    // 6. Panggil /receipt endpoint
+    // 5. ✅ AWAIT: Auto-Jurnal Akuntansi
     try {
-      fetch('/receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.currentOrder)
-      }).catch(e => console.warn('Receipt endpoint note:', e));
-    } catch (e) {}
-
-        // 6.2 ✅ Trigger Auto-Jurnal Akuntansi via Backend /accounting/journal/pos
-    //      Backend akan:
-    //      1. Bikin jurnal Revenue (Debit Kas/Bank, Kredit 4001)
-    //      2. Baca resep tiap menu, hitung HPP otomatis
-    //      3. Bikin jurnal HPP (Debit 5001, Kredit 1004)
-    //      4. Update Ledger + Summary
-    try {
-      const acctItems = normalizedBackendItems;
-
       const acctBody = {
         orderId: txId,
         date: dateStr,
         pm: pm,
         total: grandTotal,
-        items: acctItems
+        items: normalizedItems
       };
+      console.log('[KASIR→ACCT] Sending:', acctBody);
 
-      console.log('[KASIR→ACCT] Sending journal:', acctBody);
-
-      fetch('/accounting/journal/pos', {
+      const acctRes = await fetch('/accounting/journal/pos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(acctBody)
-      })
-      .then(r => r.json())
-      .then(j => {
-        if (j.success) {
-          console.log('[KASIR→ACCT] ✅ Revenue:', j.totalRev, '| HPP:', j.totalHpp, '| Journal IDs:', j.revId, j.hppId);
-        } else {
-          console.warn('[KASIR→ACCT] ⚠️', j.error);
-        }
-      })
-      .catch(e => console.warn('[KASIR→ACCT] ❌', e.message));
-    } catch (accErr) {
-      console.warn('[KASIR→ACCT] Exception:', accErr);
+      });
+      const acctJson = await acctRes.json();
+      
+      if (acctJson.success) {
+        console.log('[KASIR→ACCT] ✅ Revenue:', acctJson.totalRev, '| HPP:', acctJson.totalHpp);
+      } else {
+        console.warn('[KASIR→ACCT] ⚠️', acctJson.error);
+      }
+    } catch (e) {
+      console.warn('[KASIR→ACCT] ❌', e.message);
     }
 
-    // 7. Update ringkasan shift kasir aktif
+    // 6. ✅ Refresh accounting summary SETELAH semua selesai
+    try {
+      if (typeof this.loadAccountingSummary === 'function') {
+        await this.loadAccountingSummary(true);
+      }
+    } catch (e) {}
+
+    // 7. Aggregate endpoint (background, no await)
+    fetch('/aggregate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateStr, tx: txRecord })
+    }).catch(() => {});
+
+    // 8. Receipt endpoint (background)
+    fetch('/receipt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(this.currentOrder)
+    }).catch(() => {});
+
+    // 9. Update shift summary
     if (this.shiftSummary) {
       this.shiftSummary.transactionCount = (this.shiftSummary.transactionCount || 0) + 1;
       this.shiftSummary.totalSales = (this.shiftSummary.totalSales || 0) + grandTotal;
@@ -1870,12 +1845,12 @@ try {
     }
     this.todayTotalRevenue = (this.todayTotalRevenue || 0) + grandTotal;
 
-    // 8. Auto-download struk PDF (hanya untuk kasir langsung)
+    // 10. Auto-download struk (hanya kasir langsung)
     if (!paymentData.skipReceiptModal) {
       this.downloadStrukPDF(this.currentOrder);
     }
 
-    // 9. Kosongkan keranjang & bersihkan draft tersimpan jika checkout reguler
+    // 11. Clear cart
     if (!isReconciliation) {
       this.cart = [];
       this.orderNote = '';
@@ -1883,11 +1858,10 @@ try {
       localStorage.removeItem('dapur_pos_draft_cart');
     }
 
-    // 10. Sound & Toast Feedback
+    // 12. Sound & Toast
     this.playSound('success');
     if (!isReconciliation) {
       this.showToast('Transaksi berhasil!', 'success');
-      // 11. Tampilkan modal preview struk
       this.receiptModal = true;
     }
   },
@@ -2836,12 +2810,13 @@ try {
     // 8. Update count pending
     await this.cekPendingRekonsiliasi();
 
-    // 9. Refresh accounting summary
+    // 9. Refresh inventory + accounting summary (sudah di-handle di simpanTransaksi)
     try {
-      if (typeof this.loadAccountingSummary === 'function') {
-        await this.loadAccountingSummary(true);
-      }
-    } catch (e) {}
+      await this.loadInventory();
+      await this.loadAccountingSummary(true);
+    } catch (e) {
+      console.warn('[RECON] Refresh warning:', e);
+    }
 
     // 10. Feedback sukses
     this.showToast(`Transaksi ${orderId} berhasil diverifikasi & direkam`, 'success');
