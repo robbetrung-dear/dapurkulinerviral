@@ -149,7 +149,7 @@
     productionStartDate: '',
     dataPreview: { journals: 0, ledgers: 0, orders: 0, transactions: 0 },
     isNeracaBalanced: false,
-    isPeriodClosed: false,
+    
 
     showClosePeriodModal: false,
     showResetModal: false,
@@ -1760,13 +1760,13 @@
             </p>
             <button 
               @click="openClosePeriodModal()"
-              :disabled="isPeriodClosed || !isNeracaBalanced"
-              :class="isPeriodClosed || !isNeracaBalanced ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-600 cursor-pointer'"
+              :disabled="isPeriodClosed(bulanAktif) || !isNeracaBalanced"
+              :class="isPeriodClosed(bulanAktif) || !isNeracaBalanced ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-600 cursor-pointer'"
               class="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-sm transition">
               <i class="fa-solid fa-lock mr-2"></i>
-              <span x-text="isPeriodClosed ? 'Periode Sudah Ditutup' : 'Tutup Buku Sekarang'"></span>
+              <span x-text="isPeriodClosed(bulanAktif) ? 'Periode Sudah Ditutup' : 'Tutup Buku Sekarang'"></span>
             </button>
-            <p x-show="!isNeracaBalanced && !isPeriodClosed" class="text-[10px] text-red-600 mt-2 font-bold">
+            <p x-show="isNeracaBalanced && !isPeriodClosed(bulanAktif)" class="text-[10px] text-red-600 mt-2 font-bold">
               ⚠️ Neraca belum balance. Perbaiki dulu sebelum tutup buku.
             </p>
           </div>
