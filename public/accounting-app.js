@@ -145,7 +145,15 @@ window.accountingApp = function() {
     productionStartDate: '',
     dataPreview: { journals: 0, ledgers: 0, orders: 0, transactions: 0 },
     isNeracaBalanced: false,
-    isPeriodClosed: false,
+    // State: simpan status per-periode yang sudah ditutup (contoh: {"2026-09": true})
+closedPeriods: {},
+
+// Helper: dipanggil dari HTML untuk cek apakah suatu bulan sudah ditutup
+    closedPeriods: {},
+    isPeriodClosed(bulan) {
+    if (!bulan) return false;
+    return !!this.closedPeriods[bulan];
+},
 
     // Modal state
     showClosePeriodModal: false,
@@ -1803,7 +1811,7 @@ this.jurnalList.forEach(j => {
     // TRIAL / LIVE MANAGEMENT
     // ========================================================================
 
-    async loadTrialPreview() {
+        async loadTrialPreview() {
       try {
         const res = await fetch('/accounting/trial?action=preview');
         const json = await res.json();
@@ -1820,18 +1828,24 @@ this.jurnalList.forEach(j => {
             noPendingOrders: !!json.validation?.noPendingOrders
           };
           
-          // Cek periode ditutup
+          // Cek periode ditutup (404 = belum ditutup, itu normal)
           const bulan = this.bulanAktif || new Date().toISOString().slice(0, 7);
           try {
             const cpRes = await fetch(`/accounting/closed_periods/${bulan}.json`);
             if (cpRes.ok) {
               const cpData = await cpRes.json();
-              this.isPeriodClosed = !!cpData;
+              if (cpData && cpData.closed) {
+                this.closedPeriods[bulan] = true;
+              } else {
+                delete this.closedPeriods[bulan];
+              }
             } else {
-              this.isPeriodClosed = false;
+              // 404 = belum ditutup, itu normal. Tidak perlu log error.
+              delete this.closedPeriods[bulan];
             }
           } catch (e) {
-            this.isPeriodClosed = false;
+            // Silent: anggap belum ditutup
+            delete this.closedPeriods[bulan];
           }
         }
       } catch (e) {
