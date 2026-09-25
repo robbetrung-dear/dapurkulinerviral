@@ -5713,9 +5713,33 @@ try {
           }
         }
 
+                // ✅ Persist ke localStorage
         try {
           localStorage.setItem('dapur_inventory_list', JSON.stringify(this.inventoryList));
         } catch (err) {}
+
+        // ✅ Persist ke Firebase — pakai Promise.all + .then() (TIDAK pakai await)
+        if (this._fbDb && this._fbSet && this._fbRef) {
+          const listToSync = JSON.parse(JSON.stringify(this.inventoryList));
+          const promises = listToSync
+            .filter(item => item && item.id)
+            .map(item => {
+              const itemRef = this._fbRef(this._fbDb, `inventory/${item.id}`);
+              return this._fbSet(itemRef, item).catch(err => {
+                console.warn(`[IMPORT-CSV] Gagal sync ${item.id}:`, err);
+              });
+            });
+
+          Promise.all(promises)
+            .then(() => {
+              console.log(`[IMPORT-CSV] ✅ Firebase sync selesai untuk ${promises.length} item`);
+            })
+            .catch(err => {
+              console.warn('[IMPORT-CSV] Firebase sync error:', err);
+            });
+        } else {
+          console.warn('[IMPORT-CSV] Firebase tidak siap, skip persist');
+        }
 
         this.showToast(`Import Berhasil! (${updatedCount} stok diperbarui, ${addedCount} bahan baru)`, 'success');
         this.playSound('success');
