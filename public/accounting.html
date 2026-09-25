@@ -497,7 +497,7 @@
           </div>
           <div class="flex items-center justify-between text-stone-500 font-medium">
             <span>Mode Sistem:</span>
-            <span class="px-1.5 py-0.5 rounded font-extrabold uppercase text-[10px]" :class="accountingMode === 'live' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'" x-text="accountingMode === 'live' ? 'PRODUKSI (LIVE)' : 'TRIAL / UJI COBA'"></span>
+            <span class="px-1.5 py-0.5 rounded font-extrabold uppercase text-[10px]" :class="isProductionMode ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'" x-text="isProductionMode ? 'PRODUKSI (LIVE)' : 'TRIAL / UJI COBA'"></span>
           </div>
           <div class="flex items-center justify-between text-stone-500 font-medium">
             <span>Status Buku:</span>
