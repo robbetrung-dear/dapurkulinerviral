@@ -3912,72 +3912,6 @@ try {
     this.stockChangeReason = '';
     this.editStockModal = true;
   },
-     /**
-     * Hapus item inventory dari Firebase + lokal
-     */
-    async hapusItemInventory(itemId) {
-      if (!itemId) {
-        this.showToast('ID item tidak valid', 'error');
-        return false;
-      }
-
-      const item = this.inventoryList.find(i => i.id === itemId);
-      const itemName = item ? item.name : itemId;
-
-      // Konfirmasi ganda (destructive action)
-      const ok = confirm(
-        `⚠️ HAPUS ITEM DARI INVENTORI\n\n` +
-        `Nama: ${itemName}\n` +
-        `ID: ${itemId}\n\n` +
-        `Item akan dihapus PERMANEN dari:\n` +
-        `• Database Firebase\n` +
-        `• Daftar inventory lokal\n\n` +
-        `Tindakan ini TIDAK bisa dibatalkan.\n\n` +
-        `Lanjutkan?`
-      );
-      if (!ok) return false;
-
-      try {
-        // 1. Hapus dari Firebase
-        if (this._fbDb && this._fbSet && this._fbRef) {
-          const itemRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
-          await this._fbSet(itemRef, null);
-          console.log(`[INV-DELETE] Firebase: inventory/${itemId} dihapus`);
-        }
-
-        // 2. Hapus via server API (kalau ada)
-        try {
-          await fetch(`/inventory/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
-        } catch (e) {
-          console.warn('[INV-DELETE] Server DELETE note:', e);
-        }
-
-        // 3. Hapus dari state lokal
-        this.inventoryList = this.inventoryList.filter(i => i.id !== itemId);
-
-        // 4. Update localStorage
-        try {
-          localStorage.setItem('dapur_inventory_list', JSON.stringify(this.inventoryList));
-        } catch (e) {}
-
-        // 5. Log penghapusan
-        this.addInventoryLog(itemName, item ? (item.stock || 0) : 0, 0, item ? item.unit : 'unit', 'Hapus Item', `Item dihapus permanen oleh kasir`);
-
-        // 6. Reset & tutup modal
-        this.selectedStockItem = { id: '', name: '', category: 'Bahan Baku', stock: 0, minStock: 0, unit: 'unit', purchasePrice: 0, isCountable: true };
-        this.editStockModal = false;
-
-        this.showToast(`✅ Item "${itemName}" berhasil dihapus`, 'success');
-        this.playSound('success');
-        return true;
-
-      } catch (err) {
-        console.error('[INV-DELETE] Error:', err);
-        this.showToast(`Gagal hapus: ${err.message}`, 'error');
-        this.playSound('error');
-        return false;
-      }
-    },
 
   async submitEditStock() {
     if (!this.selectedStockItem) return;
@@ -5724,33 +5658,9 @@ try {
           }
         }
 
-                // ✅ FIX: Persist ke localStorage
         try {
           localStorage.setItem('dapur_inventory_list', JSON.stringify(this.inventoryList));
         } catch (err) {}
-
-        // ✅ FIX: Persist ke Firebase (loop setiap item yang diubah/ditambah)
-        if (this._fbDb && this._fbSet && this._fbRef) {
-          let fbSaved = 0;
-          let fbFailed = 0;
-          for (const item of this.inventoryList) {
-            if (!item.id) continue;
-            try {
-              const itemRef = this._fbRef(this._fbDb, `inventory/${item.id}`);
-              await this._fbSet(itemRef, JSON.parse(JSON.stringify(item)));
-              fbSaved++;
-            } catch (fbErr) {
-              fbFailed++;
-              console.warn(`[IMPORT-CSV] Firebase save gagal untuk ${item.id}:`, fbErr);
-            }
-          }
-          console.log(`[IMPORT-CSV] ✅ Firebase sync: ${fbSaved} saved, ${fbFailed} failed`);
-          if (fbFailed > 0) {
-            this.showToast(`⚠️ ${fbFailed} item gagal sync ke Firebase. Cek console.`, 'error');
-          }
-        } else {
-          console.warn('[IMPORT-CSV] Firebase tidak siap, skip persist');
-        }
 
         this.showToast(`Import Berhasil! (${updatedCount} stok diperbarui, ${addedCount} bahan baru)`, 'success');
         this.playSound('success');
