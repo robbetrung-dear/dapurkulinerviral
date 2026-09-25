@@ -3912,6 +3912,61 @@ try {
     this.stockChangeReason = '';
     this.editStockModal = true;
   },
+ 
+    /**
+     * Hapus item inventory dari Firebase + lokal
+     * (Destructive action — butuh konfirmasi user)
+     */
+    async hapusItemInventory(itemId) {
+      if (!itemId) {
+        this.showToast('ID item tidak valid', 'error');
+        return false;
+      }
+
+      const item = this.inventoryList.find(i => i.id === itemId);
+      const itemName = item ? item.name : itemId;
+
+      const ok = confirm(
+        `⚠️ HAPUS ITEM DARI INVENTORI\n\n` +
+        `Nama: ${itemName}\n` +
+        `ID: ${itemId}\n\n` +
+        `Item akan dihapus PERMANEN dari Firebase & lokal.\n` +
+        `Tindakan ini TIDAK bisa dibatalkan.\n\n` +
+        `Lanjutkan?`
+      );
+      if (!ok) return false;
+
+      try {
+        // 1. Hapus dari Firebase
+        if (this._fbDb && this._fbSet && this._fbRef) {
+          const itemRef = this._fbRef(this._fbDb, `inventory/${itemId}`);
+          await this._fbSet(itemRef, null);
+          console.log(`[INV-DELETE] Firebase inventory/${itemId} dihapus`);
+        }
+
+        // 2. Hapus dari state lokal
+        this.inventoryList = this.inventoryList.filter(i => i.id !== itemId);
+
+        // 3. Update localStorage
+        try {
+          localStorage.setItem('dapur_inventory_list', JSON.stringify(this.inventoryList));
+        } catch (e) {}
+
+        // 4. Tutup modal & reset
+        this.selectedStockItem = { id: '', name: '', category: 'Bahan Baku', stock: 0, minStock: 0, unit: 'unit', purchasePrice: 0, isCountable: true };
+        this.editStockModal = false;
+
+        this.showToast(`✅ Item "${itemName}" berhasil dihapus`, 'success');
+        this.playSound('success');
+        return true;
+
+      } catch (err) {
+        console.error('[INV-DELETE] Error:', err);
+        this.showToast(`Gagal hapus: ${err.message}`, 'error');
+        this.playSound('error');
+        return false;
+      }
+    },
 
   async submitEditStock() {
     if (!this.selectedStockItem) return;
