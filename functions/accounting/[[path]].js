@@ -127,6 +127,36 @@ async function findJournalEntry(dbUrl, bulan, identifier, apiKey) {
 }
 
 /**
+ * Mapping kode akun 3-digit (legacy form manual) → 4-digit (standar ledger)
+ * Semua kode akun WAJIB dinormalisasi ke 4-digit sebelum ditulis ke ledger
+ */
+const ACC_MAP_TO_4DIGIT = {
+  // Aset
+  '101':'1001',  '102':'1002',  '103':'1003',  '105':'1004',  '106':'1005',
+  // Kewajiban
+  '201':'2001',  '202':'2002',
+  // Ekuitas
+  '301':'3001',  '302':'3003',  '303':'3002',
+  // Pendapatan
+  '401':'4001',  '402':'4002',
+  // HPP
+  '501':'5001',
+  // Beban
+  '601':'6001',  '602':'6002',  '603':'6003',
+  '604':'6004',  '605':'6005',  '606':'6006'
+};
+
+/**
+ * Normalisasi kode akun ke 4-digit.
+ * Kalau kode sudah 4-digit atau tidak ada di mapping, kembalikan apa adanya.
+ */
+function normalizeAcc(acc) {
+  const clean = String(acc || '').trim();
+  if (!clean) return '';
+  return ACC_MAP_TO_4DIGIT[clean] || clean;
+}
+
+/**
  * Helper: Auto-update Buku Besar (Ledger) setelah Jurnal di-Approve
  */
 async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) {
@@ -134,7 +164,9 @@ async function updateLedgerAfterApprove(dbUrl, bulan, lines, apiKey, journalId) 
   const validLines = Array.isArray(lines) ? lines : [];
 
   for (const line of validLines) {
-    const acc = String(line.acc || '').trim();
+    const rawAcc = String(line.acc || '').trim();
+    // ✅ FIX: Normalisasi kode akun 3-digit → 4-digit sebelum write ke ledger
+    const acc = normalizeAcc(rawAcc);
     if (!acc) continue;
 
     const debit = Math.max(0, Number(line.debit) || 0);
