@@ -3344,8 +3344,8 @@
             <span x-text="formatRupiah(currentOrder ? currentOrder.total : getCartGrandTotal())"></span>
           </div>
           <div class="flex justify-between"><span>Bayar:</span><span x-text="formatRupiah(cashReceived || (currentOrder ? currentOrder.total : getCartGrandTotal()))"></span></div>
-          <div class="flex justify-between"><span>Kembali:</span><span x-text="formatRupiah(getCashChange() > 0 ? getCashChange() : 0)"></span></div>
-        </div>
+          <div class="flex justify-between"><span>Kembali:</span><span x-text="formatRupiah(currentOrder ? (currentOrder.cashChange || 0) : Math.max(0, getCashChange()))"></span>
+          </div>
 
         <div class="text-center pt-2 text-[10px] text-stone-500">
           <p>Terima kasih telah berkunjung!</p>
