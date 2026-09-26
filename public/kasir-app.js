@@ -1921,18 +1921,27 @@ try {
   /**
    * Preview struk modal
    */
-  previewStruk(txData) {
+    previewStruk(txData) {
     if (txData) {
       const d = txData.t ? new Date(txData.t) : (txData.timestamp ? new Date(txData.timestamp) : new Date());
       let parsedItems = [];
+      
       if (Array.isArray(txData.items)) {
         parsedItems = txData.items.map(it => {
           if (Array.isArray(it)) {
-            return { id: 'it_' + Math.random(), name: it[0], qty: Number(it[1]) || 1, price: Number(it[2]) || 0 };
+            // ✅ FIX C1: Lookup nama menu dari menuList
+            const menuId = it[0];
+            const menu = (this.menuList || []).find(m => m.id === menuId);
+            return {
+              id: menuId,
+              name: menu ? menu.name : menuId,
+              qty: Number(it[1]) || 1,
+              price: Number(it[2]) || 0
+            };
           }
           return {
             id: it.id || it.menuId || ('it_' + Math.random()),
-            name: it.name || it.menuName || 'Menu Pesanan',
+            name: it.name || it.menuName || it.id || 'Menu Pesanan',
             qty: Number(it.qty || it.quantity || 1),
             price: Number(it.price || it.harga || 0)
           };
@@ -1941,8 +1950,12 @@ try {
         parsedItems = this.cart || [];
       }
 
-      const grandTotal = txData.total !== undefined ? Number(txData.total) : (txData.amount !== undefined ? Number(txData.amount) : 0);
-      const subtotal = txData.sub !== undefined ? Number(txData.sub) : (txData.subtotal !== undefined ? Number(txData.subtotal) : grandTotal);
+      // ✅ FIX C2: Baca total dari field yang benar (tot || total || amount)
+      const grandTotal = txData.tot !== undefined ? Number(txData.tot)
+                       : txData.total !== undefined ? Number(txData.total)
+                       : txData.amount !== undefined ? Number(txData.amount) : 0;
+      const subtotal = txData.sub !== undefined ? Number(txData.sub)
+                     : txData.subtotal !== undefined ? Number(txData.subtotal) : grandTotal;
       const tax = txData.tax !== undefined ? Number(txData.tax) : 0;
       const serviceCharge = txData.sc !== undefined ? Number(txData.sc) : (txData.serviceCharge !== undefined ? Number(txData.serviceCharge) : 0);
       const discount = txData.disc !== undefined ? Number(txData.disc) : (txData.discount !== undefined ? Number(txData.discount) : 0);
@@ -3667,17 +3680,31 @@ try {
     }
   },
 
-  filteredTxHistory() {
+    filteredTxHistory() {
     let list = this.txHistoryList || [];
+
+    // ✅ FIX C3: Tampilkan transaksi POS langsung (T*) DAN order customer yang sudah reconciled (ORD-*)
+    // Beda penanganan karena POS langsung selalu sah, order customer perlu direkonsiliasi
+    list = list.filter(t => {
+      const id = String(t.id || t.orderId || '').toUpperCase();
+      // Transaksi POS langsung (T-prefix): selalu tampil
+      if (id.startsWith('T')) return true;
+      // Order dari customer (ORD-prefix): tampil hanya kalau sudah reconciled
+      if (id.startsWith('ORD-')) return t.reconciled === true;
+      // Fallback: kalau reconciled bukan false, tampilkan
+      return t.reconciled !== false;
+    });
+
     if (this.txHistoryPaymentFilter && this.txHistoryPaymentFilter !== 'all') {
       list = list.filter(t => (t.pm || t.paymentMethod || '').toLowerCase() === this.txHistoryPaymentFilter.toLowerCase());
     }
+
     if (this.txHistorySearch) {
       const q = this.txHistorySearch.toLowerCase().trim();
       list = list.filter(t => 
-        (t.id || '').toLowerCase().includes(q) ||
+        (t.id || t.orderId || '').toLowerCase().includes(q) ||
         (t.customer || t.cust || '').toLowerCase().includes(q) ||
-        String(t.total || t.amount || '').includes(q)
+        String(t.tot || t.total || t.amount || '').includes(q)
       );
     }
     return list;
