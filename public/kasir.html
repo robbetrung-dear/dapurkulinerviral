@@ -5194,8 +5194,8 @@
               <span class="font-bold text-stone-500 text-[10px] uppercase">Menu:</span>
               <template x-for="(item, idx) in (tx.items || [])" :key="idx">
                 <span class="inline-flex items-center gap-1 font-medium">
-                  <span class="font-bold text-stone-900" x-text="item.name || (Array.isArray(item) ? item[0] : 'Item')"></span>
-                  <span class="text-stone-400 font-mono" x-text="'x' + (item.qty || (Array.isArray(item) ? item[1] : 1))"></span>
+                  <span class="font-bold text-stone-900" x-text="getTxItemName(item)"></span>
+                  <span class="text-stone-400 font-mono" x-text="'x' + getTxItemQty(item)"></span>
                   <span class="text-stone-300" x-show="idx < (tx.items.length - 1)">•</span>
                 </span>
               </template>
