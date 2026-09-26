@@ -1064,30 +1064,43 @@ this.jurnalList.forEach(j => {
         let totalCredit = 0;
         const transactions = [];
 
+        // ✅ FIX: Normalisasi kode akun 3-digit → 4-digit
+        const _ACC_MAP = {
+          '101':'1001','102':'1002','103':'1003','105':'1004','106':'1005',
+          '201':'2001','202':'2002',
+          '301':'3001','302':'3003','303':'3002',
+          '401':'4001','402':'4002',
+          '501':'5001',
+          '601':'6001','602':'6002','603':'6003','604':'6004','605':'6005','606':'6006'
+        };
+        const _normalizeAcc = (acc) => {
+          const clean = String(acc || '').trim();
+          return _ACC_MAP[clean] || clean;
+        };
+        const targetAccNorm = _normalizeAcc(targetAcc);
+
         const relatedJournals = (this.jurnalList || [])
           .filter(j => {
-            if (j.debitCode === targetAcc || j.creditCode === targetAcc) return true;
+            if (_normalizeAcc(j.debitCode) === targetAccNorm) return true;
+            if (_normalizeAcc(j.creditCode) === targetAccNorm) return true;
             if (Array.isArray(j.lines)) {
-              return j.lines.some(l => String(l.acc || l.code) === targetAcc);
+              return j.lines.some(l => _normalizeAcc(l.acc || l.code) === targetAccNorm);
             }
             return false;
           })
           .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
-        relatedJournals.forEach(j => {
-          let dAmt = 0;
-          let cAmt = 0;
-
-          if (j.debitCode === targetAcc) dAmt += Number(j.debitAmount) || 0;
-          if (j.creditCode === targetAcc) cAmt += Number(j.creditAmount) || 0;
-
-          if (Array.isArray(j.lines)) {
+          // ✅ FIX: Hanya pakai 1 sumber — prioritas lines, fallback debitCode/creditCode
+          if (Array.isArray(j.lines) && j.lines.length > 0) {
             j.lines.forEach(l => {
-              if (String(l.acc || l.code) === targetAcc) {
+              if (_normalizeAcc(l.acc || l.code) === targetAccNorm) {
                 dAmt += Number(l.debit) || 0;
                 cAmt += Number(l.credit) || 0;
               }
             });
+          } else {
+            if (_normalizeAcc(j.debitCode) === targetAccNorm) dAmt += Number(j.debitAmount) || 0;
+            if (_normalizeAcc(j.creditCode) === targetAccNorm) cAmt += Number(j.creditAmount) || 0;
           }
 
           totalDebit += dAmt;
