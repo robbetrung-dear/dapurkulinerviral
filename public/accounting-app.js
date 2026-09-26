@@ -1090,6 +1090,7 @@ this.jurnalList.forEach(j => {
           })
           .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
+          relatedJournals.forEach(j => {
           // ✅ FIX: Hanya pakai 1 sumber — prioritas lines, fallback debitCode/creditCode
           if (Array.isArray(j.lines) && j.lines.length > 0) {
             j.lines.forEach(l => {
@@ -1120,7 +1121,7 @@ this.jurnalList.forEach(j => {
             credit: cAmt,
             runningBalance: runningBalance
           });
-        
+        });
 
         if (serverLedger) {
           this.ledgerData = {
