@@ -3696,8 +3696,16 @@ try {
     });
 
     if (this.txHistoryPaymentFilter && this.txHistoryPaymentFilter !== 'all') {
-      list = list.filter(t => (t.pm || t.paymentMethod || '').toLowerCase() === this.txHistoryPaymentFilter.toLowerCase());
+  const filterVal = this.txHistoryPaymentFilter.toLowerCase();
+  list = list.filter(t => {
+    const pm = (t.pm || t.paymentMethod || '').toLowerCase();
+    // ✅ Handle alias: "tunai" = "cash"
+    if (filterVal === 'tunai' || filterVal === 'cash') {
+      return pm === 'tunai' || pm === 'cash' || pm === '';  // empty pm = cash default
     }
+    return pm === filterVal;
+  });
+}
 
     if (this.txHistorySearch) {
       const q = this.txHistorySearch.toLowerCase().trim();
