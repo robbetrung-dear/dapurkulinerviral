@@ -3680,6 +3680,29 @@ try {
     }
   },
 
+      /**
+   * Helper: Resolve nama menu dari array [id, qty, price] atau object
+   */
+  getTxItemName(item) {
+    if (!item) return 'Item';
+    // Kalau sudah object dengan name
+    if (item.name) return item.name;
+    if (item.menuName) return item.menuName;
+    // Kalau array [id, qty, price] — lookup dari menuList
+    const id = Array.isArray(item) ? item[0] : (item.id || item.menuId);
+    if (!id) return 'Menu';
+    const menu = (this.menuList || []).find(m => m.id === id);
+    return menu ? menu.name : id;
+  },
+
+  /**
+   * Helper: Ambil qty dari item
+   */
+  getTxItemQty(item) {
+    if (!item) return 1;
+    if (Array.isArray(item)) return Number(item[1]) || 1;
+    return Number(item.qty || item.quantity) || 1;
+  },
     filteredTxHistory() {
     let list = this.txHistoryList || [];
 
