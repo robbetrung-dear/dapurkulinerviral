@@ -1120,7 +1120,7 @@ this.jurnalList.forEach(j => {
             credit: cAmt,
             runningBalance: runningBalance
           });
-        });
+        
 
         if (serverLedger) {
           this.ledgerData = {
