@@ -1091,6 +1091,9 @@ this.jurnalList.forEach(j => {
           .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
           relatedJournals.forEach(j => {
+          let dAmt = 0;
+          let cAmt = 0;
+            
           // ✅ FIX: Hanya pakai 1 sumber — prioritas lines, fallback debitCode/creditCode
           if (Array.isArray(j.lines) && j.lines.length > 0) {
             j.lines.forEach(l => {
