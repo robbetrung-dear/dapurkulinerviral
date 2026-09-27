@@ -641,8 +641,12 @@ try {
     // 12. Watcher navigasi tab (aktifkan chart saat buka tab Laporan, refresh shift/inventory)
     if (this.$watch) {
       this.$watch('activeTab', (val) => {
-        if (val === 'laporan') {
-          this.$nextTick(() => {
+          if (val === 'laporan') {
+          this.$nextTick(async () => {
+            // Refresh data real sebelum render chart
+            await this.loadLaporanHariIni();
+            await this.loadTopMenuBulanIni();
+            await this.loadPenjualanPerJam();
             this.initCharts();
           });
         } else if (val === 'shift') {
@@ -2382,7 +2386,42 @@ try {
   /**
    * Format Rupiah IDR
    */
-  formatRupiah(num) {
+   /**
+   * Hitung Rata-rata Nilai Transaksi (AOV) hari ini
+   */
+  getAOV() {
+    const total = Number(this.laporanHariIni?.totalSales || 0);
+    const tx = Number(this.laporanHariIni?.totalTx || 0);
+    if (tx <= 0) return 0;
+    return Math.round(total / tx);
+  },
+
+  /**
+   * Hitung metode pembayaran terpopuler hari ini
+   */
+  getTopPaymentMethod() {
+    const b = this.laporanHariIni?.breakdown || {};
+    const cash = Number(b.cash || 0);
+    const qris = Number(b.qris || 0);
+    const transfer = Number(b.transfer || 0);
+    const ewallet = Number(b.ewallet || 0);
+    const total = cash + qris + transfer + ewallet;
+
+    if (total <= 0) return '-';
+
+    const methods = [
+      { name: 'Tunai', amount: cash },
+      { name: 'QRIS', amount: qris },
+      { name: 'Transfer', amount: transfer },
+      { name: 'E-Wallet', amount: ewallet }
+    ].sort((a, b) => b.amount - a.amount);
+
+    const top = methods[0];
+    const pct = Math.round((top.amount / total) * 100);
+    return `${top.name} (${pct}%)`;
+  },
+ 
+ formatRupiah(num) {
     const val = Number(num) || 0;
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -5516,15 +5555,17 @@ try {
       this._topMenuChart = null;
     }
 
-    const items = this.topMenuData.length > 0 ? this.topMenuData : [
-      { name: 'Chicken Katsu Curry', qty: 38 },
-      { name: 'Beef Teriyaki', qty: 29 },
-      { name: 'Dimsum Mozzarella', qty: 25 },
-      { name: 'Mie Pedas Viral', qty: 22 },
-      { name: 'Honey Chicken Wings', qty: 18 },
-      { name: 'Es Lemon Tea Segar', qty: 45 },
-      { name: 'Es Cincau Susu Aren', qty: 31 }
-    ];
+    const items = Array.isArray(this.topMenuData) ? this.topMenuData : [];
+
+    // Kalau tidak ada data, tampilkan chart kosong (bukan dummy)
+    if (items.length === 0) {
+      if (this._topMenuChart) {
+        this._topMenuChart.destroy();
+        this._topMenuChart = null;
+      }
+      // Optional: render pesan "Belum ada data" via callback atau biarkan kosong
+      return;
+    }
 
     const labels = items.map(i => i.name.length > 18 ? i.name.slice(0, 16) + '…' : i.name);
     const data = items.map(i => i.qty);
@@ -5579,8 +5620,8 @@ try {
 
     const labels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
     let data = this.jamSibukData;
-    if (!data || data.every(v => v === 0)) {
-      data = [0, 0, 0, 0, 0, 0, 0, 50000, 180000, 320000, 540000, 980000, 1250000, 720000, 410000, 320000, 480000, 890000, 1140000, 920000, 610000, 240000, 80000, 0];
+      if (!data || !Array.isArray(data) || data.length !== 24) {
+      data = new Array(24).fill(0);
     }
 
     const ctx = canvas.getContext('2d');
