@@ -3465,11 +3465,12 @@
 
         <!-- Rincian Item Struk -->
         <div class="space-y-1.5 border-b border-dashed border-stone-300 pb-3">
-          <template x-for="it in (currentOrder ? currentOrder.items : cart)" :key="it.id">
+            <template x-for="it in (currentOrder ? currentOrder.items : cart)" :key="it.id">
             <div>
-              <div class="flex justify-between font-bold">
-                <span x-text="it.name"></span>
-                <span x-text="formatRupiah(it.price * it.qty)"></span>
+              <div class="flex justify-between font-bold items-start gap-2">
+                <!-- ✅ FIX: Nama menu wrap (break-words) + flex-shrink biar tidak terpotong -->
+                <span class="break-words whitespace-normal leading-tight" x-text="it.name"></span>
+                <span class="whitespace-nowrap flex-shrink-0" x-text="formatRupiah(it.price * it.qty)"></span>
               </div>
               <div class="text-[10px] text-stone-500 flex justify-between">
                 <span x-text="it.qty + ' x ' + formatRupiah(it.price)"></span>
