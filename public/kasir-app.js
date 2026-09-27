@@ -131,7 +131,13 @@ window.kasirApp = () => ({
   qrisOrderId: '',
   qrisDisplayMode: 'dynamic', // 'dynamic' | 'static'
    // 🔒 Supervisor PIN Security State
-  supervisorPin: '211211',        // default, override dari Firebase /site_config/supervisorPin
+  supervisorPin: '211211',
+         // 📊 Range Filter State untuk Laporan
+        reportPeriod: 'today',      // 'today' | 'week' | 'month' | 'custom'
+        reportStartDate: '',         // untuk custom (YYYY-MM-DD)
+        reportEndDate: '',           // untuk custom
+        reportLoading: false,
+ // default, override dari Firebase /site_config/supervisorPin
   showPinModal: false,
   pinInput: '',
   pinErrorMessage: '',
@@ -2369,7 +2375,24 @@ try {
   /**
    * Tampilkan toast notification
    */
-  showToast(message, type = 'success') {
+   /**
+   * Handler saat user pilih periode berbeda
+   */
+  async onReportPeriodChange() {
+    console.log(`[REPORT] Period changed → ${this.reportPeriod}`);
+    // Set default date untuk custom
+    if (this.reportPeriod === 'custom') {
+      const { start, end } = this.getReportDateRange();
+      if (!this.reportStartDate) this.reportStartDate = start;
+      if (!this.reportEndDate) this.reportEndDate = end;
+    }
+    // Reload semua data laporan
+    await this.loadLaporanHariIni();
+    await this.loadTopMenuBulanIni();
+    await this.loadPenjualanPerJam();
+  },
+ 
+ showToast(message, type = 'success') {
     this.toast.message = message;
     this.toast.type = type;
     this.toast.show = true;
@@ -2420,7 +2443,152 @@ try {
     const pct = Math.round((top.amount / total) * 100);
     return `${top.name} (${pct}%)`;
   },
- 
+
+   // =========================================================================
+  // 📊 REPORT PERIOD HELPERS
+  // =========================================================================
+
+  /**
+   * Format Date ke YYYY-MM-DD pakai LOCAL timezone (WIB)
+   * PENTING: jangan pakai toISOString() karena itu UTC
+   */
+  getLocalDateStr(d = new Date()) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  },
+
+  /**
+   * Hitung range tanggal berdasarkan reportPeriod
+   */
+  getReportDateRange() {
+    const today = new Date();
+    const fmt = (d) => this.getLocalDateStr(d);
+
+    if (this.reportPeriod === 'today') {
+      return { start: fmt(today), end: fmt(today) };
+    }
+
+    if (this.reportPeriod === 'week') {
+      // Minggu ini = Senin s/d hari ini
+      const day = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+      const diffToMonday = (day === 0 ? -6 : 1 - day);
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + diffToMonday);
+      return { start: fmt(monday), end: fmt(today) };
+    }
+
+    if (this.reportPeriod === 'month') {
+      // Bulan ini = tgl 1 s/d hari ini
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start: fmt(firstDay), end: fmt(today) };
+    }
+
+    if (this.reportPeriod === 'custom') {
+      const start = this.reportStartDate || fmt(today);
+      const end = this.reportEndDate || fmt(today);
+      // Pastikan urutan benar
+      return start <= end ? { start, end } : { start: end, end: start };
+    }
+
+    return { start: fmt(today), end: fmt(today) };
+  },
+
+  /**
+   * Label periode untuk UI
+   */
+  getReportPeriodLabel() {
+    const labels = {
+      today: 'Hari Ini',
+      week: 'Minggu Ini',
+      month: 'Bulan Ini',
+      custom: 'Custom'
+    };
+    return labels[this.reportPeriod] || 'Hari Ini';
+  },
+
+  /**
+   * Fetch transaksi dalam rentang tanggal — dengan 3 strategi fallback
+   * Return: Array<transaksi>
+   */
+  async fetchTransactionsInRange(startDate, endDate) {
+    // === Strategi 1: Endpoint range (?start=&end=) ===
+    try {
+      const url = `/pos/transactions?start=${startDate}&end=${endDate}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const json = await res.json();
+          if (Array.isArray(json.data) && json.data.length > 0) {
+            console.log(`[REPORT] ✅ Range endpoint: ${json.data.length} tx`);
+            return json.data;
+          }
+          // Kalau range endpoint jalan tapi memang tidak ada tx → return empty
+          if (Array.isArray(json.data)) {
+            console.log(`[REPORT] ✅ Range endpoint OK (kosong)`);
+            return [];
+          }
+        }
+      }
+    } catch (e) {
+      console.log('[REPORT] Range endpoint tidak tersedia, coba fallback...');
+    }
+
+    // === Strategi 2: Kalau 1 bulan yang sama → pakai ?month= ===
+    const startM = startDate.slice(0, 7);
+    const endM = endDate.slice(0, 7);
+    if (startM === endM) {
+      try {
+        const res = await fetch(`/pos/transactions?month=${startM}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json.data)) {
+            const filtered = json.data.filter(t => {
+              const tDate = this.getLocalDateStr(new Date(Number(t.t) || Date.now()));
+              return tDate >= startDate && tDate <= endDate;
+            });
+            console.log(`[REPORT] ✅ Month endpoint: ${filtered.length} tx (dari ${json.data.length} total)`);
+            return filtered;
+          }
+        }
+      } catch (e) {
+        console.log('[REPORT] Month endpoint gagal, coba loop harian...');
+      }
+    }
+
+    // === Strategi 3: Loop per hari (paling lambat tapi pasti) ===
+    const days = [];
+    const cur = new Date(startDate + 'T00:00:00');
+    const endD = new Date(endDate + 'T00:00:00');
+    while (cur <= endD) {
+      days.push(this.getLocalDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    console.log(`[REPORT] Loop ${days.length} hari: ${startDate} → ${endDate}`);
+
+    const results = await Promise.all(days.map(async (d) => {
+      try {
+        const res = await fetch(`/pos/transactions/${d}`);
+        if (!res.ok) return [];
+        const json = await res.json();
+        if (Array.isArray(json.data)) {
+          // Inject tanggal untuk tracking
+          return json.data.map(tx => ({ ...tx, __date: d }));
+        }
+        return [];
+      } catch (e) {
+        return [];
+      }
+    }));
+
+    const all = results.flat();
+    console.log(`[REPORT] ✅ Loop harian: ${all.length} tx dari ${days.length} hari`);
+    return all;
+  },
+
  formatRupiah(num) {
     const val = Number(num) || 0;
     return new Intl.NumberFormat('id-ID', {
@@ -5050,67 +5218,58 @@ try {
    * Kalau belum ada, hitung dari /pos/transactions/{today}
    * Return ringkasan: { totalSales, totalTx, breakdown: {cash, qris, transfer, ewallet} }
    */
-  async loadLaporanHariIni() {
+    async loadLaporanHariIni() {
     this.loadingStates.laporan = true;
-    const today = new Date().toISOString().slice(0, 10);
+    this.reportLoading = true;
+
     try {
-      let summary = null;
-      const res = await fetch(`/pos/summary/daily/${today}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success) {
-          summary = {
-            totalSales: json.totalSales || 0,
-            totalTx: json.totalTx || 0,
-            breakdown: json.breakdown || { cash: 0, qris: 0, transfer: 0, ewallet: 0 }
-          };
-        }
+      const { start, end } = this.getReportDateRange();
+      console.log(`[REPORT] Loading periode: ${start} → ${end} (${this.reportPeriod})`);
+
+      // Fetch semua transaksi dalam range
+      const txList = await this.fetchTransactionsInRange(start, end);
+
+      let totalSales = 0;
+      const breakdown = { cash: 0, qris: 0, transfer: 0, ewallet: 0 };
+
+      for (const tx of txList) {
+        // ✅ Pakai field short-form 'tot'
+        const amt = Number(tx.tot || tx.total || tx.amount || 0);
+        totalSales += amt;
+
+        const pm = String(tx.pm || tx.paymentMethod || '').toLowerCase();
+        if (pm.includes('tunai') || pm.includes('cash')) breakdown.cash += amt;
+        else if (pm.includes('qris')) breakdown.qris += amt;
+        else if (pm.includes('transfer') || pm.includes('bca') || pm.includes('mandiri')) breakdown.transfer += amt;
+        else if (pm.includes('ewallet') || pm.includes('gopay') || pm.includes('ovo')) breakdown.ewallet += amt;
+        else breakdown.cash += amt;
       }
 
-      // Kalau belum ada, hitung dari /pos/transactions/{today}
-      if (!summary || summary.totalSales === 0) {
-        const txRes = await fetch(`/pos/transactions/${today}`);
-        if (txRes.ok) {
-          const txJson = await txRes.json();
-          const txList = txJson.data || [];
-          let totalSales = 0;
-          const breakdown = { cash: 0, qris: 0, transfer: 0, ewallet: 0 };
-                    for (const tx of txList) {
-            // ✅ FIX: transaksi disimpan dengan field short-form 'tot'
-            const amt = Number(tx.tot || tx.total || tx.amount || 0);
-            totalSales += amt;
-            const pm = String(tx.pm || tx.paymentMethod || '').toLowerCase();
-            if (pm.includes('tunai') || pm.includes('cash')) breakdown.cash += amt;
-            else if (pm.includes('qris')) breakdown.qris += amt;
-            else if (pm.includes('transfer') || pm.includes('bca') || pm.includes('mandiri')) breakdown.transfer += amt;
-            else if (pm.includes('ewallet') || pm.includes('gopay') || pm.includes('ovo')) breakdown.ewallet += amt;
-            else breakdown.cash += amt;
-          }
-          summary = {
-            totalSales,
-            totalTx: txList.length,
-            breakdown
-          };
-        }
-      }
+      const summary = {
+        totalSales,
+        totalTx: txList.length,
+        breakdown,
+        periodStart: start,
+        periodEnd: end,
+        period: this.reportPeriod
+      };
 
-      if (summary) {
-        this.laporanHariIni = summary;
-        this.todayTotalRevenue = summary.totalSales;
-        this.shiftSummary.totalSales = summary.totalSales;
-        this.shiftSummary.cashSales = summary.breakdown.cash;
-        this.shiftSummary.qrisSales = summary.breakdown.qris;
-        this.shiftSummary.transferSales = summary.breakdown.transfer;
-        this.shiftSummary.ewalletSales = summary.breakdown.ewallet || 0;
-        this.shiftSummary.transactionCount = summary.totalTx;
-      }
+      this.laporanHariIni = summary;
+      this.todayTotalRevenue = totalSales;
+      this.shiftSummary.totalSales = totalSales;
+      this.shiftSummary.cashSales = breakdown.cash;
+      this.shiftSummary.qrisSales = breakdown.qris;
+      this.shiftSummary.transferSales = breakdown.transfer;
+      this.shiftSummary.ewalletSales = breakdown.ewallet;
+      this.shiftSummary.transactionCount = summary.totalTx;
 
-      return summary || this.laporanHariIni;
+      return summary;
     } catch (e) {
-      console.warn('loadLaporanHariIni exception:', e);
+      console.warn('[REPORT] loadLaporanHariIni exception:', e);
       return this.laporanHariIni;
     } finally {
       this.loadingStates.laporan = false;
+      this.reportLoading = false;
     }
   },
 
@@ -5118,15 +5277,12 @@ try {
    * Ambil transaksi bulan ini, agregasi per menuId, sort DESC top N
    * Return array untuk Chart.js bar chart
    */
-  async loadTopMenuBulanIni(limit = 10) {
+    async loadTopMenuBulanIni(limit = 10) {
     try {
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const res = await fetch(`/pos/transactions?month=${currentMonth}`);
-      let transactions = [];
-      if (res.ok) {
-        const json = await res.json();
-        transactions = json.data || [];
-      }
+      const { start, end } = this.getReportDateRange();
+
+      // Fetch transaksi dalam range
+      const transactions = await this.fetchTransactionsInRange(start, end);
 
       const qtyMap = {};
       const revenueMap = {};
@@ -5135,7 +5291,6 @@ try {
       for (const tx of transactions) {
         if (!Array.isArray(tx.items)) continue;
         for (const it of tx.items) {
-          // ✅ FIX: handle 2 format — array [id, qty, price] & object {id, qty, price}
           let mId, mQty, mPrice;
           if (Array.isArray(it)) {
             mId = it[0];
@@ -5153,12 +5308,12 @@ try {
         }
       }
 
-      // ✅ FIX: lookup nama menu dari menuList (bukan dari items, karena items adalah array-of-arrays)
+      // Lookup nama menu dari menuList
       for (const m of this.menuList) {
         if (!nameMap[m.id]) nameMap[m.id] = m.name;
       }
-      // ✅ DUMMY GENERATOR DIHAPUS — kalau tidak ada data, tetap kosong
 
+      // ✅ NO DUMMY — kalau kosong, ya kosong
       const sorted = Object.keys(qtyMap).map(mId => ({
         id: mId,
         name: nameMap[mId] || mId,
@@ -5179,23 +5334,18 @@ try {
    * Group transaksi bulan ini by jam (0-23)
    * Return array 24 angka untuk line chart
    */
-  async loadPenjualanPerJam() {
+    async loadPenjualanPerJam() {
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      const res = await fetch(`/pos/transactions/${today}`);
-      let transactions = [];
-      if (res.ok) {
-        const json = await res.json();
-        transactions = json.data || [];
-      }
+      const { start, end } = this.getReportDateRange();
+
+      const transactions = await this.fetchTransactionsInRange(start, end);
 
       const hourlyTotals = new Array(24).fill(0);
       for (const tx of transactions) {
         if (!tx.t) continue;
-        const d = new Date(tx.t);
+        const d = new Date(Number(tx.t) || tx.t);
         const hour = d.getHours();
         if (hour >= 0 && hour < 24) {
-          // ✅ FIX: pakai 'tot' dulu (short-form field)
           hourlyTotals[hour] += Number(tx.tot || tx.total || tx.amount || 0);
         }
       }
