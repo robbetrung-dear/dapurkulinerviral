@@ -127,6 +127,12 @@ window.kasirApp = () => ({
   currentOrder: null,
   qrisOrderId: '',
   qrisDisplayMode: 'dynamic', // 'dynamic' | 'static'
+   // 🔒 Supervisor PIN Security State
+  supervisorPin: '211211',        // default, override dari Firebase /site_config/supervisorPin
+  showPinModal: false,
+  pinInput: '',
+  pinErrorMessage: '',
+  pinContext: null,               // { actionLabel, targetLabel, opts, resolve }
   qrisQrUrl: '',
   qrisRedirectUrl: '',
   midtransPollingTimer: null,
@@ -564,6 +570,11 @@ try {
             ...val.paymentConfig
           };
           console.log('[KASIR] Payment config loaded:', this.paymentConfig.bankName);
+           // 🔒 Load Supervisor PIN dari /site_config/supervisorPin
+        if (val.supervisorPin) {
+          this.supervisorPin = String(val.supervisorPin).trim();
+          console.log('[KASIR-SEC] ✅ Supervisor PIN loaded from Firebase');
+        }
         }
       }
     });
@@ -3331,7 +3342,17 @@ try {
    * PATCH /pos/shifts/{shiftId}
    * Auto-download PDF, clear session, redirect ke /
    */
-  async submitCloseShift() {
+    async submitCloseShift() {
+    // 🔒 PIN GATE
+    const pinOk = await this.requestSupervisorPin(
+      'TUTUP SHIFT',
+      `Shift: ${this.kasirInfo.shiftId || 'aktif'}`
+    );
+    if (!pinOk) {
+      this.showToast('Penutupan shift dibatalkan', 'notify');
+      return;
+    }
+
     const shiftId = this.kasirInfo.shiftId || 'S-2026-09-18-01';
     const expectedCash = (this.shiftSummary.startCash || 0) + (this.shiftSummary.cashSales || 0);
     const inputUangFisik = Number(this.physicalCashCount) || 0;
@@ -4000,7 +4021,7 @@ try {
      * Hapus item inventory dari Firebase + lokal
      * (Destructive action — butuh konfirmasi user)
      */
-    async hapusItemInventory(itemId) {
+        async hapusItemInventory(itemId) {
       if (!itemId) {
         this.showToast('ID item tidak valid', 'error');
         return false;
@@ -4008,6 +4029,16 @@ try {
 
       const item = this.inventoryList.find(i => i.id === itemId);
       const itemName = item ? item.name : itemId;
+
+      // 🔒 PIN GATE
+      const pinOk = await this.requestSupervisorPin(
+        'HAPUS INVENTORY',
+        `Item: ${itemName}`
+      );
+      if (!pinOk) {
+        this.showToast('Aksi dibatalkan', 'notify');
+        return false;
+      }
 
       const ok = confirm(
         `⚠️ HAPUS ITEM DARI INVENTORI\n\n` +
@@ -4051,8 +4082,22 @@ try {
       }
     },
 
-  async submitEditStock() {
+    async submitEditStock() {
     if (!this.selectedStockItem) return;
+
+    // 🔒 PIN GATE (khusus untuk koreksi manual / waste / edit harga)
+    const isDestructive = ['adjustment', 'waste', 'opname'].includes(this.stockChangeType);
+    if (isDestructive) {
+      const pinOk = await this.requestSupervisorPin(
+        'EDIT STOK',
+        `${this.selectedStockItem.name} (${this.stockChangeType})`
+      );
+      if (!pinOk) {
+        this.showToast('Edit stok dibatalkan', 'notify');
+        return;
+      }
+    }
+
     const reason = String(this.stockChangeReason || '').trim();
     if (reason.length < 5) {
       this.showToast('Alasan perubahan stok wajib diisi minimal 5 karakter', 'error');
@@ -4919,9 +4964,20 @@ try {
   /**
    * Hapus menu dari katalog POS & Inventory
    */
-  async hapusMenu(menuId) {
+    async hapusMenu(menuId) {
     const item = (this.menuList || []).find(m => m.id === menuId);
     const itemName = item ? item.name : menuId;
+
+    // 🔒 PIN GATE
+    const pinOk = await this.requestSupervisorPin(
+      'HAPUS MENU',
+      `Menu: ${itemName}`
+    );
+    if (!pinOk) {
+      this.showToast('Hapus menu dibatalkan', 'notify');
+      return;
+    }
+
     if (!confirm(`Hapus menu "${itemName}" dari kasir dan inventori?`)) {
       return;
     }
@@ -6448,7 +6504,125 @@ try {
     }
   },
 
-  async loadCOAListFromBackend() {
+   // =========================================================================
+  // 🔒 SUPERVISOR PIN SECURITY LAYER
+  // =========================================================================
+
+  /**
+   * Minta PIN supervisor — return Promise<boolean>
+   * - resolve(true)  → PIN benar, aksi boleh lanjut
+   * - resolve(false) → user batal / salah 3x tidak ada lock
+   */
+  requestSupervisorPin(actionLabel, targetLabel, opts = {}) {
+    return new Promise((resolve) => {
+      this.pinContext = { actionLabel, targetLabel, opts, resolve };
+      this.pinInput = '';
+      this.pinErrorMessage = '';
+      this.showPinModal = true;
+      this.playSound('notify');
+
+      // Auto-focus ke input setelah modal render
+      this.$nextTick(() => {
+        setTimeout(() => {
+          const el = document.getElementById('supervisorPinInput');
+          if (el) el.focus();
+        }, 100);
+      });
+    });
+  },
+
+  /**
+   * Submit PIN — cek ke this.supervisorPin
+   */
+  submitSupervisorPin() {
+    const pin = String(this.pinInput || '').trim();
+
+    if (!pin || pin.length !== 6) {
+      this.pinErrorMessage = '⚠️ PIN harus 6 digit angka';
+      this.playSound('error');
+      return;
+    }
+
+    if (pin === String(this.supervisorPin || '').trim()) {
+      // ✅ PIN BENAR
+      const ctx = this.pinContext;
+      this.showPinModal = false;
+      this.pinErrorMessage = '';
+      this.pinInput = '';
+      this.pinContext = null;
+
+      this.logAudit(ctx?.actionLabel || 'UNKNOWN', ctx?.targetLabel || '-', 'granted');
+      this.playSound('success');
+
+      if (ctx && typeof ctx.resolve === 'function') {
+        ctx.resolve(true);
+      }
+    } else {
+      // ❌ PIN SALAH — tidak lock, kasih pesan
+      this.pinErrorMessage = '❌ PIN salah. Silakan coba lagi.';
+      this.pinInput = '';
+      this.playSound('error');
+
+      this.logAudit(
+        this.pinContext?.actionLabel || 'UNKNOWN',
+        this.pinContext?.targetLabel || '-',
+        'denied_wrong_pin'
+      );
+
+      this.$nextTick(() => {
+        const el = document.getElementById('supervisorPinInput');
+        if (el) el.focus();
+      });
+    }
+  },
+
+  /**
+   * Cancel — resolve(false)
+   */
+  cancelSupervisorPin() {
+    const ctx = this.pinContext;
+    this.showPinModal = false;
+    this.pinInput = '';
+    this.pinErrorMessage = '';
+    this.pinContext = null;
+    this.playSound('click');
+
+    if (ctx) {
+      this.logAudit(ctx.actionLabel || 'UNKNOWN', ctx.targetLabel || '-', 'cancelled');
+      if (typeof ctx.resolve === 'function') ctx.resolve(false);
+    }
+  },
+
+  /**
+   * Log semua aksi destructive ke /audit_logs/
+   */
+  async logAudit(action, target, status, note = '') {
+    try {
+      const entry = {
+        at: Date.now(),
+        iso: new Date().toISOString(),
+        user: this.kasirInfo?.username || 'kasir',
+        userName: this.kasirInfo?.name || 'Kasir Utama',
+        shiftId: this.kasirInfo?.shiftId || '',
+        action: String(action || 'unknown'),
+        target: String(target || ''),
+        status: String(status || 'unknown'), // granted | denied_wrong_pin | cancelled | executed | failed
+        note: String(note || '')
+      };
+
+      console.log('[AUDIT]', entry);
+
+      if (this._fbDb && this._fbSet && this._fbRef) {
+        const logKey = 'audit_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        const logRef = this._fbRef(this._fbDb, `audit_logs/${logKey}`);
+        await this._fbSet(logRef, entry);
+      }
+    } catch (e) {
+      console.warn('[AUDIT] Log error:', e);
+    }
+  },
+ 
+ async loadCOAListFromBackend() {
     try {
       this.coaListBackendLoading = true;
       const bulan = new Date().toISOString().slice(0, 7);
