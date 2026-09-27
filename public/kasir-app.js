@@ -2094,12 +2094,19 @@ try {
       doc.text(`Metode    : ${(order.paymentMethod || order.pm || 'CASH').toUpperCase()}`, 5, y); y += 4;
       doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
 
-      (order.items || []).forEach(it => {
+        (order.items || []).forEach(it => {
         const name = it.name || (Array.isArray(it) ? it[0] : 'Menu');
         const qty = it.qty || (Array.isArray(it) ? it[1] : 1);
         const price = it.price || (Array.isArray(it) ? it[2] : 0);
+
+        // ✅ FIX: Wrap nama menu (bukan slice) — max lebar 70mm di kertas 80mm
         doc.setFont('courier', 'bold');
-        doc.text(String(name).slice(0, 26), 5, y); y += 3.5;
+        const nameLines = doc.splitTextToSize(String(name), 68);
+        nameLines.forEach(line => {
+          doc.text(line, 5, y);
+          y += 3.5;
+        });
+
         doc.setFont('courier', 'normal');
         doc.text(`  ${qty} x ${this.formatRupiah(price)} = ${this.formatRupiah(qty * price)}`, 5, y);
         y += 4;
@@ -2167,9 +2174,16 @@ try {
         doc.text(`Kasir     : ${this.kasirInfo.name}`, 5, y); y += 4;
         doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
 
-        (order.items || []).forEach(it => {
-          doc.text(`${it.name || 'Menu'} x${it.qty || 1}`, 5, y); y += 4;
-          doc.text(`   = ${this.formatRupiah((it.price || 0) * (it.qty || 1))}`, 5, y); y += 4;
+          (order.items || []).forEach(it => {
+          // ✅ FIX: Wrap nama menu (bukan truncate)
+          const itemName = it.name || 'Menu';
+          const nameLines = doc.splitTextToSize(itemName, 50);
+          nameLines.forEach((line, idx) => {
+            doc.text(line + (idx === nameLines.length - 1 ? ` x${it.qty || 1}` : ''), 5, y);
+            y += 4;
+          });
+          doc.text(`   = ${this.formatRupiah((it.price || 0) * (it.qty || 1))}`, 5, y);
+          y += 4;
         });
 
         doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
