@@ -410,7 +410,14 @@ window.kasirApp = () => ({
   approvalFilter: 'all',  // all | pending | approved | rejected
   approvalSearch: '',
 
-  // State Payment Config dari Admin Panel (/site_config/paymentConfig)
+   // 🏢 Info Bisnis dari Admin Panel (/site_config) — untuk PDF & laporan
+  siteInfo: {
+    brandName: 'Dapur Kuliner Viral & Catering Rumahan',
+    address: 'Jl. Kuliner Viral No. 88, Jakarta Selatan',
+    phone: '0812-3456-7890'
+  },
+ 
+ // State Payment Config dari Admin Panel (/site_config/paymentConfig)
   paymentConfig: {
     bankName: 'BCA',
     bankAccountNumber: '-',
@@ -572,7 +579,13 @@ try {
         if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
         console.log('[KASIR] Custom title loaded:', val.kasirTitle);
 
-        // ✅ Sync payment config (bank, QRIS, ewallet)
+               // 🏢 Sync info bisnis (brand, alamat, telepon)
+        if (val.brandName) this.siteInfo.brandName = val.brandName;
+        if (val.address) this.siteInfo.address = val.address;
+        if (val.phone) this.siteInfo.phone = val.phone;
+        console.log('[KASIR] Site info loaded:', this.siteInfo.brandName);
+ 
+       // ✅ Sync payment config (bank, QRIS, ewallet)
         if (val.paymentConfig) {
           this.paymentConfig = {
             ...this.paymentConfig,
@@ -5490,22 +5503,24 @@ try {
       doc.rect(14, y, 182, 3, 'F');
       y += 9;
 
+            // 🏢 Header brand + alamat + telepon (dari Admin Panel)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.setTextColor(26, 26, 26);
-      doc.text('DAPUR KULINER VIRAL & CATERING RUMAHAN', 14, y);
+      doc.text(String(this.siteInfo.brandName || 'Dapur Kuliner Viral').toUpperCase(), 14, y);
       y += 6;
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(115, 115, 115);
-      doc.text('POS Pintar System - Jl. Kuliner No. 88, Jakarta Selatan - Telp: 0812-3456-7890', 14, y);
+      const addrLine = `POS Pintar System - ${this.siteInfo.address || '-'} - Telp: ${this.siteInfo.phone || '-'}`;
+      doc.text(addrLine, 14, y);
       y += 9;
 
       // Judul Laporan
       const titleText = type === 'shift'
         ? 'LAPORAN REKONSILIASI PENUTUPAN SHIFT KASIR'
-        : (type === 'monthly' ? 'LAPORAN KEUANGAN & LABA RUGI BULANAN (P&L)' : 'LAPORAN PENJUALAN HARIAN (DAILY SALES REPORT)');
+        : (type === 'monthly' ? 'LAPORAN KEUANGAN & LABA RUGI BULANAN (P&L)' : 'LAPORAN PENJUALAN (SALES REPORT)');
 
       doc.setFillColor(243, 244, 246);
       doc.roundedRect(14, y, 182, 11, 2, 2, 'F');
@@ -5513,7 +5528,23 @@ try {
       doc.setFontSize(11);
       doc.setTextColor(17, 24, 39);
       doc.text(titleText, 18, y + 7.5);
-      y += 17;
+      y += 13;
+
+      // 📅 Periode laporan (start - end)
+      const { start: pStart, end: pEnd } = this.getReportDateRange();
+      const fmtID = (ds) => {
+        try {
+          return new Date(ds + 'T00:00:00').toLocaleDateString('id-ID', {
+            day: 'numeric', month: 'long', year: 'numeric'
+          });
+        } catch (e) { return ds; }
+      };
+      const periodLabel = this.getReportPeriodLabel ? this.getReportPeriodLabel() : '';
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`Periode: ${fmtID(pStart)} s/d ${fmtID(pEnd)}  (${periodLabel})`, 105, y, { align: 'center' });
+      y += 10;
 
       // Metadata Baris
       doc.setFont('helvetica', 'normal');
@@ -5545,56 +5576,59 @@ try {
       doc.setFontSize(9);
       doc.setTextColor(55, 65, 81);
 
-      const startCash = this.shiftSummary.startCash || 200000;
-      const cashSales = this.shiftSummary.cashSales || 0;
+            const cashSales = this.shiftSummary.cashSales || 0;
       const qrisSales = this.shiftSummary.qrisSales || 0;
       const transferSales = this.shiftSummary.transferSales || 0;
       const ewalletSales = this.shiftSummary.ewalletSales || 0;
       const totalSales = this.shiftSummary.totalSales || (cashSales + qrisSales + transferSales + ewalletSales);
       const txCount = this.shiftSummary.transactionCount || 0;
 
-      doc.text('Modal Awal Kas Laci:', 18, y + 17);
-      doc.text(this.formatRupiah(startCash), 90, y + 17, { align: 'right' });
+      // Kiri: breakdown per metode (MURNI penjualan, TANPA modal awal)
+      doc.text('Penjualan Tunai (Cash):', 18, y + 17);
+      doc.text(this.formatRupiah(cashSales), 90, y + 17, { align: 'right' });
 
-      doc.text('Penjualan Tunai (Cash):', 18, y + 24);
-      doc.text(this.formatRupiah(cashSales), 90, y + 24, { align: 'right' });
+      doc.text('Penjualan QRIS Dinamis:', 18, y + 24);
+      doc.text(this.formatRupiah(qrisSales), 90, y + 24, { align: 'right' });
 
-      doc.text('Penjualan QRIS Dinamis:', 18, y + 31);
-      doc.text(this.formatRupiah(qrisSales), 90, y + 31, { align: 'right' });
+      doc.text('Penjualan Transfer Bank:', 18, y + 31);
+      doc.text(this.formatRupiah(transferSales), 90, y + 31, { align: 'right' });
 
-      doc.text('Penjualan Transfer Bank:', 18, y + 38);
-      doc.text(this.formatRupiah(transferSales), 90, y + 38, { align: 'right' });
+      doc.text('Penjualan E-Wallet:', 18, y + 38);
+      doc.text(this.formatRupiah(ewalletSales), 90, y + 38, { align: 'right' });
 
+      // Kanan: ringkasan transaksi & omset
       doc.text('Total Transaksi Sukses:', 110, y + 17);
       doc.text(`${txCount} transaksi`, 190, y + 17, { align: 'right' });
 
       doc.setFont('helvetica', 'bold');
-      doc.text('Total Omset Kotor:', 110, y + 24);
-      doc.setTextColor(5, 150, 105); // emerald-600
+      doc.text('TOTAL OMSET PENJUALAN:', 110, y + 24);
+      doc.setTextColor(5, 150, 105);
       doc.text(this.formatRupiah(totalSales), 190, y + 24, { align: 'right' });
       doc.setTextColor(55, 65, 81);
 
+      // Untuk laporan shift, tambahkan info uang fisik (opsional, masih pakai shiftSummary)
       if (type === 'shift') {
-        const expected = startCash + cashSales;
+        const expected = cashSales; // tanpa modal awal (info ini hanya untuk internal)
         const physical = Number(this.physicalCashCount) || expected;
         const diff = physical - expected;
 
-        doc.text('Ekspektasi Uang Tunai Laci:', 110, y + 31);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Kas Tunai Diharapkan:', 110, y + 31);
         doc.text(this.formatRupiah(expected), 190, y + 31, { align: 'right' });
 
-        doc.text('Uang Fisik Aktual di Kasir:', 110, y + 38);
+        doc.text('Kas Fisik Aktual:', 110, y + 38);
         doc.text(this.formatRupiah(physical), 190, y + 38, { align: 'right' });
 
-        y += 54;
+        y += 48;
         // Banner Selisih Kas
         doc.setFillColor(diff === 0 ? 236 : 254, diff === 0 ? 253 : 242, diff === 0 ? 245 : 242);
         doc.roundedRect(14, y, 182, 10, 2, 2, 'F');
         doc.setTextColor(diff === 0 ? 6 : 185, diff === 0 ? 95 : 28, diff === 0 ? 70 : 28);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Status Selisih Kas: ${this.formatRupiah(diff)} ${diff === 0 ? '(SESUAI - BALANCE)' : (diff > 0 ? '(LEBIH)' : '(KURANG)')}`, 18, y + 6.5);
+        doc.text(`Status Selisih Kas: ${this.formatRupiah(diff)} ${diff === 0 ? '(SESUAI)' : (diff > 0 ? '(LEBIH)' : '(KURANG)')}`, 18, y + 6.5);
         y += 16;
       } else {
-        y += 54;
+        y += 48;
       }
 
       // Top Menu Table
