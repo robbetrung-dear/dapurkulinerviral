@@ -6719,6 +6719,11 @@ git push -u origin main</pre>
             this.adminPasswordInput = '';
             this.adminPasswordError = '';
             this.isAdminAuthModalOpen = true;
+            // Reset Supervisor PIN form state
+            this.supervisorPinNew = '';
+            this.supervisorPinConfirm = '';
+            this.supervisorPinMsg = '';
+            this.supervisorPinMsgOk = false;
           }
         },
 
