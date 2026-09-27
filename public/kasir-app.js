@@ -2512,7 +2512,45 @@ try {
    * Fetch transaksi dalam rentang tanggal — dengan 3 strategi fallback
    * Return: Array<transaksi>
    */
+    /**
+   * Ambil tanggal efektif dari transaksi (untuk filter)
+   */
+  getTxDate(tx) {
+    if (!tx) return null;
+    // Priority 1: __date yang diinjeksi (dari loop harian)
+    if (tx.__date) return tx.__date;
+    // Priority 2: timestamp Unix (field 't' = short-form)
+    if (tx.t) {
+      const d = new Date(Number(tx.t));
+      if (!isNaN(d.getTime())) return this.getLocalDateStr(d);
+    }
+    // Priority 3: timestamp ISO
+    if (tx.timestamp) {
+      const d = new Date(Number(tx.timestamp) || tx.timestamp);
+      if (!isNaN(d.getTime())) return this.getLocalDateStr(d);
+    }
+    // Priority 4: field date (YYYY-MM-DD)
+    if (tx.date && /^\d{4}-\d{2}-\d{2}$/.test(tx.date)) return tx.date;
+    return null;
+  },
+
+  /**
+   * Fetch transaksi dalam rentang tanggal — dengan 3 strategi fallback
+   * ✅ FIX: Selalu filter client-side by date (defensive terhadap backend yang mengabaikan param)
+   */
   async fetchTransactionsInRange(startDate, endDate) {
+    console.log(`[REPORT] Fetch range: ${startDate} → ${endDate}`);
+
+    // Helper: filter data by date range
+    const filterByDate = (list) => {
+      if (!Array.isArray(list)) return [];
+      return list.filter(tx => {
+        const d = this.getTxDate(tx);
+        if (!d) return false;
+        return d >= startDate && d <= endDate;
+      });
+    };
+
     // === Strategi 1: Endpoint range (?start=&end=) ===
     try {
       const url = `/pos/transactions?start=${startDate}&end=${endDate}`;
@@ -2521,19 +2559,15 @@ try {
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
           const json = await res.json();
-          if (Array.isArray(json.data) && json.data.length > 0) {
-            console.log(`[REPORT] ✅ Range endpoint: ${json.data.length} tx`);
-            return json.data;
-          }
-          // Kalau range endpoint jalan tapi memang tidak ada tx → return empty
           if (Array.isArray(json.data)) {
-            console.log(`[REPORT] ✅ Range endpoint OK (kosong)`);
-            return [];
+            const filtered = filterByDate(json.data);
+            console.log(`[REPORT] ✅ Range endpoint: raw ${json.data.length} → filter ${filtered.length} tx`);
+            return filtered;
           }
         }
       }
     } catch (e) {
-      console.log('[REPORT] Range endpoint tidak tersedia, coba fallback...');
+      console.log('[REPORT] Range endpoint error, coba fallback...');
     }
 
     // === Strategi 2: Kalau 1 bulan yang sama → pakai ?month= ===
@@ -2545,16 +2579,13 @@ try {
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.data)) {
-            const filtered = json.data.filter(t => {
-              const tDate = this.getLocalDateStr(new Date(Number(t.t) || Date.now()));
-              return tDate >= startDate && tDate <= endDate;
-            });
-            console.log(`[REPORT] ✅ Month endpoint: ${filtered.length} tx (dari ${json.data.length} total)`);
+            const filtered = filterByDate(json.data);
+            console.log(`[REPORT] ✅ Month endpoint: raw ${json.data.length} → filter ${filtered.length} tx`);
             return filtered;
           }
         }
       } catch (e) {
-        console.log('[REPORT] Month endpoint gagal, coba loop harian...');
+        console.log('[REPORT] Month endpoint error, coba loop harian...');
       }
     }
 
@@ -2575,7 +2606,6 @@ try {
         if (!res.ok) return [];
         const json = await res.json();
         if (Array.isArray(json.data)) {
-          // Inject tanggal untuk tracking
           return json.data.map(tx => ({ ...tx, __date: d }));
         }
         return [];
@@ -2585,8 +2615,9 @@ try {
     }));
 
     const all = results.flat();
-    console.log(`[REPORT] ✅ Loop harian: ${all.length} tx dari ${days.length} hari`);
-    return all;
+    const filtered = filterByDate(all);
+    console.log(`[REPORT] ✅ Loop harian: raw ${all.length} → filter ${filtered.length} tx`);
+    return filtered;
   },
 
  formatRupiah(num) {
