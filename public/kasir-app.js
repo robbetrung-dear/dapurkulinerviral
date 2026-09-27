@@ -37,7 +37,10 @@ window.kasirApp = () => ({
   // Bagan Akun (COA) Backend Integration
   coaListBackend: [],
   coaListBackendLoading: false,
-  
+
+   // Global loading state (dipakai di submitJournalEntry, approveJournal, rejectJournal)
+  isLoading: false,
+ 
   // ✅ Custom Title (dari Admin Panel → Security)
   customKasirTitle: 'Kasir Pintar',
   customKasirSubtitle: 'Dapur Kuliner Viral',
@@ -6245,7 +6248,8 @@ try {
         debit: Number(l.debit) || 0,
         credit: Number(l.credit) || 0
       })),
-      createdBy: this.kasirInfo?.name || 'kasir'
+            createdBy: this.kasirInfo?.name || 'kasir',
+      status: 'pending'  // ✅ Default: menunggu approval, bukan draft
     };
     
     try {
