@@ -357,51 +357,87 @@
       </div>
     </div>
 
-    <!-- Log Audit Transaksi POS -->
+    <!-- 🔒 Log Audit Keamanan (dari PIN Supervisor) -->
     <div class="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
           <h3 class="font-extrabold text-stone-900 text-base flex items-center gap-2">
-            <i class="fa-solid fa-shield-halved text-emerald-600"></i>
-            <span>Log Audit Transaksi POS Terbaru</span>
+            <i class="fa-solid fa-shield-halved text-red-600"></i>
+            <span>Log Audit Keamanan (Aksi Destruktif)</span>
           </h3>
-          <p class="text-xs text-stone-500">10 transaksi POS terakhir dari Firebase Realtime Database</p>
+          <p class="text-xs text-stone-500">Catatan semua aksi berbahaya: hapus inventory, edit stok, edit harga, tutup shift</p>
         </div>
-        <span class="text-xs font-bold text-stone-400 uppercase">Realtime Sync</span>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase tracking-wider">
+            <i class="fa-solid fa-lock text-[9px] mr-1"></i> PIN Protected
+          </span>
+          <span class="text-xs font-bold text-stone-400 uppercase" x-text="auditLogs.length + ' entries'"></span>
+        </div>
       </div>
 
       <div class="overflow-x-auto border border-stone-200 rounded-xl">
         <table class="min-w-full divide-y divide-stone-200 text-xs text-left">
           <thead class="bg-stone-50 text-stone-600 font-bold uppercase">
             <tr>
-              <th class="py-2.5 px-3">Order ID</th>
-              <th class="py-2.5 px-3">Metode Bayar</th>
-              <th class="py-2.5 px-3 text-right">Nominal</th>
-              <th class="py-2.5 px-3 text-center">Status</th>
               <th class="py-2.5 px-3">Waktu</th>
+              <th class="py-2.5 px-3">User</th>
+              <th class="py-2.5 px-3">Aksi</th>
+              <th class="py-2.5 px-3">Target</th>
+              <th class="py-2.5 px-3 text-center">Status</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-stone-100 font-mono text-[11px]">
-            <template x-for="(log, lIdx) in transactionLogs" :key="'tx-log-' + lIdx">
+          <tbody class="divide-y divide-stone-100 text-[11px]">
+            <template x-for="(log, lIdx) in auditLogs" :key="'audit-' + (log.id || lIdx)">
               <tr class="hover:bg-stone-50">
-                <td class="py-2.5 px-3 font-bold text-stone-800" x-text="log.order_id"></td>
-                <td class="py-2.5 px-3 uppercase text-stone-700" x-text="log.payment_type"></td>
-                <td class="py-2.5 px-3 text-right font-bold text-stone-900" x-text="formatRupiah(log.gross_amount)"></td>
-                <td class="py-2.5 px-3 text-center">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <i class="fa-solid fa-check-double mr-1"></i> RECORDED
+                <td class="py-2.5 px-3 text-stone-500 font-mono whitespace-nowrap" x-text="formatDate(log.iso || log.at)"></td>
+                <td class="py-2.5 px-3 whitespace-nowrap">
+                  <div class="font-bold text-stone-800" x-text="log.userName || log.user || '-'"></div>
+                  <div class="text-[10px] text-stone-400 font-mono" x-text="log.shiftId || '-'"></div>
+                </td>
+                <td class="py-2.5 px-3">
+                  <span class="font-bold text-stone-900" x-text="log.action || '-'"></span>
+                </td>
+                <td class="py-2.5 px-3 text-stone-600 max-w-xs truncate" :title="log.target || ''" x-text="log.target || '-'"></td>
+                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                  <!-- Status badge -->
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
+                    :class="{
+                      'bg-emerald-100 text-emerald-800 border-emerald-300': log.status === 'granted' || log.status === 'executed',
+                      'bg-amber-100 text-amber-800 border-amber-300': log.status === 'denied_wrong_pin',
+                      'bg-stone-100 text-stone-600 border-stone-300': log.status === 'cancelled',
+                      'bg-red-100 text-red-800 border-red-300': log.status === 'failed' || log.status === 'denied'
+                    }">
+                    <i class="fa-solid"
+                      :class="{
+                        'fa-check-double': log.status === 'granted' || log.status === 'executed',
+                        'fa-triangle-exclamation': log.status === 'denied_wrong_pin',
+                        'fa-ban': log.status === 'cancelled',
+                        'fa-circle-xmark': log.status === 'failed' || log.status === 'denied'
+                      }"
+                      style="font-size: 9px; margin-right: 4px;"></i>
+                    <span x-text="(log.status || 'unknown').replace(/_/g, ' ').toUpperCase()"></span>
                   </span>
                 </td>
-                <td class="py-2.5 px-3 text-stone-400" x-text="formatDate(log.received_at)"></td>
               </tr>
             </template>
-            <template x-if="transactionLogs.length === 0">
+            <template x-if="auditLogs.length === 0">
               <tr>
-                <td colspan="5" class="py-8 text-center text-stone-400 italic">Belum ada transaksi POS bulan ini.</td>
+                <td colspan="5" class="py-8 text-center text-stone-400 italic">
+                  Belum ada log audit. Log akan muncul setelah PIN supervisor digunakan untuk aksi destruktif.
+                </td>
               </tr>
             </template>
           </tbody>
         </table>
+      </div>
+
+      <!-- Footer note -->
+      <div class="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between text-[10px] text-stone-400">
+        <span>
+          <i class="fa-solid fa-circle-info mr-1"></i>
+          Setiap aksi tercatat: siapa, kapan, apa, hasilnya
+        </span>
+        <span class="font-mono">Firebase <span class="text-stone-500">/audit_logs/</span></span>
       </div>
     </div>
 
@@ -441,6 +477,7 @@
         posTransactions: [],
         menuItems: [],
         transactionLogs: [],
+        auditLogs: [],
         isLoading: false,
         loadError: '',
 
@@ -575,6 +612,21 @@
 
             this.posTransactions = txResults.flat();
             console.log('[ANALYTICS] POS transactions this month: ' + this.posTransactions.length);
+
+                        // 3b. Load Audit Logs (dari PIN Supervisor actions)
+            try {
+              var auditRes = await fetch('/pos/audit_logs?limit=50');
+              if (auditRes.ok) {
+                var auditJson = await auditRes.json();
+                this.auditLogs = (auditJson && Array.isArray(auditJson.data)) ? auditJson.data : [];
+              } else {
+                this.auditLogs = [];
+              }
+            } catch (auditErr) {
+              console.warn('[ANALYTICS] Audit logs fetch failed:', auditErr);
+              this.auditLogs = [];
+            }
+            console.log('[ANALYTICS] Audit logs: ' + this.auditLogs.length);
 
             // 4. Build transactionLogs
             this.transactionLogs = this.posTransactions.slice(-10).reverse().map(function(tx) {
