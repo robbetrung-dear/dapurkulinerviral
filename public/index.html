@@ -6299,64 +6299,120 @@ git push -u origin main</pre>
         },
 
         // AUTO-DOWNLOAD STRUK PDF DENGAN jsPDF
+                // AUTO-DOWNLOAD STRUK PDF DENGAN jsPDF (v2 — nama menu wrap, no truncate)
         downloadReceiptPDF(order) {
           try {
             const { jsPDF } = window.jspdf;
+
+            // Hitung tinggi halaman dinamis berdasarkan jumlah items (wrap-aware)
+            const itemCount = (order.items || []).length;
+            const pageHeight = Math.max(160, 130 + (itemCount * 10));
+
             const doc = new jsPDF({
               orientation: 'portrait',
               unit: 'mm',
-              format: [80, 160] // Format struk kasir thermal 80mm
+              format: [80, pageHeight]
             });
 
+            let y = 10;
+
+            // === HEADER: Brand ===
             doc.setFont("courier", "bold");
             doc.setFontSize(11);
-            doc.text(this.siteConfig.brandName || "DAPUR KULINER VIRAL", 40, 10, { align: "center" });
-            
-            doc.setFont("courier", "normal");
-            doc.setFontSize(7.5);
-            doc.text((this.siteConfig.address || "Jl. Sudirman No. 45, Jakarta").substring(0, 36), 40, 15, { align: "center" });
-            doc.text(`WA: ${this.siteConfig.phone || "0812-3456-7890"}`, 40, 19, { align: "center" });
-            doc.text("----------------------------------------", 40, 23, { align: "center" });
-
-            doc.text(`No Order : ${order.orderId || 'ORD-DEMO'}`, 5, 28);
-            doc.text(`Tgl/Jam  : ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}`, 5, 32);
-            doc.text(`Pemesan  : ${(order.customer?.name || 'Pelanggan').substring(0, 20)}`, 5, 36);
-            doc.text(`Kurir    : ${order.courier?.name || 'GoSend'}`, 5, 40);
-            doc.text("----------------------------------------", 40, 44, { align: "center" });
-
-            let y = 49;
-            (order.items || []).forEach(item => {
-              const itemTotal = (item.price * item.quantity);
-              doc.text(`${item.name.substring(0, 18)} x${item.quantity}`, 5, y);
-              doc.text(`Rp${itemTotal.toLocaleString('id-ID')}`, 75, y, { align: "right" });
+            const brandName = String(this.siteConfig.brandName || "DAPUR KULINER VIRAL").toUpperCase();
+            const brandLines = doc.splitTextToSize(brandName, 72);
+            brandLines.forEach(line => {
+              doc.text(line, 40, y, { align: "center" });
               y += 5;
             });
 
+            // === HEADER: Alamat & Telepon (wrap) ===
+            doc.setFont("courier", "normal");
+            doc.setFontSize(7.5);
+            const addrLines = doc.splitTextToSize(this.siteConfig.address || "Jl. Sudirman No. 45, Jakarta", 72);
+            addrLines.forEach(line => {
+              doc.text(line, 40, y, { align: "center" });
+              y += 4;
+            });
+            doc.text(`WA: ${this.siteConfig.phone || "0812-3456-7890"}`, 40, y, { align: "center" });
+            y += 4;
             doc.text("----------------------------------------", 40, y, { align: "center" });
             y += 5;
+
+            // === INFO ORDER ===
+            doc.setFontSize(8);
+            doc.text(`No Order : ${order.orderId || 'ORD-DEMO'}`, 5, y); y += 4;
+            doc.text(`Tgl/Jam  : ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}`, 5, y); y += 4;
+
+            // Pemesan — wrap kalau nama panjang
+            const custName = String(order.customer?.name || 'Pelanggan');
+            const custLines = doc.splitTextToSize(`Pemesan  : ${custName}`, 72);
+            custLines.forEach(line => {
+              doc.text(line, 5, y);
+              y += 4;
+            });
+
+            doc.text(`Kurir    : ${order.courier?.name || 'GoSend'}`, 5, y); y += 4;
+            doc.text("----------------------------------------", 40, y, { align: "center" });
+            y += 5;
+
+            // === DAFTAR ITEMS (nama menu wrap, bukan truncate) ===
+            (order.items || []).forEach(item => {
+              const itemName = String(item.name || 'Menu');
+              const itemTotal = (item.price || 0) * (item.quantity || 1);
+
+              // Nama menu wrap max 58mm (sisakan ruang untuk harga di kanan)
+              doc.setFont("courier", "bold");
+              const nameLines = doc.splitTextToSize(itemName, 58);
+
+              nameLines.forEach((line, idx) => {
+                if (idx === nameLines.length - 1) {
+                  // Baris terakhir nama menu → tambahkan qty & harga di kanan
+                  doc.text(line, 5, y);
+                  doc.text(`x${item.quantity || 1}`, 60, y, { align: 'left' });
+                  doc.text(`Rp${itemTotal.toLocaleString('id-ID')}`, 75, y, { align: "right" });
+                } else {
+                  doc.text(line, 5, y);
+                }
+                y += 4;
+              });
+              y += 1; // spacing antar item
+            });
+
+            y += 2;
+            doc.text("----------------------------------------", 40, y, { align: "center" });
+            y += 5;
+
+            // === RINGKASAN ===
+            doc.setFont("courier", "normal");
+            doc.setFontSize(8);
             doc.text("Subtotal:", 5, y);
             doc.text(`Rp${(order.subtotal || 0).toLocaleString('id-ID')}`, 75, y, { align: "right" });
             y += 4;
+
             doc.text("Ongkir:", 5, y);
             doc.text(`Rp${(order.courierFee || 0).toLocaleString('id-ID')}`, 75, y, { align: "right" });
             y += 5;
+
             doc.setFont("courier", "bold");
             doc.text("TOTAL BAYAR:", 5, y);
             doc.text(`Rp${(order.totalAmount || 0).toLocaleString('id-ID')}`, 75, y, { align: "right" });
-            
             y += 8;
-            doc.setFont("courier", "bold");
-            doc.setFontSize(10);
-            doc.text("*** LUNAS (MIDTRANS SNAP) ***", 40, y, { align: "center" });
 
-            y += 6;
+            // === STATUS LUNAS ===
+            doc.setFontSize(10);
+            doc.text("*** LUNAS ***", 40, y, { align: "center" });
+            y += 7;
+
+            // === FOOTER ===
             doc.setFont("courier", "normal");
             doc.setFontSize(7);
             doc.text("Terima kasih atas pesanan Anda!", 40, y, { align: "center" });
             doc.text("Simpan struk ini sebagai bukti order.", 40, y + 4, { align: "center" });
 
-            // Trigger auto download ke device pelanggan
+            // Trigger auto download
             doc.save(`Struk_Dapur_${order.orderId || 'Order'}.pdf`);
+
           } catch (err) {
             console.warn("Gagal auto-generate PDF struk:", err);
           }
