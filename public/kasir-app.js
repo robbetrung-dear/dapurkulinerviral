@@ -2094,22 +2094,26 @@ try {
       doc.text(`Metode    : ${(order.paymentMethod || order.pm || 'CASH').toUpperCase()}`, 5, y); y += 4;
       doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
 
-        (order.items || []).forEach(it => {
+              (order.items || []).forEach(it => {
         const name = it.name || (Array.isArray(it) ? it[0] : 'Menu');
         const qty = it.qty || (Array.isArray(it) ? it[1] : 1);
         const price = it.price || (Array.isArray(it) ? it[2] : 0);
+        const itemTotal = qty * price;
 
-        // ✅ FIX: Wrap nama menu (bukan slice) — max lebar 70mm di kertas 80mm
+        // ✅ Nama menu wrap max 50mm (sisakan ruang untuk harga kanan)
         doc.setFont('courier', 'bold');
-        const nameLines = doc.splitTextToSize(String(name), 68);
-        nameLines.forEach(line => {
+        const nameLines = doc.splitTextToSize(String(name), 50);
+        nameLines.forEach((line, idx) => {
           doc.text(line, 5, y);
+          if (idx === nameLines.length - 1) {
+            // Baris terakhir → harga di kanan
+            doc.text(`${qty}x = ${this.formatRupiah(itemTotal)}`, 75, y, { align: 'right' });
+          }
           y += 3.5;
         });
 
         doc.setFont('courier', 'normal');
-        doc.text(`  ${qty} x ${this.formatRupiah(price)} = ${this.formatRupiah(qty * price)}`, 5, y);
-        y += 4;
+        y += 1; // spacing kecil antar item
       });
 
       doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
