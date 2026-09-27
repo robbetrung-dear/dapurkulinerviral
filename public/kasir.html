@@ -5068,12 +5068,12 @@
 
   <!-- MODAL: RIWAYAT TRANSAKSI & RECALL STRUK KASIR -->
   <div 
-    x-cloak 
-    x-show="showTxHistoryModal" 
-    class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
-    <div 
-      @click.away="showTxHistoryModal = false" 
-      class="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative transition-all space-y-5 my-6">
+  x-cloak 
+  x-show="showTxHistoryModal" 
+  @click.self="showTxHistoryModal = false"
+  class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
+  <div 
+    class="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative transition-all space-y-5 my-6">
       
       <!-- Tombol Tutup -->
       <button 
