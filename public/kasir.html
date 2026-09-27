@@ -4595,6 +4595,79 @@
     </div>
   </div>
 
+    <!-- MODAL: SUPERVISOR PIN SECURITY LAYER -->
+  <div
+    x-cloak
+    x-show="showPinModal"
+    @click.away="cancelSupervisorPin()"
+    @keydown.escape.window="showPinModal && cancelSupervisorPin()"
+    class="fixed inset-0 z-[60] overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+      class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border-2 border-red-200 relative space-y-5">
+
+      <!-- Ikon Shield -->
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-3xl bg-red-100 text-red-600 mx-auto flex items-center justify-center text-2xl mb-3 shadow-inner">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h3 class="font-black text-stone-900 text-lg tracking-tight">Supervisor PIN Diperlukan</h3>
+        <p class="text-xs font-bold text-red-700 mt-1 uppercase tracking-wide" x-text="pinContext?.actionLabel || 'AKSI DESTRUKTIF'"></p>
+        <p class="text-[11px] text-stone-500 mt-0.5" x-text="pinContext?.targetLabel || ''"></p>
+      </div>
+
+      <!-- Input PIN -->
+      <div>
+        <label class="block text-[11px] font-bold text-stone-700 uppercase mb-1.5 text-center">
+          Masukkan 6 Digit PIN
+        </label>
+        <input
+          id="supervisorPinInput"
+          type="password"
+          inputmode="numeric"
+          autocomplete="off"
+          maxlength="6"
+          x-model="pinInput"
+          @keydown.enter.prevent="submitSupervisorPin()"
+          @input="pinInput = String(pinInput || '').replace(/\D/g, '').slice(0, 6); pinErrorMessage = ''"
+          placeholder="••••••"
+          class="w-full h-16 text-center text-3xl font-black font-mono tracking-[0.6em] rounded-2xl border-2 border-stone-300 focus:border-red-500 focus:ring-4 focus:ring-red-100 focus:outline-none transition"
+        />
+        <p
+          x-show="pinErrorMessage"
+          x-transition
+          class="text-xs text-red-600 font-bold mt-2 text-center"
+          x-text="pinErrorMessage">
+        </p>
+      </div>
+
+      <!-- Tombol Aksi -->
+      <div class="grid grid-cols-2 gap-2.5 pt-1">
+        <button
+          type="button"
+          @click="cancelSupervisorPin()"
+          class="min-h-[48px] rounded-xl border-2 border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs transition cursor-pointer">
+          <i class="fa-solid fa-xmark mr-1"></i> Batal
+        </button>
+        <button
+          type="button"
+          @click="submitSupervisorPin()"
+          :disabled="pinInput.length !== 6"
+          :class="pinInput.length !== 6 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-700 cursor-pointer'"
+          class="min-h-[48px] rounded-xl bg-red-600 text-white font-black text-xs transition shadow-md shadow-red-600/30 flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-unlock text-xs"></i>
+          <span>KONFIRMASI</span>
+        </button>
+      </div>
+
+      <!-- Footer Note -->
+      <p class="text-[10px] text-stone-400 text-center italic border-t border-stone-100 pt-3">
+        <i class="fa-solid fa-circle-info mr-1"></i>
+        Aksi ini dicatat ke Audit Log (<span class="font-mono">/audit_logs/</span>)
+      </p>
+
+    </div>
+  </div>
+  
   <!-- MODAL: KONFIRMASI LOGOUT KASIR -->
   <div 
     x-cloak 
