@@ -181,6 +181,16 @@ window.kasirApp = () => ({
   _reconcileInterval: null,
 
   // Shift, Inventory & Laporan State (BAGIAN 3)
+   // 🧮 Shift Cash Calculator State
+  shiftCalc: {
+    modalAwal: 0,
+    totalPenjualanTunai: 0,
+    pengeluaranTunai: 0,
+    uangFisik: 0,
+    notes: ''
+  },
+  showShiftCalcModal: false,
+   
     shiftSummary: {
     totalSales: 2450000,
     cashSales: 980000,
@@ -2422,7 +2432,103 @@ try {
     await this.loadTopMenuBulanIni();
     await this.loadPenjualanPerJam();
   },
- 
+
+   // =========================================================================
+  // 🧮 SHIFT CASH CALCULATOR (Serah Terima Kas Tunai)
+  // =========================================================================
+
+  openShiftCalculator() {
+    const startCash = Number(this.shiftSummary?.startCash || 0);
+    const cashSales = Number(this.shiftSummary?.cashSales || 0);
+    this.shiftCalc = {
+      modalAwal: startCash,
+      totalPenjualanTunai: cashSales,
+      pengeluaranTunai: 0,
+      uangFisik: startCash + cashSales,
+      notes: ''
+    };
+    this.showShiftCalcModal = true;
+    this.playSound('notify');
+  },
+
+  closeShiftCalculator() {
+    this.showShiftCalcModal = false;
+    this.playSound('click');
+  },
+
+  get shiftCalcExpected() {
+    const modal = Number(this.shiftCalc.modalAwal || 0);
+    const tunai = Number(this.shiftCalc.totalPenjualanTunai || 0);
+    const keluar = Number(this.shiftCalc.pengeluaranTunai || 0);
+    return modal + tunai - keluar;
+  },
+
+  get shiftCalcDifference() {
+    const fisik = Number(this.shiftCalc.uangFisik || 0);
+    return fisik - this.shiftCalcExpected;
+  },
+
+  get shiftCalcStatus() {
+    const diff = this.shiftCalcDifference;
+    if (Math.abs(diff) < 1) return { label: 'SESUAI', key: 'balance' };
+    if (diff > 0) return { label: 'LEBIH', key: 'over' };
+    return { label: 'KURANG', key: 'under' };
+  },
+
+  resetShiftCalculator() {
+    this.openShiftCalculator();
+    this.showToast('Kalkulator direset ke nilai awal', 'notify');
+  },
+
+  async saveShiftHandover() {
+    const expected = this.shiftCalcExpected;
+    const fisik = Number(this.shiftCalc.uangFisik || 0);
+    const diff = this.shiftCalcDifference;
+
+    const entry = {
+      at: Date.now(),
+      iso: new Date().toISOString(),
+      shiftId: this.kasirInfo?.shiftId || '-',
+      user: this.kasirInfo?.username || 'kasir',
+      userName: this.kasirInfo?.name || 'Kasir Utama',
+      modalAwal: Number(this.shiftCalc.modalAwal || 0),
+      totalTunai: Number(this.shiftCalc.totalPenjualanTunai || 0),
+      pengeluaran: Number(this.shiftCalc.pengeluaranTunai || 0),
+      expected: expected,
+      fisik: fisik,
+      difference: diff,
+      status: Math.abs(diff) < 1 ? 'sesuai' : (diff > 0 ? 'lebih' : 'kurang'),
+      notes: String(this.shiftCalc.notes || '').trim()
+    };
+
+    try {
+      // 1. Simpan ke Firebase
+      if (this._fbDb && this._fbSet && this._fbRef) {
+        const key = `handover_${Date.now()}`;
+        const ref = this._fbRef(this._fbDb, `pos/shift_handovers/${this.kasirInfo?.shiftId || 'unknown'}/${key}`);
+        await this._fbSet(ref, entry);
+        console.log('[SHIFT-CALC] ✅ Saved to Firebase:', entry);
+      }
+
+      // 2. Backup ke localStorage (max 50 entries)
+      try {
+        const list = JSON.parse(localStorage.getItem('dapur_shift_handovers') || '[]');
+        list.push(entry);
+        localStorage.setItem('dapur_shift_handovers', JSON.stringify(list.slice(-50)));
+      } catch (e) {}
+
+      this.showToast(
+        `Serah terima tersimpan. Selisih: ${this.formatRupiah(diff)}`,
+        Math.abs(diff) < 1 ? 'success' : 'notify'
+      );
+      this.playSound('success');
+      this.closeShiftCalculator();
+    } catch (err) {
+      console.error('[SHIFT-CALC] ❌ Error:', err);
+      this.showToast('Gagal menyimpan: ' + (err.message || err), 'error');
+    }
+  },
+
  showToast(message, type = 'success') {
     this.toast.message = message;
     this.toast.type = type;
