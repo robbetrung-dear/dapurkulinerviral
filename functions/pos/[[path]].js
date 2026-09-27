@@ -92,21 +92,68 @@ export async function onRequest(context) {
       });
     }
 
-    // 4. GET /pos/transactions — Daftar SEMUA transaksi (untuk laporan bulanan/analitik)
+        // 3b. GET /pos/audit_logs — Log audit keamanan (dari PIN Supervisor)
+    if (method === 'GET' && parts[0] === 'audit_logs') {
+      const limit = Number(url.searchParams.get('limit')) || 100;
+      const res = await fetch(`${dbUrl}/audit_logs.json${authParam}`);
+      const data = await res.json() || {};
+
+      const list = (data && typeof data === 'object')
+        ? Object.entries(data)
+            .map(([id, v]) => ({ id, ...(v || {}) }))
+            .sort((a, b) => (b.at || b.timestamp || 0) - (a.at || a.timestamp || 0))
+            .slice(0, limit)
+        : [];
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        data: list,
+        total: data ? Object.keys(data).length : 0,
+        limit
+      }), {
+        headers: { ...cors, "Content-Type": "application/json" }
+      });
+    }
+
+    // 4. GET /pos/transactions — Daftar transaksi (dengan filter opsional)
+    //    Query params:
+    //      ?start=YYYY-MM-DD&end=YYYY-MM-DD  → filter range tanggal
+    //      ?month=YYYY-MM                       → filter 1 bulan penuh
+    //      (tanpa param)                        → semua transaksi
     if (method === 'GET' && parts[0] === 'transactions' && parts.length === 1) {
+      const startParam = url.searchParams.get('start');
+      const endParam = url.searchParams.get('end');
+      const monthParam = url.searchParams.get('month');
+
       const res = await fetch(`${dbUrl}/pos/transactions.json${authParam}`);
       const data = await res.json() || {};
+
       const allTx = [];
-      if (typeof data === 'object') {
+      if (data && typeof data === 'object') {
         Object.entries(data).forEach(([dateKey, dayData]) => {
-          if (dayData && typeof dayData === 'object') {
-            Object.entries(dayData).forEach(([txId, tx]) => {
-              allTx.push({ id: txId, date: dateKey, ...(tx || {}) });
-            });
-          }
+          if (!dayData || typeof dayData !== 'object') return;
+
+          // ✅ FILTER: skip tanggal di luar range
+          if (startParam && dateKey < startParam) return;
+          if (endParam && dateKey > endParam) return;
+          if (monthParam && !dateKey.startsWith(monthParam)) return;
+
+          Object.entries(dayData).forEach(([txId, tx]) => {
+            allTx.push({ id: txId, date: dateKey, ...(tx || {}) });
+          });
         });
       }
-      return new Response(JSON.stringify({ success: true, data: allTx }), {
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        data: allTx,
+        filter: {
+          start: startParam || null,
+          end: endParam || null,
+          month: monthParam || null,
+          count: allTx.length
+        }
+      }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
