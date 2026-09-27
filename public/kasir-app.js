@@ -6454,7 +6454,7 @@ try {
       const bulan = new Date().toISOString().slice(0, 7); // YYYY-MM
 
       // ============================================================
-      // 1. Fetch COA list (kode + nama akun)
+      // 1. Fetch COA list (kode + nama akun) via proxy
       // ============================================================
       const res = await fetch('/accounting/coa');
       if (!res.ok) { this.coaListBackendLoading = false; return; }
@@ -6465,7 +6465,6 @@ try {
       if (Array.isArray(json.data)) {
         list = json.data;
       } else {
-        // ✅ FIX 1a: Preserve 'saldo' kalau backend sudah kirim
         list = Object.entries(json.data).map(([code, v]) => ({
           code,
           name: v.n || v.name || code,
@@ -6477,99 +6476,99 @@ try {
       }
 
       // ============================================================
-      // 2. Fetch TRIAL BALANCE (sumber saldo per akun yang benar)
-      //    Coba 3 endpoint berurutan sampai ada yang berhasil
+      // 2. ✅ FIX: Baca ledger LANGSUNG dari Firebase REST API
+      //    Bypass Cloudflare Functions (route mismatch)
       // ============================================================
-      let saldoMap = {};
-      const tryEndpoints = [
-        `/accounting/trial/${bulan}`,      // trial balance per periode
-        `/accounting/ledger/${bulan}`,     // ledger aggregated
-        `/accounting/balances/${bulan}`    // fallback baru
-      ];
+      const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-      for (const url of tryEndpoints) {
-        if (Object.keys(saldoMap).length > 0) break;
-        try {
-          const r = await fetch(url);
-          if (!r.ok) continue;
-          const rj = await r.json();
-          if (!rj.success || !rj.data) continue;
+      const saldoMap = {};
+      try {
+        const ledgerRes = await fetch(`${fbUrl.replace(/\/$/, '')}/accounting/ledger/${bulan}.json`);
+        if (ledgerRes.ok) {
+          const ledgerData = await ledgerRes.json();
+          console.log('[KASIR-COA] Ledger raw:', ledgerData);
 
-          // Handle berbagai format response
-          if (!Array.isArray(rj.data) && typeof rj.data === 'object') {
-            // Format A: { '1001': {saldo: X} } atau { '1001': X }
-            Object.entries(rj.data).forEach(([code, val]) => {
-              const num = (typeof val === 'object' && val !== null)
-                ? Number(val.saldo ?? val.balance ?? val.b ?? 0)
-                : Number(val) || 0;
-              saldoMap[String(code)] = num;
-            });
-          } else if (Array.isArray(rj.data)) {
-            // Format B: [{code, saldo}, ...] atau [{acc, debit, credit}, ...]
-            rj.data.forEach(entry => {
-              const code = String(entry.code || entry.acc || entry.account || '').trim();
-              if (!code) return;
-              if (entry.saldo !== undefined) {
-                saldoMap[code] = Number(entry.saldo) || 0;
+          if (ledgerData && typeof ledgerData === 'object') {
+            // Normalize kode akun 3-digit → 4-digit (defensive)
+            const normalizeCode = (c) => {
+              const s = String(c || '').trim();
+              if (s.length === 3) return s + '0'; // '101' → '1010'? No — pakai mapping
+              return s;
+            };
+            // Mapping manual untuk kode 3-digit legacy
+            const legacyMap = {
+              '101': '1001', '102': '1002', '103': '1003',
+              '105': '1004', '111': '1005',
+              '201': '2001', '301': '3001', '302': '3002',
+              '401': '4001', '402': '4002', '501': '5001',
+              '601': '6001', '602': '6002', '603': '6003',
+              '604': '6004', '605': '6005', '606': '6006'
+            };
+
+            Object.entries(ledgerData).forEach(([code, v]) => {
+              if (!v || typeof v !== 'object') return;
+              const canonCode = legacyMap[String(code)] || String(code);
+
+              // Hitung saldo dari fields yang tersedia
+              let saldo = 0;
+              if (v.saldo !== undefined) {
+                saldo = Number(v.saldo) || 0;
+              } else if (v.balance !== undefined) {
+                saldo = Number(v.balance) || 0;
               } else {
-                // Compute dari debit-credit
-                const d = Number(entry.debit) || 0;
-                const c = Number(entry.credit) || 0;
-                saldoMap[code] = (saldoMap[code] || 0) + (d - c);
+                const d = Number(v.debit || v.d || 0);
+                const c = Number(v.credit || v.c || 0);
+                saldo = d - c;
               }
+              saldoMap[canonCode] = saldo;
             });
           }
-          console.log(`[KASIR-COA] ✅ Balance loaded from ${url}:`, Object.keys(saldoMap).length, 'accounts');
-        } catch (e) {
-          console.warn(`[KASIR-COA] Endpoint ${url} failed:`, e.message);
+          console.log(`[KASIR-COA] ✅ Ledger loaded from Firebase: ${Object.keys(saldoMap).length} accounts`);
+          console.log('[KASIR-COA] Ledger saldo:', saldoMap);
+        } else {
+          console.warn('[KASIR-COA] ⚠️ Ledger Firebase fetch failed:', ledgerRes.status);
         }
+      } catch (e) {
+        console.warn('[KASIR-COA] Firebase ledger error:', e.message);
       }
 
       // ============================================================
-      // 3. Fallback terakhir: pakai fields dari accountingSummaryData
-      //    (HANYA field yang benar-benar ada di response /summary)
+      // 3. Fallback: pakai accountingSummaryData jika ledger kosong
       // ============================================================
       if (Object.keys(saldoMap).length === 0) {
-        console.warn('[KASIR-COA] ⚠️ Semua endpoint balance gagal, pakai fallback summary');
+        console.warn('[KASIR-COA] ⚠️ Fallback ke summary');
         const s = this.accountingSummaryData || {};
-        saldoMap = {
-          '1004': Number(s.persediaanAkhir) || 0,
-          '1001': Number(s.saldoKas) || 0,
-          '1002': Number(s.saldoBank) || 0,
-          '4001': Number(s.pendapatan?.totalPendapatan) || 0,
-          '5001': Number(s.hpp?.totalHpp) || 0,
-          '6001': Number(s.beban?.gaji) || 0,
-          '6002': Number(s.beban?.sewa) || 0,
-          '6003': Number(s.beban?.utilitas) || 0
-        };
+        saldoMap['1001'] = Number(s.saldoKas) || 0;
+        saldoMap['1002'] = Number(s.saldoBank) || 0;
+        saldoMap['1004'] = Number(s.persediaanAkhir) || 0;
+        saldoMap['4001'] = Number(s.pendapatan?.totalPendapatan) || 0;
+        saldoMap['5001'] = Number(s.hpp?.totalHpp) || 0;
+        saldoMap['6001'] = Number(s.beban?.gaji) || 0;
+        saldoMap['6002'] = Number(s.beban?.sewa) || 0;
+        saldoMap['6003'] = Number(s.beban?.utilitas) || 0;
       }
 
       // ============================================================
-      // 4. Merge saldo ke dalam list COA
-      //    ✅ FIX 1a: prioritaskan saldo dari backend, override dengan saldoMap kalau null
+      // 4. Merge saldo ke COA list
       // ============================================================
       list.forEach(item => {
         const code = String(item.code || '').trim();
-        // Prioritas: (1) saldo dari backend COA, (2) saldoMap trial, (3) 0
-        if (item.saldo === null || item.saldo === undefined || item.saldo === 0) {
-          if (saldoMap[code] !== undefined) {
-            item.saldo = saldoMap[code];
-          } else if (item.saldo === null || item.saldo === undefined) {
-            item.saldo = 0;
-          }
+        if (item.saldo === null || item.saldo === undefined || Number(item.saldo) === 0) {
+          if (saldoMap[code] !== undefined) item.saldo = saldoMap[code];
+          else if (item.saldo === null || item.saldo === undefined) item.saldo = 0;
         }
       });
 
       list.sort((a, b) => String(a.code).localeCompare(String(b.code)));
       this.coaListBackend = list;
 
-      console.log(`[KASIR-COA] ✅ Loaded ${list.length} accounts`);
-      console.log('[KASIR-COA] Sample 3:', list.slice(0, 3));
-      console.log('[KASIR-COA] With non-zero saldo:',
-        list.filter(x => Number(x.saldo) > 0).map(x => `${x.code}: Rp ${x.saldo}`));
+      console.log(`[KASIR-COA] ✅ Final: ${list.length} accounts`);
+      console.log('[KASIR-COA] Non-zero:', list.filter(x => Number(x.saldo) > 0)
+        .map(x => `${x.code}: Rp ${x.saldo}`));
 
     } catch (err) {
-      console.error('[KASIR-COA] ❌ Fetch error:', err);
+      console.error('[KASIR-COA] ❌ Error:', err);
     } finally {
       this.coaListBackendLoading = false;
     }
