@@ -2913,6 +2913,7 @@
   </div>
 
   <!-- MODAL C: MODAL QRIS DINAMIS -->
+    <!-- MODAL C: MODAL QRIS (DINAMIS + STATIS) -->
   <div 
     x-cloak 
     x-show="qrisModal" 
@@ -2928,16 +2929,95 @@
         <i class="fa-solid fa-xmark text-sm"></i>
       </button>
 
+      <!-- Header Dinamis -->
       <div>
-              <div>
-        <span class="text-[11px] font-bold text-sky-700 uppercase tracking-wider">
-          <i class="fa-solid fa-qrcode mr-1"></i>Scan QRIS
+        <span class="text-[11px] font-bold uppercase tracking-wider inline-flex items-center gap-1"
+              :class="qrisDisplayMode === 'dynamic' ? 'text-sky-700' : 'text-emerald-700'">
+          <i class="fa-solid" 
+             :class="qrisDisplayMode === 'dynamic' ? 'fa-bolt' : 'fa-qrcode'"></i>
+          <span x-text="qrisDisplayMode === 'dynamic' ? 'QRIS DINAMIS (Real-time)' : 'QRIS STATIS (Merchant)'"></span>
         </span>
         <h3 class="text-2xl font-black text-stone-900 font-mono mt-1" 
             x-text="formatRupiah(getCartGrandTotal())"></h3>
         <p class="text-xs text-stone-500 mt-1" 
            x-text="paymentConfig.qrisMerchantName || 'Dapur Kuliner Viral'"></p>
       </div>
+
+      <!-- Barcode Area -->
+      <div class="w-64 h-64 mx-auto bg-white rounded-2xl p-3 border-2 flex items-center justify-center shadow-md transition-colors"
+           :class="qrisDisplayMode === 'dynamic' ? 'border-sky-300' : 'border-emerald-300'">
+        
+        <!-- QRIS DINAMIS -->
+        <template x-if="qrisDisplayMode === 'dynamic'">
+          <div class="w-full h-full flex items-center justify-center">
+            <template x-if="qrisQrUrl">
+              <img :src="qrisQrUrl" alt="QRIS Dinamis" class="w-full h-full object-contain" />
+            </template>
+            <template x-if="!qrisQrUrl">
+              <div class="text-center text-stone-400 text-xs">
+                <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-2 text-sky-600"></i>
+                <p>Generate QRIS...</p>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- QRIS STATIS -->
+        <template x-if="qrisDisplayMode === 'static'">
+          <div class="w-full h-full flex items-center justify-center">
+            <template x-if="paymentConfig.qrisImage">
+              <img :src="paymentConfig.qrisImage" alt="QRIS Statis" class="w-full h-full object-contain" />
+            </template>
+            <template x-if="!paymentConfig.qrisImage">
+              <div class="text-center text-stone-400 text-xs">
+                <i class="fa-solid fa-qrcode text-4xl mb-2"></i>
+                <p>QRIS statis belum di-set</p>
+                <p class="text-[10px]">Setup di Admin Panel → Pembayaran & QRIS</p>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- Instruksi Dinamis -->
+      <div class="p-3 rounded-xl border text-[11px] flex items-start gap-2 text-left"
+           :class="qrisDisplayMode === 'dynamic' ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'">
+        <i class="fa-solid fa-circle-info mt-0.5 flex-shrink-0"
+           :class="qrisDisplayMode === 'dynamic' ? 'text-sky-600' : 'text-emerald-600'"></i>
+        <span x-text="qrisDisplayMode === 'dynamic' 
+          ? 'QRIS Dinamis — Minta pelanggan scan dan bayar nominal sesuai. Sistem akan verifikasi otomatis.' 
+          : (paymentConfig.qrisInstructions || 'Buka aplikasi BCA Mobile / GoPay / OVO / DANA / ShopeePay, scan QRIS, dan lakukan pembayaran sesuai nominal.')"></span>
+      </div>
+
+      <!-- TOMBOL 1: Verifikasi Pembayaran -->
+      <button 
+        type="button" 
+        @click="completeQrisPayment()"
+        class="w-full min-h-[52px] rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+        :class="qrisDisplayMode === 'dynamic' 
+          ? 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20' 
+          : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'">
+        <i class="fa-solid fa-check-double"></i>
+        <span>Pelanggan Sudah Selesai Bayar</span>
+      </button>
+
+      <!-- TOMBOL 2: Switch Mode -->
+      <button 
+        type="button" 
+        @click="qrisDisplayMode = qrisDisplayMode === 'dynamic' ? 'static' : 'dynamic'"
+        class="w-full min-h-[44px] rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+        :class="qrisDisplayMode === 'dynamic' 
+          ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800' 
+          : 'border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800'">
+        <i class="fa-solid" 
+           :class="qrisDisplayMode === 'dynamic' ? 'fa-qrcode' : 'fa-bolt'"></i>
+        <span x-text="qrisDisplayMode === 'dynamic' 
+          ? 'Beralih ke Scan QRIS Statis' 
+          : 'Kembali ke QRIS Dinamis'"></span>
+      </button>
+
+    </div>
+  </div>
 
       <!-- Tampilan QR Code STATIS dari Admin Panel -->
       <div class="w-64 h-64 mx-auto bg-white rounded-2xl p-3 border-2 border-sky-300 flex items-center justify-center shadow-md">
