@@ -2136,6 +2136,63 @@
       <!-- TAB 5: LAPORAN                                                      -->
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <section x-show="activeTab === 'laporan'" x-cloak class="space-y-6">
+                <!-- 📊 Period Selector Bar -->
+        <div class="bg-white rounded-3xl p-4 border border-stone-200 shadow-xs">
+          <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-calendar-days text-brand-600"></i>
+              <span class="text-xs font-bold text-stone-700 uppercase tracking-wider">Periode Laporan:</span>
+            </div>
+
+            <!-- Pill Buttons -->
+            <div class="flex items-center gap-1.5 p-1 bg-stone-100 rounded-2xl overflow-x-auto no-scrollbar w-full lg:w-auto">
+              <button
+                type="button"
+                @click="reportPeriod = 'today'; onReportPeriodChange()"
+                :class="reportPeriod === 'today' ? 'bg-white text-brand-700 shadow-xs font-black' : 'text-stone-600 hover:text-stone-900 font-bold'"
+                class="min-h-[38px] px-3.5 rounded-xl text-xs transition cursor-pointer whitespace-nowrap flex-shrink-0">
+                <i class="fa-solid fa-calendar-day mr-1"></i> Hari Ini
+              </button>
+              <button
+                type="button"
+                @click="reportPeriod = 'week'; onReportPeriodChange()"
+                :class="reportPeriod === 'week' ? 'bg-white text-brand-700 shadow-xs font-black' : 'text-stone-600 hover:text-stone-900 font-bold'"
+                class="min-h-[38px] px-3.5 rounded-xl text-xs transition cursor-pointer whitespace-nowrap flex-shrink-0">
+                <i class="fa-solid fa-calendar-week mr-1"></i> Minggu Ini
+              </button>
+              <button
+                type="button"
+                @click="reportPeriod = 'month'; onReportPeriodChange()"
+                :class="reportPeriod === 'month' ? 'bg-white text-brand-700 shadow-xs font-black' : 'text-stone-600 hover:text-stone-900 font-bold'"
+                class="min-h-[38px] px-3.5 rounded-xl text-xs transition cursor-pointer whitespace-nowrap flex-shrink-0">
+                <i class="fa-solid fa-calendar-days mr-1"></i> Bulan Ini
+              </button>
+              <button
+                type="button"
+                @click="reportPeriod = 'custom'; onReportPeriodChange()"
+                :class="reportPeriod === 'custom' ? 'bg-white text-brand-700 shadow-xs font-black' : 'text-stone-600 hover:text-stone-900 font-bold'"
+                class="min-h-[38px] px-3.5 rounded-xl text-xs transition cursor-pointer whitespace-nowrap flex-shrink-0">
+                <i class="fa-solid fa-sliders mr-1"></i> Custom
+              </button>
+            </div>
+
+            <!-- Custom Date Range (muncul hanya kalau custom) -->
+            <div x-show="reportPeriod === 'custom'" x-transition class="flex items-center gap-2 w-full lg:w-auto">
+              <input
+                type="date"
+                x-model="reportStartDate"
+                @change="onReportPeriodChange()"
+                class="min-h-[38px] px-3 rounded-xl border border-stone-300 text-xs font-mono bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+              <span class="text-xs text-stone-400 font-bold">s/d</span>
+              <input
+                type="date"
+                x-model="reportEndDate"
+                @change="onReportPeriodChange()"
+                class="min-h-[38px] px-3 rounded-xl border border-stone-300 text-xs font-mono bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
         
         <!-- Header Laporan + Export Buttons -->
         <div class="bg-white rounded-3xl p-6 border border-stone-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -2165,7 +2222,9 @@
         <!-- Card: Penjualan Hari Ini (Rp Besar) -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="bg-gradient-to-br from-emerald-600 to-emerald-800 text-white rounded-3xl p-6 shadow-md md:col-span-2">
-            <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-200">Total Penjualan Hari Ini</span>
+            <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-200">
+            Total Penjualan <span x-text="getReportPeriodLabel()"></span>
+          </span>
             <h2 class="text-3xl sm:text-4xl font-black font-mono tracking-tight mt-2" x-text="formatRupiah(todayTotalRevenue)"></h2>
             <p class="text-xs text-emerald-100 mt-2 flex items-center gap-1.5">
       <i class="fa-solid fa-arrow-trend-up"></i>
