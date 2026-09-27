@@ -2699,7 +2699,32 @@
                   </template>
 
                   <!-- Info Approval jika sudah disetujui / ditolak -->
-                  <template x-if="item.status !== 'pending'">
+                  <template x-if="item.status === 'approved'">
+  <div class="text-[11px] text-emerald-700 pt-2 border-t border-emerald-100 flex items-center justify-between">
+    <span>
+      <i class="fa-solid fa-circle-check mr-1"></i>
+      Disetujui oleh: <strong x-text="item.approvedBy || 'Finance'"></strong>
+    </span>
+    <span class="font-mono text-stone-400" x-text="item.approvedAt ? new Date(item.approvedAt).toLocaleString('id-ID') : ''"></span>
+  </div>
+</template>
+
+<template x-if="item.status === 'rejected'">
+  <div class="text-[11px] text-red-700 pt-2 border-t border-red-100 flex items-center justify-between">
+    <span>
+      <i class="fa-solid fa-circle-xmark mr-1"></i>
+      Ditolak: <em x-text="item.rejectedReason || '-'"></em>
+    </span>
+    <span class="font-mono text-stone-400" x-text="item.rejectedAt ? new Date(item.rejectedAt).toLocaleString('id-ID') : ''"></span>
+  </div>
+</template>
+
+<template x-if="item.status !== 'approved' && item.status !== 'rejected' && item.status !== 'pending'">
+  <div class="text-[11px] text-stone-500 pt-2 border-t border-stone-100">
+    <i class="fa-solid fa-circle-info mr-1"></i>
+    Status: <strong x-text="item.status"></strong>
+  </div>
+</template>
                     <div class="text-[11px] text-stone-500 pt-2 border-t border-stone-100 flex items-center justify-between">
                       <span x-text="item.status === 'approved' ? 'Disetujui oleh: ' + (item.approvedBy || 'Finance') : 'Ditolak: ' + (item.rejectedReason || '-')"></span>
                       <span class="font-mono text-stone-400" x-text="item.approvedAt || item.rejectedAt"></span>
