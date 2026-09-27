@@ -2168,17 +2168,19 @@
             <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-200">Total Penjualan Hari Ini</span>
             <h2 class="text-3xl sm:text-4xl font-black font-mono tracking-tight mt-2" x-text="formatRupiah(todayTotalRevenue)"></h2>
             <p class="text-xs text-emerald-100 mt-2 flex items-center gap-1.5">
-              <i class="fa-solid fa-arrow-trend-up"></i>
-              <span>Mencakup 42 transaksi berhasil per hari ini</span>
-            </p>
-          </div>
+      <i class="fa-solid fa-arrow-trend-up"></i>
+      <span>Mencakup <strong x-text="laporanHariIni?.totalTx || 0"></strong> transaksi berhasil per hari ini</span>
+    </p>
+  </div>
 
-          <div class="bg-white rounded-3xl p-6 border border-stone-200 shadow-xs flex flex-col justify-between">
-            <span class="text-xs font-bold uppercase text-stone-400">Rata-Rata Transaksi (AOV)</span>
-            <p class="text-2xl font-black font-mono text-stone-900 mt-2" x-text="formatRupiah(58330)"></p>
-            <p class="text-[11px] text-stone-400 mt-2">Metode terpopuler: QRIS (52%)</p>
-          </div>
-        </div>
+  <div class="bg-white rounded-3xl p-6 border border-stone-200 shadow-xs flex flex-col justify-between">
+    <span class="text-xs font-bold uppercase text-stone-400">Rata-Rata Transaksi (AOV)</span>
+    <p class="text-2xl font-black font-mono text-stone-900 mt-2" x-text="formatRupiah(getAOV())"></p>
+    <p class="text-[11px] text-stone-400 mt-2">
+      Metode terpopuler: <strong class="text-stone-700" x-text="getTopPaymentMethod()"></strong>
+    </p>
+  </div>
+  </div>
 
         <!-- 2 Canvas Chart.js: Top 10 Menu Terlaris + Penjualan Per Jam -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
