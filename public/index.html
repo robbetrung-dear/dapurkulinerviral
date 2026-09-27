@@ -2855,7 +2855,13 @@
                     </div>
                     <div class="sm:col-span-2">
                       <label class="block text-xs font-bold text-stone-700 mb-1">Daftar Isi Paket (pisahkan dengan koma)</label>
-                      <textarea :value="pkg.items.join(', ')" @input="pkg.items = $event.target.value.split(',').map(s=>s.trim()).filter(Boolean)" rows="2" class="w-full p-2 border border-stone-300 rounded text-xs"></textarea>
+                      <textarea
+  :value="pkg.items.join(', ')"
+  @change="pkg.items = $event.target.value.split(',').map(s=>s.trim()).filter(Boolean)"
+  @keydown.enter.shift.prevent="null"
+  rows="2"
+  placeholder="Pisahkan dengan koma. Contoh: Nasi Putih, Chicken Katsu, Air Mineral"
+  class="w-full p-2 border border-stone-300 rounded text-xs leading-relaxed focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
                     </div>
                   </div>
                 </div>
@@ -4026,12 +4032,7 @@ git push -u origin main</pre>
 
       <!-- Modal Footer -->
       <div class="p-4 sm:p-6 border-t border-stone-200 bg-stone-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <button 
-          type="button" 
-          @click="resetSiteConfig()" 
-          class="text-xs text-stone-500 hover:text-red-600 font-semibold underline">
-          Kembalikan Pengaturan ke Default Pabrik
-        </button>
+        
 
         <div class="flex items-center gap-3 w-full sm:w-auto">
           <button 
