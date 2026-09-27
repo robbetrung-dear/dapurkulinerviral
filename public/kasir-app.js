@@ -394,6 +394,20 @@ window.kasirApp = () => ({
   approvalFilter: 'all',  // all | pending | approved | rejected
   approvalSearch: '',
 
+  // State Payment Config dari Admin Panel (/site_config/paymentConfig)
+  paymentConfig: {
+    bankName: 'BCA',
+    bankAccountNumber: '-',
+    bankAccountHolder: '-',
+    bankInstructions: 'Transfer sesuai nominal, konfirmasi ke WhatsApp admin.',
+    qrisImage: '',
+    qrisInstructions: 'Scan QRIS dan bayar sesuai nominal.',
+    qrisMerchantName: 'Dapur Kuliner Viral',
+    qrisType: 'both',
+    ewalletPhone: '',
+    ewalletInstructions: ''
+  },
+ 
   // State accounting summary (P&L Ledger Realtime)
   accountingSummaryData: null,  // hasil fetch terakhir
   accountingSummaryLoading: false,
@@ -531,7 +545,7 @@ window.kasirApp = () => ({
 
     // 4. Inisialisasi Koneksi Firebase Realtime Database
     await this.initFirebaseSDK();
-    // Load custom kasir title dari Firebase site_config
+// Load custom kasir title & payment config dari Firebase site_config
 try {
   if (this._fbRef && this._fbDb) {
     const configRef = this._fbRef(this._fbDb, 'site_config');
@@ -541,6 +555,15 @@ try {
         if (val.kasirTitle) this.customKasirTitle = val.kasirTitle;
         if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
         console.log('[KASIR] Custom title loaded:', val.kasirTitle);
+
+        // ✅ Sync payment config (bank, QRIS, ewallet)
+        if (val.paymentConfig) {
+          this.paymentConfig = {
+            ...this.paymentConfig,
+            ...val.paymentConfig
+          };
+          console.log('[KASIR] Payment config loaded:', this.paymentConfig.bankName);
+        }
       }
     });
   }
