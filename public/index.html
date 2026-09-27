@@ -6357,22 +6357,22 @@ git push -u origin main</pre>
             y += 5;
 
             // === DAFTAR ITEMS (nama menu wrap, bukan truncate) ===
-            (order.items || []).forEach(item => {
+              (order.items || []).forEach(item => {
               const itemName = String(item.name || 'Menu');
               const itemTotal = (item.price || 0) * (item.quantity || 1);
+              const qty = item.quantity || 1;
 
-              // Nama menu wrap max 58mm (sisakan ruang untuk harga di kanan)
+              // Nama menu wrap max 50mm (sisakan ruang untuk harga di kanan)
               doc.setFont("courier", "bold");
-              const nameLines = doc.splitTextToSize(itemName, 58);
+              const nameLines = doc.splitTextToSize(itemName, 50);
 
               nameLines.forEach((line, idx) => {
+                doc.text(line, 5, y);
+
+                // Baris terakhir nama menu → harga lengkap qty + total di kanan
                 if (idx === nameLines.length - 1) {
-                  // Baris terakhir nama menu → tambahkan qty & harga di kanan
-                  doc.text(line, 5, y);
-                  doc.text(`x${item.quantity || 1}`, 60, y, { align: 'left' });
-                  doc.text(`Rp${itemTotal.toLocaleString('id-ID')}`, 75, y, { align: "right" });
-                } else {
-                  doc.text(line, 5, y);
+                  const priceText = `${qty}x = Rp${itemTotal.toLocaleString('id-ID')}`;
+                  doc.text(priceText, 75, y, { align: "right" });
                 }
                 y += 4;
               });
