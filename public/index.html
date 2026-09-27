@@ -5042,22 +5042,41 @@ git push -u origin main</pre>
             const val = snapshot.val();
             if (val && typeof val === 'object') {
               // ✅ FIX: Inject Firebase key sebagai 'id' kalau missing
-              let arr;
+              let rawArr;
               if (Array.isArray(val)) {
-                arr = val;
-              } else {
-                arr = Object.entries(val).map(([key, item]) => {
+                rawArr = val.map((item, idx) => {
                   if (!item || typeof item !== 'object') return null;
-                  return {
-                    ...item,
-                    id: item.id || key   // ← INJECT
-                  };
+                  return { ...item, id: item.id || ('auto_' + idx) };
+                }).filter(Boolean);
+              } else {
+                rawArr = Object.entries(val).map(([key, item]) => {
+                  if (!item || typeof item !== 'object') return null;
+                  return { ...item, id: item.id || key };
                 }).filter(Boolean);
               }
-              // Extra defensive: pastikan semua item punya id
-              arr.forEach((m, i) => {
-                if (!m.id) m.id = 'menu_auto_' + i + '_' + Date.now();
+
+              // ✅ DEDUPE: pastikan semua ID unique (avoid Alpine x-for crash)
+              const seen = new Set();
+              const dupes = [];
+              const arr = rawArr.map((item, idx) => {
+                let uid = item.id || ('auto_' + idx);
+                if (seen.has(uid)) {
+                  // Rename duplicate dengan suffix biar tetap tampil
+                  let suffix = 2;
+                  while (seen.has(uid + '___dup' + suffix)) suffix++;
+                  dupes.push(uid);
+                  uid = uid + '___dup' + suffix;
+                  item.id = uid;
+                }
+                seen.add(uid);
+                return item;
               });
+
+              if (dupes.length > 0) {
+                console.warn('[FB-MENU] ⚠️ Duplicate IDs found & renamed:', [...new Set(dupes)]);
+                console.warn(`[FB-MENU] Total duplicates: ${dupes.length} of ${rawArr.length}`);
+              }
+
               callback(arr);
             } else {
               callback([]); // Explicit empty (bukan undefined)
@@ -5789,16 +5808,7 @@ git push -u origin main</pre>
                   }
                 });
               }
-          // 🔍 DEBUG: Log menu items saat admin login
-          if (this.$watch) {
-            this.$watch('isAdminPanelOpen', (open) => {
-              if (open) {
-                console.log('[ADMIN-MENU-DEBUG] Total:', this.menuItems.length);
-                console.log('[ADMIN-MENU-DEBUG] First 3:', this.menuItems.slice(0, 3));
-                console.log('[ADMIN-MENU-DEBUG] Sample IDs:', this.menuItems.slice(0, 5).map(m => m.id || '(NO ID)'));
-              }
-            });
-          }
+          
               if (window.FirebaseBridge && window.FirebaseBridge.listenCategories) {
                 window.FirebaseBridge.listenCategories((liveCats) => {
                   if (liveCats && Array.isArray(liveCats) && liveCats.length > 0) {
@@ -5920,8 +5930,10 @@ git push -u origin main</pre>
           return { total, kasir, visible, hidden };
         },
 
-        get filteredAdminMenuList() {
-          let list = this.menuItems;
+          get filteredAdminMenuList() {
+          // ✅ FIX: Defensive — selalu array, hindari crash Alpine
+          let list = Array.isArray(this.menuItems) ? [...this.menuItems] : [];
+          if (list.length === 0) return list;
           if (this.adminMenuSourceFilter === 'kasir') {
             list = list.filter(m => m.fromKasir || (m.id && String(m.id).startsWith('m_')));
           } else if (this.adminMenuSourceFilter === 'visible') {
