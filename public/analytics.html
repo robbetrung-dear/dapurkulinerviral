@@ -566,7 +566,7 @@
             } else {
               this.menuItems = [];
             }
-            console.log('[ANALYTICS] Menu items: ' + this.menuItems.length);
+            console.log('ANALYTICS Menu items:', this.menuItems.length);
 
             // 2. Orders
             var ordersRes = await fetch(FB_URL + '/orders.json');
@@ -583,7 +583,7 @@
             } else {
               this.orders = [];
             }
-            console.log('[ANALYTICS] Orders: ' + this.orders.length);
+            console.log('ANALYTICS Orders:', this.orders.length);
 
             // 3. POS transactions bulan ini
             var now = new Date();
@@ -611,7 +611,7 @@
             }));
 
             this.posTransactions = txResults.flat();
-            console.log('[ANALYTICS] POS transactions this month: ' + this.posTransactions.length);
+            console.log('ANALYTICS POS transactions this month:', this.posTransactions.length);
 
                         // 3b. Load Audit Logs (dari PIN Supervisor actions)
             try {
@@ -626,7 +626,8 @@
               console.warn('[ANALYTICS] Audit logs fetch failed:', auditErr);
               this.auditLogs = [];
             }
-            console.log('[ANALYTICS] Audit logs: ' + this.auditLogs.length);
+            
+            console.log('ANALYTICS Audit logs:', this.auditLogs.length);
 
             // 4. Build transactionLogs
             this.transactionLogs = this.posTransactions.slice(-10).reverse().map(function(tx) {
