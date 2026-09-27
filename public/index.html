@@ -3815,6 +3815,95 @@ git push -u origin main</pre>
             </button>
           </form>
 
+                    <!-- =============================================================== -->
+          <!-- 🔒 CARD: SUPERVISOR PIN (Aksi Destruktif Kasir POS)              -->
+          <!-- =============================================================== -->
+          <div class="bg-red-50 p-4 rounded-2xl border-2 border-red-200 space-y-4">
+            <div class="flex items-center gap-2 pb-3 border-b border-red-200">
+              <div class="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center text-lg shadow-xs flex-shrink-0">
+                <i class="fa-solid fa-shield-halved"></i>
+              </div>
+              <div class="min-w-0">
+                <h4 class="font-extrabold text-stone-900 text-sm">Supervisor PIN (Khusus Aksi Destruktif)</h4>
+                <p class="text-[11px] text-stone-500 leading-snug">PIN 6-digit untuk otorisasi aksi berbahaya di Kasir POS: hapus item inventory, edit stok manual, edit harga beli, tutup shift, dll.</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">PIN Baru (6 digit angka)</label>
+                <input
+                  type="password"
+                  inputmode="numeric"
+                  maxlength="6"
+                  autocomplete="new-password"
+                  x-model="supervisorPinNew"
+                  @input="supervisorPinNew = String(supervisorPinNew||'').replace(/\D/g,'').slice(0,6); supervisorPinMsg = '';"
+                  placeholder="••••••"
+                  class="w-full h-12 px-3 rounded-xl border-2 border-stone-300 text-center text-xl font-mono tracking-[0.5em] bg-white focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 transition" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Konfirmasi PIN Baru</label>
+                <input
+                  type="password"
+                  inputmode="numeric"
+                  maxlength="6"
+                  autocomplete="new-password"
+                  x-model="supervisorPinConfirm"
+                  @input="supervisorPinConfirm = String(supervisorPinConfirm||'').replace(/\D/g,'').slice(0,6); supervisorPinMsg = '';"
+                  placeholder="••••••"
+                  class="w-full h-12 px-3 rounded-xl border-2 border-stone-300 text-center text-xl font-mono tracking-[0.5em] bg-white focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 transition" />
+              </div>
+            </div>
+
+            <!-- Status Validasi Live -->
+            <div class="p-3 bg-white rounded-xl border border-red-100 space-y-1.5 text-[11px]">
+              <span class="font-bold text-stone-700 block text-[10px] uppercase">Status Validasi:</span>
+              <div class="flex items-center gap-1.5" :class="/^\d{6}$/.test(supervisorPinNew) ? 'text-emerald-600 font-semibold' : 'text-stone-400'">
+                <i :class="/^\d{6}$/.test(supervisorPinNew) ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'"></i>
+                <span>PIN harus 6 digit angka</span>
+              </div>
+              <div class="flex items-center gap-1.5" :class="supervisorPinNew.length === 6 && supervisorPinNew === supervisorPinConfirm ? 'text-emerald-600 font-semibold' : 'text-stone-400'">
+                <i :class="supervisorPinNew.length === 6 && supervisorPinNew === supervisorPinConfirm ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'"></i>
+                <span>PIN & konfirmasi harus cocok</span>
+              </div>
+              <div class="flex items-center gap-1.5" :class="supervisorPinNew.length === 6 && supervisorPinNew !== String(siteConfig.supervisorPin || '') ? 'text-emerald-600 font-semibold' : 'text-stone-400'">
+                <i :class="supervisorPinNew.length === 6 && supervisorPinNew !== String(siteConfig.supervisorPin || '') ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'"></i>
+                <span>PIN baru harus beda dari PIN saat ini</span>
+              </div>
+            </div>
+
+            <!-- Pesan Hasil -->
+            <p x-show="supervisorPinMsg"
+               x-text="supervisorPinMsg"
+               :class="supervisorPinMsgOk ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-red-700 bg-red-50 border-red-200'"
+               class="text-[11px] font-bold p-2.5 rounded-xl border"></p>
+
+            <!-- Tombol Simpan -->
+            <div class="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                @click="supervisorPinNew = ''; supervisorPinConfirm = ''; supervisorPinMsg = '';"
+                class="px-4 py-2 rounded-xl border border-stone-300 text-stone-600 hover:bg-stone-100 font-bold text-xs transition cursor-pointer">
+                Reset Form
+              </button>
+              <button
+                type="button"
+                @click="saveSupervisorPin()"
+                :disabled="!/^\d{6}$/.test(supervisorPinNew) || supervisorPinNew !== supervisorPinConfirm || supervisorPinNew === String(siteConfig.supervisorPin || '')"
+                :class="(!/^\d{6}$/.test(supervisorPinNew) || supervisorPinNew !== supervisorPinConfirm || supervisorPinNew === String(siteConfig.supervisorPin || '')) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-700 cursor-pointer'"
+                class="px-5 py-2.5 rounded-xl bg-red-600 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-red-600/30">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>SIMPAN SUPERVISOR PIN</span>
+              </button>
+            </div>
+
+            <div class="pt-2 border-t border-red-200 flex items-center gap-2 text-[10px] text-stone-500">
+              <i class="fa-solid fa-circle-info text-red-500"></i>
+              <span>PIN default: <strong class="font-mono text-stone-800">211211</strong> &bull; Tersimpan di <code class="font-mono">/site_config/supervisorPin</code> (Firebase)</span>
+            </div>
+          </div>
+
           <!-- =============================================================== -->
           <!-- FITUR EDIT AKSES LOGIN POS KASIR PINTAR                         -->
           <!-- =============================================================== -->
@@ -4939,6 +5028,7 @@ git push -u origin main</pre>
           // ✅ TAMBAHKAN INI
           kasirTitle: 'Kasir Pintar',
           kasirSubtitle: 'Dapur Kuliner Viral',
+                    supervisorPin: '211211',
           
           // PENGATURAN PEMBAYARAN, QRIS & GATEWAY
           paymentConfig: {
@@ -5076,6 +5166,12 @@ git push -u origin main</pre>
           'fa-utensils', 'fa-kitchen-set', 'fa-lemon', 'fa-wheat-awn', 'fa-box-open',
           'fa-star', 'fa-heart', 'fa-crown', 'fa-award', 'fa-tag', 'fa-border-all', 'fa-cubes'
         ],
+
+        // 🔒 Supervisor PIN State (untuk form edit/ubah PIN)
+        supervisorPinNew: '',
+        supervisorPinConfirm: '',
+        supervisorPinMsg: '',
+        supervisorPinMsgOk: false,
 
         // Form Ubah Password Admin
         changePasswordForm: {
@@ -6797,6 +6893,55 @@ git push -u origin main</pre>
           sessionStorage.removeItem("dapur_admin_session");
           this.isAdminPanelOpen = false;
           this.showToast('Berhasil keluar dari Panel Admin.');
+        },
+
+                // 🔒 SIMPAN SUPERVISOR PIN KE FIREBASE
+        async saveSupervisorPin() {
+          const pin = String(this.supervisorPinNew || '').trim();
+          const confirmPin = String(this.supervisorPinConfirm || '').trim();
+
+          // Validasi
+          if (!/^\d{6}$/.test(pin)) {
+            this.supervisorPinMsg = '❌ PIN harus 6 digit angka';
+            this.supervisorPinMsgOk = false;
+            return;
+          }
+          if (pin !== confirmPin) {
+            this.supervisorPinMsg = '❌ PIN dan konfirmasi tidak cocok';
+            this.supervisorPinMsgOk = false;
+            return;
+          }
+          if (pin === String(this.siteConfig.supervisorPin || '').trim()) {
+            this.supervisorPinMsg = '⚠️ PIN baru harus beda dari PIN saat ini';
+            this.supervisorPinMsgOk = false;
+            return;
+          }
+
+          try {
+            // Update siteConfig (top-level field)
+            this.siteConfig.supervisorPin = pin;
+
+            // Simpan ke Firebase via FirebaseBridge (yang sudah ada)
+            if (window.FirebaseBridge && window.FirebaseBridge.saveSiteConfig) {
+              await window.FirebaseBridge.saveSiteConfig(this.siteConfig);
+            } else {
+              // Fallback: simpan ke localStorage saja
+              localStorage.setItem('dapur_site_config', JSON.stringify(this.siteConfig));
+            }
+
+            this.supervisorPinNew = '';
+            this.supervisorPinConfirm = '';
+            this.supervisorPinMsg = '✅ Supervisor PIN berhasil diubah! Perubahan akan langsung aktif di Kasir POS.';
+            this.supervisorPinMsgOk = true;
+            this.showToast('Supervisor PIN berhasil disimpan ke Firebase!');
+
+            console.log('[ADMIN-SEC] Supervisor PIN updated');
+
+          } catch (err) {
+            console.error('[ADMIN-SEC] Save error:', err);
+            this.supervisorPinMsg = '❌ Gagal menyimpan: ' + (err.message || err);
+            this.supervisorPinMsgOk = false;
+          }
         },
 
         async saveNewAdminPassword() {
