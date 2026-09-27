@@ -2929,7 +2929,48 @@
       </button>
 
       <div>
-        <span class="text-[11px] font-bold text-sky-700 uppercase tracking-wider">Scan QRIS Dinamis</span>
+              <div>
+        <span class="text-[11px] font-bold text-sky-700 uppercase tracking-wider">
+          <i class="fa-solid fa-qrcode mr-1"></i>Scan QRIS
+        </span>
+        <h3 class="text-2xl font-black text-stone-900 font-mono mt-1" 
+            x-text="formatRupiah(getCartGrandTotal())"></h3>
+        <p class="text-xs text-stone-500 mt-1" 
+           x-text="paymentConfig.qrisMerchantName || 'Dapur Kuliner Viral'"></p>
+      </div>
+
+      <!-- Tampilan QR Code STATIS dari Admin Panel -->
+      <div class="w-64 h-64 mx-auto bg-white rounded-2xl p-3 border-2 border-sky-300 flex items-center justify-center shadow-md">
+        <template x-if="paymentConfig.qrisImage">
+          <img 
+            :src="paymentConfig.qrisImage" 
+            alt="QRIS Merchant" 
+            class="w-full h-full object-contain" 
+          />
+        </template>
+        <template x-if="!paymentConfig.qrisImage">
+          <div class="text-center text-stone-400 text-xs">
+            <i class="fa-solid fa-qrcode text-4xl mb-2"></i>
+            <p>QRIS belum diatur</p>
+            <p class="text-[10px]">Set di Admin Panel → Pembayaran & QRIS</p>
+          </div>
+        </template>
+      </div>
+
+      <!-- Petunjuk Scan -->
+      <div class="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-900 flex items-start gap-2 text-left">
+        <i class="fa-solid fa-circle-info text-sky-600 mt-0.5 flex-shrink-0"></i>
+        <span x-text="paymentConfig.qrisInstructions || 'Buka aplikasi BCA Mobile / GoPay / OVO / DANA / ShopeePay, scan QRIS, dan lakukan pembayaran sesuai nominal.'"></span>
+      </div>
+
+      <!-- Tombol Konfirmasi Pembayaran Manual -->
+      <button 
+        type="button" 
+        @click="completeQrisPayment()"
+        class="w-full min-h-[52px] rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-sky-600/20 transition cursor-pointer">
+        <i class="fa-solid fa-check-double"></i>
+        <span>Pelanggan Sudah Selesai Bayar</span>
+      </button>
         <h3 class="text-2xl font-black text-stone-900 font-mono mt-1" x-text="formatRupiah(getCartGrandTotal())"></h3>
         <p class="text-xs text-stone-500 mt-1">Scan menggunakan aplikasi BCA, GoPay, OVO, Dana, ShopeePay</p>
       </div>
@@ -2989,29 +3030,35 @@
       </div>
 
       <!-- Rekening Tujuan -->
+            <!-- Rekening Tujuan (Dynamic dari paymentConfig) -->
       <div class="space-y-3">
+        <!-- Kartu Rekening Utama -->
         <div class="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
-          <div>
-            <span class="text-[10px] font-bold text-purple-700 uppercase">Bank BCA</span>
-            <p class="font-mono font-bold text-stone-900 text-base">873-098-1122</p>
-            <p class="text-[11px] text-stone-500">a/n Dapur Kuliner Viral</p>
+          <div class="min-w-0 flex-1">
+            <span class="text-[10px] font-bold text-purple-700 uppercase block" 
+                  x-text="paymentConfig.bankName || 'Bank'"></span>
+            <p class="font-mono font-bold text-stone-900 text-base truncate" 
+               x-text="paymentConfig.bankAccountNumber || '-'"></p>
+            <p class="text-[11px] text-stone-500 truncate" 
+               x-text="'a/n ' + (paymentConfig.bankAccountHolder || '-')"></p>
           </div>
-          <span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-800 text-[10px] font-bold">Utama</span>
+          <span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-800 text-[10px] font-bold flex-shrink-0 ml-2">Utama</span>
         </div>
 
-        <div class="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
-          <div>
-            <span class="text-[10px] font-bold text-sky-700 uppercase">Bank Mandiri</span>
-            <p class="font-mono font-bold text-stone-900 text-base">137-00-9821-331</p>
-            <p class="text-[11px] text-stone-500">a/n Dapur Kuliner Viral</p>
-          </div>
-          <span class="px-2.5 py-1 rounded-lg bg-stone-200 text-stone-700 text-[10px] font-bold">Alternatif</span>
-        </div>
+        <!-- Copy Rekening Button -->
+        <button 
+          type="button"
+          @click="navigator.clipboard.writeText(paymentConfig.bankAccountNumber || ''); showToast('Nomor rekening dicopy', 'success')"
+          class="w-full min-h-[40px] rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer">
+          <i class="fa-solid fa-copy text-xs"></i>
+          <span>Copy Nomor Rekening</span>
+        </button>
       </div>
 
+      <!-- Petunjuk Transfer (Dynamic) -->
       <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-        <i class="fa-solid fa-circle-info text-amber-600 mt-0.5"></i>
-        <span>Pastikan pelanggan telah mentransfer sesuai nominal persis ke rekening di atas sebelum klik tombol di bawah.</span>
+        <i class="fa-solid fa-circle-info text-amber-600 mt-0.5 flex-shrink-0"></i>
+        <span x-text="paymentConfig.bankInstructions || 'Pastikan pelanggan telah mentransfer sesuai nominal persis sebelum klik tombol di bawah.'"></span>
       </div>
 
       <!-- Tombol Konfirmasi Transfer -->
