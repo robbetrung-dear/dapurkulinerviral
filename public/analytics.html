@@ -272,8 +272,8 @@
           <canvas id="categoryDonutChart"></canvas>
         </div>
 
-        <div class="text-[11px] text-stone-500 text-center border-t border-stone-100 pt-3">
-          Paket Catering Box menyumbang <strong>45%</strong> dari total nilai transaksi bulanan.
+          <div class="text-[11px] text-stone-500 text-center border-t border-stone-100 pt-3">
+          <span x-text="topCategoryNote"></span>
         </div>
       </div>
 
@@ -417,6 +417,21 @@
 
   <script>
     function analyticsDashboard() {
+          function analyticsDashboard() {
+      // 🌐 Firebase REST API base
+      const FB_URL = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+      // Helper tanggal LOCAL (bukan UTC)
+      const getLocalDateStr = (d = new Date()) => {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      };
+
+      return {
+        // Keamanan Akses Dasbor Analitik (Selalu Terkunci Otomatis)
+        isUnlocked: false,
       return {
         // Keamanan Akses Dasbor Analitik (Selalu Terkunci Otomatis)
         isUnlocked: false,
@@ -431,9 +446,13 @@
         revenueChart: null,
         categoryChart: null,
 
-        // Data Pesanan
-        orders: [],
-        transactionLogs: [],
+        // Data Pesanan (real dari Firebase)
+        orders: [],              // dari /orders/ (untuk tabel + antrian dapur)
+        posTransactions: [],     // dari /pos/transactions/ (untuk omset & chart)
+        menuItems: [],           // dari /menu_items/ (untuk mapping kategori)
+        transactionLogs: [],     // audit log (opsional)
+        isLoading: false,
+        loadError: '',
 
         initDashboard() {
           // SELALU KUNCI DASHBOARD ANALITIK SAAT DIBUKA / DIMUAT ULANG UNTUK KEAMANAN
@@ -508,121 +527,186 @@
           }
         },
 
-        loadData() {
-          // Ambil dari LocalStorage jika ada pesanan baru
-          const localOrders = JSON.parse(localStorage.getItem("dapur_orders") || "{}");
-          const localArr = Object.values(localOrders);
+                async loadData() {
+          this.isLoading = true;
+          this.loadError = '';
 
-          // Seed Data awal realistis untuk demo analisis jika belum ada transaksi banyak
-          const sampleOrders = [
-            {
-              orderId: 'ORD-1726510001',
-              customer: { name: 'Ahmad Fauzi', phone: '081298765432', address: 'Kuningan, Jakarta Selatan' },
-              items: [{ id: 'cat-gold', name: 'Paket Gold Box (25 Pax)', price: 35000, quantity: 25 }],
-              courier: { name: 'GoSend', service: 'Instant', price: 20000 },
-              totalAmount: 895000,
-              status: 'Selesai',
-              createdAt: new Date(Date.now() - 3600000 * 24 * 4).toISOString()
-            },
-            {
-              orderId: 'ORD-1726510002',
-              customer: { name: 'Siti Rahmawati', phone: '081345678901', address: 'Gedung Wisma 46' },
-              items: [
-                { id: 'rb-4', name: 'Rice Bowl Chicken Katsu Geprek', price: 28000, quantity: 4 },
-                { id: 'sd-1', name: 'Udang Keju Lumer', price: 28000, quantity: 2 }
-              ],
-              courier: { name: 'GrabExpress', service: 'Instant', price: 15000 },
-              totalAmount: 183000,
-              status: 'Selesai',
-              createdAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString()
-            },
-            {
-              orderId: 'ORD-1726510003',
-              customer: { name: 'PT Surya Dinamika', phone: '085712349988', address: 'Sudirman Central Business District' },
-              items: [{ id: 'cat-plat', name: 'Paket Platinum Box (50 Pax)', price: 50000, quantity: 50 }],
-              courier: { name: 'GoSend', service: 'Mobil Box', price: 50000 },
-              totalAmount: 2550000,
-              status: 'Selesai',
-              createdAt: new Date(Date.now() - 3600000 * 24 * 2).toISOString()
-            },
-            {
-              orderId: 'ORD-1726510004',
-              customer: { name: 'Bambang Irawan', phone: '081876543210', address: 'Tebet Timur Dalam' },
-              items: [
-                { id: 'mie-1', name: 'Mie Bowl Nyemek Bangla', price: 23000, quantity: 3 },
-                { id: 'sd-3', name: 'Chicken Wings Spicy Isi 5', price: 45000, quantity: 1 }
-              ],
-              courier: { name: 'J&T Express', service: 'EZ', price: 12000 },
-              totalAmount: 126000,
-              status: 'Diproses',
-              createdAt: new Date(Date.now() - 3600000 * 4).toISOString()
-            },
-            {
-              orderId: 'ORD-1726510005',
-              customer: { name: 'Nadia Putri', phone: '082111223344', address: 'Pancoran Riverside' },
-              items: [
-                { id: 'vr-1', name: 'Seblak Prasmanan Komplit', price: 22000, quantity: 2 },
-                { id: 'vr-3', name: 'Dessert Box Tiramisu Choco Melt', price: 25000, quantity: 2 }
-              ],
-              courier: { name: 'SiCepat', service: 'BEST', price: 13000 },
-              totalAmount: 107000,
-              status: 'Dikirim',
-              createdAt: new Date(Date.now() - 3600000 * 2).toISOString()
-            },
-            {
-              orderId: 'ORD-1726510006',
-              customer: { name: 'Rian Pratama', phone: '081299887766', address: 'Palmerah Barat' },
-              items: [{ id: 'cat-silver', name: 'Paket Silver Box (20 Pax)', price: 25000, quantity: 20 }],
-              courier: { name: 'GoSend', service: 'Instant', price: 25000 },
-              totalAmount: 525000,
-              status: 'Dibayar',
-              createdAt: new Date(Date.now() - 3600000 * 1).toISOString()
+          try {
+            // 1. Load menu_items (untuk category mapping)
+            const menuRes = await fetch(`${FB_URL}/menu_items.json`);
+            const menuRaw = await menuRes.json();
+            if (menuRaw && typeof menuRaw === 'object') {
+              this.menuItems = Array.isArray(menuRaw)
+                ? menuRaw
+                : Object.entries(menuRaw).map(([k, v]) => ({ id: v.id || k, ...(v || {}) }));
+            } else {
+              this.menuItems = [];
             }
-          ];
+            console.log(`[ANALYTICS] Menu items: ${this.menuItems.length}`);
 
-          // Gabungkan pesanan lokal dan sample
-          const map = new Map();
-          [...localArr, ...sampleOrders].forEach(o => {
-            if (o && o.orderId) map.set(o.orderId, o);
-          });
+            // 2. Load /orders/ (untuk tabel + antrian dapur)
+            const ordersRes = await fetch(`${FB_URL}/orders.json`);
+            const ordersRaw = await ordersRes.json();
+            if (ordersRaw && typeof ordersRaw === 'object') {
+              this.orders = Object.entries(ordersRaw)
+                .map(([k, v]) => ({ orderId: v.orderId || k, ...(v || {}) }))
+                .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            } else {
+              this.orders = [];
+            }
+            console.log(`[ANALYTICS] Orders: ${this.orders.length}`);
 
-          this.orders = Array.from(map.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            // 3. Load POS transactions bulan ini (loop per hari)
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = now.getMonth();
+            const daysInMonth = new Date(yyyy, mm + 1, 0).getDate();
 
-          // Log Audit Sample
-          this.transactionLogs = this.orders.slice(0, 5).map(o => ({
-            order_id: o.orderId,
-            transaction_id: 'MID-TX-' + o.orderId.replace('ORD-', ''),
-            payment_type: 'qris_gopay',
-            gross_amount: o.totalAmount,
-            received_at: o.createdAt
-          }));
+            // Generate list tanggal dari 1 sampai hari ini
+            const days = [];
+            for (let d = 1; d <= now.getDate(); d++) {
+              const dt = new Date(yyyy, mm, d);
+              days.push(getLocalDateStr(dt));
+            }
+
+            const txResults = await Promise.all(days.map(async (dateStr) => {
+              try {
+                const res = await fetch(`${FB_URL}/pos/transactions/${dateStr}.json`);
+                if (!res.ok) return [];
+                const data = await res.json();
+                if (!data || typeof data !== 'object') return [];
+                return Object.entries(data).map(([id, v]) => ({ ...(v || {}), __date: dateStr, __id: id }));
+              } catch (e) { return []; }
+            }));
+
+            this.posTransactions = txResults.flat();
+            console.log(`[ANALYTICS] POS transactions this month: ${this.posTransactions.length}`);
+
+            // 4. Build transactionLogs (audit sederhana dari tx)
+            this.transactionLogs = this.posTransactions
+              .slice(-10)
+              .reverse()
+              .map(tx => ({
+                order_id: tx.__id,
+                transaction_id: `MID-TX-${tx.__id}`,
+                payment_type: tx.pm || 'cash',
+                gross_amount: Number(tx.tot || tx.total || 0),
+                received_at: new Date(Number(tx.t) || Date.now()).toISOString()
+              }));
+
+            // 5. Render charts (setelah data siap)
+            this.$nextTick(() => this.initCharts());
+
+          } catch (err) {
+            console.error('[ANALYTICS] Load error:', err);
+            this.loadError = err.message || 'Gagal memuat data';
+          } finally {
+            this.isLoading = false;
+          }
         },
+
 
         get filteredOrders() {
           if (this.statusFilter === 'all') return this.orders;
           return this.orders.filter(o => o.status === this.statusFilter);
         },
 
-        get totalRevenue() {
-          return this.orders.reduce((sum, o) => {
-            // Hanya hitung pesanan yang bukan dibatalkan
-            if (o.status !== 'Dibatalkan') return sum + (o.totalAmount || 0);
-            return sum;
-          }, 0);
+                get totalRevenue() {
+          return this.posTransactions.reduce((sum, tx) => sum + Number(tx.tot || tx.total || tx.amount || 0), 0);
         },
 
         get totalOrdersCount() {
-          return this.orders.filter(o => o.status === 'Selesai').length;
+          return this.posTransactions.length;
         },
 
         get averageOrderValue() {
-          const validOrders = this.orders.filter(o => o.status !== 'Dibatalkan');
-          if (validOrders.length === 0) return 0;
-          return Math.round(this.totalRevenue / validOrders.length);
+          if (this.totalOrdersCount === 0) return 0;
+          return Math.round(this.totalRevenue / this.totalOrdersCount);
         },
 
         get activeKitchenOrders() {
-          return this.orders.filter(o => o.status === 'Diproses').length;
+          return this.orders.filter(o => o.status === 'Diproses' || o.status === 'Dikirim').length;
+        },
+
+        /**
+         * Distribusi Revenue per Kategori (dari menu_items lookup)
+         */
+        get categoryDistribution() {
+          const dist = {};
+          // Map menu id → categoryLabel
+          const menuMap = {};
+          this.menuItems.forEach(m => {
+            if (m.id) menuMap[m.id] = m.categoryLabel || m.category || 'Lainnya';
+          });
+
+          this.posTransactions.forEach(tx => {
+            const items = Array.isArray(tx.items) ? tx.items : [];
+            items.forEach(it => {
+              let menuId, qty, price;
+              if (Array.isArray(it)) {
+                menuId = it[0]; qty = Number(it[1]) || 0; price = Number(it[2]) || 0;
+              } else {
+                menuId = it.id || it.menuId; qty = Number(it.qty || it.quantity) || 0; price = Number(it.price) || 0;
+              }
+              if (!menuId) return;
+              const cat = menuMap[menuId] || 'Lainnya';
+              const revenue = qty * price;
+              dist[cat] = (dist[cat] || 0) + revenue;
+            });
+          });
+
+          return dist;
+        },
+
+        /**
+         * Hitung top kategori untuk catatan pie chart
+         */
+        get topCategoryNote() {
+          const dist = this.categoryDistribution;
+          const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+          if (entries.length === 0) return 'Belum ada data penjualan bulan ini.';
+          const total = entries.reduce((s, [, v]) => s + v, 0);
+          if (total === 0) return 'Belum ada data penjualan bulan ini.';
+          const [name, val] = entries[0];
+          const pct = Math.round((val / total) * 100);
+          return `${name} menyumbang ${pct}% dari total nilai transaksi bulan ini.`;
+        },
+
+        /**
+         * Data untuk chart Tren Penjualan (7 atau 30 hari)
+         * Return: { labels: [...], data: [...] }
+         */
+        get trendChartData() {
+          const now = new Date();
+
+          if (this.chartPeriod === 'week') {
+            // 7 hari terakhir
+            const labels = [];
+            const values = [];
+            for (let i = 6; i >= 0; i--) {
+              const d = new Date(now);
+              d.setDate(now.getDate() - i);
+              const ds = getLocalDateStr(d);
+              const dayLabel = i === 0 ? 'Hari Ini' : (i === 1 ? 'Kemarin' : `H-${i}`);
+              labels.push(dayLabel);
+              const dayTotal = this.posTransactions
+                .filter(tx => tx.__date === ds)
+                .reduce((s, tx) => s + Number(tx.tot || tx.total || 0), 0);
+              values.push(dayTotal);
+            }
+            return { labels, data: values };
+          }
+
+          // 30 hari → aggregate per minggu (W1, W2, W3, W4)
+          const labels = ['Mgg 1', 'Mgg 2', 'Mgg 3', 'Mgg 4'];
+          const values = [0, 0, 0, 0];
+          this.posTransactions.forEach(tx => {
+            if (!tx.__date) return;
+            const day = parseInt(tx.__date.slice(-2), 10) || 1;
+            const weekIdx = Math.min(3, Math.floor((day - 1) / 7));
+            values[weekIdx] += Number(tx.tot || tx.total || 0);
+          });
+          return { labels, data: values };
         },
 
         updateOrderStatus(orderId, newStatus) {
@@ -745,17 +829,23 @@
           document.body.removeChild(link);
         },
 
-        initCharts() {
-          // 1. Chart Tren Pendapatan (Line Chart)
+                initCharts() {
+          const trendData = this.trendChartData;
+
+          // 1. Chart Tren Pendapatan
           const trendCtx = document.getElementById('revenueTrendChart')?.getContext('2d');
           if (trendCtx) {
+            if (this.revenueChart) {
+              this.revenueChart.destroy();
+              this.revenueChart = null;
+            }
             this.revenueChart = new Chart(trendCtx, {
               type: 'line',
               data: {
-                labels: ['H-6', 'H-5', 'H-4', 'H-3', 'H-2', 'Kemarin', 'Hari Ini'],
+                labels: trendData.labels,
                 datasets: [{
                   label: 'Omset Penjualan (Rp)',
-                  data: [650000, 890000, 1250000, 1420000, 2100000, 1850000, 2450000],
+                  data: trendData.data,
                   borderColor: '#ea580c',
                   backgroundColor: 'rgba(234, 88, 12, 0.08)',
                   fill: true,
@@ -767,31 +857,42 @@
               options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                  legend: { display: false }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
                   y: {
                     beginAtZero: true,
-                    ticks: {
-                      callback: (val) => 'Rp' + (val / 1000) + 'k'
-                    }
+                    ticks: { callback: (val) => 'Rp' + (val / 1000) + 'k' }
                   }
                 }
               }
             });
           }
 
-          // 2. Chart Komposisi Kategori (Donut Chart)
+          // 2. Chart Distribusi Kategori (dari real data)
           const catCtx = document.getElementById('categoryDonutChart')?.getContext('2d');
           if (catCtx) {
+            if (this.categoryChart) {
+              this.categoryChart.destroy();
+              this.categoryChart = null;
+            }
+
+            const dist = this.categoryDistribution;
+            const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+            const labels = entries.map(([k]) => k);
+            const values = entries.map(([, v]) => v);
+
+            // Kalau kosong, tampilkan placeholder
+            const palette = ['#ea580c', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4'];
+
             this.categoryChart = new Chart(catCtx, {
               type: 'doughnut',
               data: {
-                labels: ['Paket Catering', 'Bento & Rice Bowl', 'Aneka Mie', 'Cemilan & Viral'],
+                labels: labels.length > 0 ? labels : ['Belum Ada Data'],
                 datasets: [{
-                  data: [45, 28, 15, 12],
-                  backgroundColor: ['#ea580c', '#f59e0b', '#3b82f6', '#10b981'],
+                  data: values.length > 0 ? values : [1],
+                  backgroundColor: values.length > 0
+                    ? palette.slice(0, labels.length)
+                    : ['#e5e7eb'],
                   borderWidth: 2,
                   borderColor: '#ffffff'
                 }]
@@ -803,6 +904,11 @@
                   legend: {
                     position: 'bottom',
                     labels: { boxWidth: 12, font: { size: 10 } }
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => ` ${ctx.label}: Rp${Number(ctx.parsed).toLocaleString('id-ID')}`
+                    }
                   }
                 },
                 cutout: '68%'
@@ -811,19 +917,18 @@
           }
         },
 
-        setChartPeriod(period) {
+
+          setChartPeriod(period) {
           this.chartPeriod = period;
-          if (this.revenueChart) {
-            if (period === 'month') {
-              this.revenueChart.data.labels = ['Mgg 1', 'Mgg 2', 'Mgg 3', 'Mgg 4'];
-              this.revenueChart.data.datasets[0].data = [7800000, 9400000, 12100000, 14500000];
-            } else {
-              this.revenueChart.data.labels = ['H-6', 'H-5', 'H-4', 'H-3', 'H-2', 'Kemarin', 'Hari Ini'];
-              this.revenueChart.data.datasets[0].data = [650000, 890000, 1250000, 1420000, 2100000, 1850000, 2450000];
-            }
-            this.revenueChart.update();
+          if (!this.revenueChart) {
+            this.initCharts();
+            return;
           }
-        }
+          const trendData = this.trendChartData;
+          this.revenueChart.data.labels = trendData.labels;
+          this.revenueChart.data.datasets[0].data = trendData.data;
+          this.revenueChart.update();
+        },
       }
     }
   </script>
