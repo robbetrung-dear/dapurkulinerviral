@@ -126,6 +126,7 @@ window.kasirApp = () => ({
   cashReceived: 0,
   currentOrder: null,
   qrisOrderId: '',
+  qrisDisplayMode: 'dynamic', // 'dynamic' | 'static'
   qrisQrUrl: '',
   qrisRedirectUrl: '',
   midtransPollingTimer: null,
@@ -1473,6 +1474,7 @@ try {
   async bayarQris() {
     this.selectedPaymentMethod = 'qris';
     this.qrisModal = true;
+    this.qrisDisplayMode = 'dynamic';
     this.playSound('click');
 
     const txId = 'T' + Date.now();
