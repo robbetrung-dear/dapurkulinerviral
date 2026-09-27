@@ -5075,8 +5075,9 @@ try {
           const txList = txJson.data || [];
           let totalSales = 0;
           const breakdown = { cash: 0, qris: 0, transfer: 0, ewallet: 0 };
-          for (const tx of txList) {
-            const amt = Number(tx.total || tx.amount || 0);
+                    for (const tx of txList) {
+            // ✅ FIX: transaksi disimpan dengan field short-form 'tot'
+            const amt = Number(tx.tot || tx.total || tx.amount || 0);
             totalSales += amt;
             const pm = String(tx.pm || tx.paymentMethod || '').toLowerCase();
             if (pm.includes('tunai') || pm.includes('cash')) breakdown.cash += amt;
@@ -5132,22 +5133,31 @@ try {
       const nameMap = {};
 
       for (const tx of transactions) {
-        if (Array.isArray(tx.items)) {
-          for (const it of tx.items) {
-            const mId = it.id || it.menuId || 'm0';
-            const mQty = Number(it.qty || 1);
-            const mPrice = Number(it.price || 0);
-            qtyMap[mId] = (qtyMap[mId] || 0) + mQty;
-            revenueMap[mId] = (revenueMap[mId] || 0) + (mQty * mPrice);
-            if (it.name) nameMap[mId] = it.name;
+        if (!Array.isArray(tx.items)) continue;
+        for (const it of tx.items) {
+          // ✅ FIX: handle 2 format — array [id, qty, price] & object {id, qty, price}
+          let mId, mQty, mPrice;
+          if (Array.isArray(it)) {
+            mId = it[0];
+            mQty = Number(it[1]) || 1;
+            mPrice = Number(it[2]) || 0;
+          } else {
+            mId = it.id || it.menuId;
+            mQty = Number(it.qty || it.quantity) || 1;
+            mPrice = Number(it.price || it.harga) || 0;
           }
+          if (!mId) continue;
+
+          qtyMap[mId] = (qtyMap[mId] || 0) + mQty;
+          revenueMap[mId] = (revenueMap[mId] || 0) + (mQty * mPrice);
         }
       }
 
+      // ✅ FIX: lookup nama menu dari menuList (bukan dari items, karena items adalah array-of-arrays)
       for (const m of this.menuList) {
         if (!nameMap[m.id]) nameMap[m.id] = m.name;
-        if (!qtyMap[m.id]) qtyMap[m.id] = 10 + (m.price % 15);
       }
+      // ✅ DUMMY GENERATOR DIHAPUS — kalau tidak ada data, tetap kosong
 
       const sorted = Object.keys(qtyMap).map(mId => ({
         id: mId,
@@ -5181,12 +5191,12 @@ try {
 
       const hourlyTotals = new Array(24).fill(0);
       for (const tx of transactions) {
-        if (tx.t) {
-          const d = new Date(tx.t);
-          const hour = d.getHours();
-          if (hour >= 0 && hour < 24) {
-            hourlyTotals[hour] += Number(tx.total || tx.amount || 0);
-          }
+        if (!tx.t) continue;
+        const d = new Date(tx.t);
+        const hour = d.getHours();
+        if (hour >= 0 && hour < 24) {
+          // ✅ FIX: pakai 'tot' dulu (short-form field)
+          hourlyTotals[hour] += Number(tx.tot || tx.total || tx.amount || 0);
         }
       }
 
