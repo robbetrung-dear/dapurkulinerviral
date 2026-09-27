@@ -2879,7 +2879,7 @@
 
           <!-- Daftar Menu Items -->
           <div class="space-y-3">
-            <template x-for="item in filteredAdminMenuList" :key="item.id">
+                        <template x-for="(item, itemIdx) in filteredAdminMenuList" :key="item.id || ('m-fallback-' + itemIdx)">
               <div class="p-3 bg-stone-50 hover:bg-stone-100/80 rounded-2xl border border-stone-200 flex items-center justify-between gap-3 transition">
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="relative flex-shrink-0">
@@ -5035,14 +5035,32 @@ git push -u origin main</pre>
           }
         }
       },
-      listenMenu: (callback) => {
+        listenMenu: (callback) => {
         if (db) {
           const menuRef = ref(db, 'menu_items');
           return onValue(menuRef, (snapshot) => {
             const val = snapshot.val();
-            if (val) {
-              const arr = Array.isArray(val) ? val : Object.values(val);
+            if (val && typeof val === 'object') {
+              // ✅ FIX: Inject Firebase key sebagai 'id' kalau missing
+              let arr;
+              if (Array.isArray(val)) {
+                arr = val;
+              } else {
+                arr = Object.entries(val).map(([key, item]) => {
+                  if (!item || typeof item !== 'object') return null;
+                  return {
+                    ...item,
+                    id: item.id || key   // ← INJECT
+                  };
+                }).filter(Boolean);
+              }
+              // Extra defensive: pastikan semua item punya id
+              arr.forEach((m, i) => {
+                if (!m.id) m.id = 'menu_auto_' + i + '_' + Date.now();
+              });
               callback(arr);
+            } else {
+              callback([]); // Explicit empty (bukan undefined)
             }
           });
         }
@@ -5771,6 +5789,16 @@ git push -u origin main</pre>
                   }
                 });
               }
+          // 🔍 DEBUG: Log menu items saat admin login
+          if (this.$watch) {
+            this.$watch('isAdminPanelOpen', (open) => {
+              if (open) {
+                console.log('[ADMIN-MENU-DEBUG] Total:', this.menuItems.length);
+                console.log('[ADMIN-MENU-DEBUG] First 3:', this.menuItems.slice(0, 3));
+                console.log('[ADMIN-MENU-DEBUG] Sample IDs:', this.menuItems.slice(0, 5).map(m => m.id || '(NO ID)'));
+              }
+            });
+          }
               if (window.FirebaseBridge && window.FirebaseBridge.listenCategories) {
                 window.FirebaseBridge.listenCategories((liveCats) => {
                   if (liveCats && Array.isArray(liveCats) && liveCats.length > 0) {
