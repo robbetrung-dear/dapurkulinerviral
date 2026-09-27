@@ -1483,6 +1483,15 @@
                 </button>
               </template>
 
+              <!-- 🧮 Tombol Kalkulator Shift -->
+              <button 
+                type="button" 
+                @click="openShiftCalculator()"
+                class="min-h-[48px] px-4 rounded-2xl border-2 border-brand-300 bg-brand-50 hover:bg-brand-100 text-brand-900 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer">
+                <i class="fa-solid fa-calculator text-brand-700"></i>
+                <span>🧮 Kalkulator Shift</span>
+              </button>
+
               <!-- Tombol TUTUP SHIFT SEKARANG (Merah Besar) -->
               <button 
                 type="button" 
@@ -3530,6 +3539,154 @@
           <span>Kirim WA</span>
         </button>
       </div>
+
+    </div>
+  </div>
+
+    <!-- MODAL: KALKULATOR SHIFT (Serah Terima Uang) -->
+  <div 
+    x-cloak 
+    x-show="showShiftCalcModal" 
+    @click.away="closeShiftCalculator()"
+    @keydown.escape.window="showShiftCalcModal && closeShiftCalculator()"
+    class="fixed inset-0 z-[65] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative space-y-5 my-8">
+
+      <button 
+        type="button" 
+        @click="closeShiftCalculator()" 
+        class="absolute top-4 right-4 w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 flex items-center justify-center transition cursor-pointer">
+        <i class="fa-solid fa-xmark text-sm"></i>
+      </button>
+
+      <!-- Header -->
+      <div class="flex items-center gap-3 pb-3 border-b border-stone-100">
+        <div class="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center text-xl shadow-md">
+          <i class="fa-solid fa-calculator"></i>
+        </div>
+        <div>
+          <h4 class="font-extrabold text-stone-900 text-base">Kalkulator Shift</h4>
+          <p class="text-xs text-stone-500">Serah terima uang kas tunai antar shift</p>
+        </div>
+      </div>
+
+      <!-- Inputs -->
+      <div class="space-y-3">
+
+        <!-- Modal Awal -->
+        <div>
+          <label class="block text-[11px] font-bold text-stone-700 uppercase mb-1">Modal Awal Laci (Rp)</label>
+          <input 
+            type="number"
+            x-model.number="shiftCalc.modalAwal"
+            class="w-full h-11 px-3 rounded-xl border border-stone-300 text-sm font-mono font-bold bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <p class="text-[10px] text-stone-400 mt-0.5 italic">Auto-fill dari data shift</p>
+        </div>
+
+        <!-- Total Penjualan Tunai -->
+        <div>
+          <label class="block text-[11px] font-bold text-stone-700 uppercase mb-1">Total Penjualan Tunai (Rp)</label>
+          <input 
+            type="number"
+            x-model.number="shiftCalc.totalPenjualanTunai"
+            class="w-full h-11 px-3 rounded-xl border border-stone-300 text-sm font-mono font-bold bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <p class="text-[10px] text-stone-400 mt-0.5 italic">Auto-fill dari kasSales shift</p>
+        </div>
+
+        <!-- Pengeluaran Tunai -->
+        <div>
+          <label class="block text-[11px] font-bold text-stone-700 uppercase mb-1">Pengeluaran Tunai (Rp)</label>
+          <input 
+            type="number"
+            x-model.number="shiftCalc.pengeluaranTunai"
+            placeholder="0"
+            class="w-full h-11 px-3 rounded-xl border border-stone-300 text-sm font-mono font-bold bg-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <p class="text-[10px] text-stone-400 mt-0.5 italic">Kasbon, belanja mendadak, dsb.</p>
+        </div>
+
+        <!-- Ekspektasi -->
+        <div class="p-3 rounded-xl bg-amber-50 border border-amber-200">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-amber-900 uppercase">Ekspektasi Uang di Laci:</span>
+            <span class="font-mono font-black text-base text-amber-950" x-text="formatRupiah(shiftCalcExpected)"></span>
+          </div>
+        </div>
+
+        <!-- Uang Fisik -->
+        <div>
+          <label class="block text-[11px] font-bold text-stone-700 uppercase mb-1">Uang Fisik Aktual (Rp) — Hasil Hitung Manual</label>
+          <input 
+            type="number"
+            x-model.number="shiftCalc.uangFisik"
+            class="w-full h-12 px-3 rounded-xl border-2 border-brand-400 text-base font-mono font-black bg-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+
+        <!-- Selisih -->
+        <div 
+          class="p-4 rounded-2xl border-2 flex items-center justify-between transition-colors"
+          :class="{
+            'bg-emerald-50 border-emerald-300': shiftCalcStatus.key === 'balance',
+            'bg-blue-50 border-blue-300': shiftCalcStatus.key === 'over',
+            'bg-red-50 border-red-300': shiftCalcStatus.key === 'under'
+          }">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider block"
+              :class="{
+                'text-emerald-700': shiftCalcStatus.key === 'balance',
+                'text-blue-700': shiftCalcStatus.key === 'over',
+                'text-red-700': shiftCalcStatus.key === 'under'
+              }">Status Selisih Kas:</span>
+            <span class="font-mono font-black text-2xl block mt-0.5"
+              :class="{
+                'text-emerald-900': shiftCalcStatus.key === 'balance',
+                'text-blue-900': shiftCalcStatus.key === 'over',
+                'text-red-900': shiftCalcStatus.key === 'under'
+              }"
+              x-text="formatRupiah(shiftCalcDifference)"></span>
+          </div>
+          <div 
+            class="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider shadow-sm"
+            :class="{
+              'bg-emerald-600 text-white': shiftCalcStatus.key === 'balance',
+              'bg-blue-600 text-white': shiftCalcStatus.key === 'over',
+              'bg-red-600 text-white': shiftCalcStatus.key === 'under'
+            }"
+            x-text="shiftCalcStatus.label"></div>
+        </div>
+
+        <!-- Notes -->
+        <div>
+          <label class="block text-[11px] font-bold text-stone-700 uppercase mb-1">Catatan Serah Terima (Opsional)</label>
+          <textarea 
+            x-model="shiftCalc.notes"
+            rows="2"
+            placeholder="Catatan untuk shift selanjutnya..."
+            class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-stone-50 focus:bg-white focus:outline-none resize-none"></textarea>
+        </div>
+
+      </div>
+
+      <!-- Actions -->
+      <div class="pt-3 border-t border-stone-100 flex items-center gap-2">
+        <button 
+          type="button"
+          @click="resetShiftCalculator()"
+          class="min-h-[46px] px-4 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs transition cursor-pointer">
+          <i class="fa-solid fa-rotate-left mr-1"></i>
+          Reset
+        </button>
+        <button 
+          type="button"
+          @click="saveShiftHandover()"
+          class="flex-1 min-h-[46px] rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md shadow-brand-600/20 transition cursor-pointer">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>SIMPAN SERAH TERIMA</span>
+        </button>
+      </div>
+
+      <p class="text-[10px] text-stone-400 text-center italic">
+        Data tersimpan ke Firebase <span class="font-mono text-stone-500">/pos/shift_handovers/</span>
+      </p>
 
     </div>
   </div>
