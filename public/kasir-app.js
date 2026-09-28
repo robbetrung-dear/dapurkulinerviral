@@ -317,6 +317,7 @@ window.kasirApp = () => ({
   // Module Akuntansi Kasir State
   accountingTab: 'pnl', // 'pnl' | 'balance' | 'cashflow' | 'journal' | 'coa' | 'approval'
   accountingJournalList: [],
+  accountingJournalLoading: false,
 
   // State Manual Input Jurnal
   journalForm: {
@@ -621,6 +622,8 @@ try {
     this.loadPrinterConfig();
     this.loadAccountingSummary(true);
     await this.loadCOAListFromBackend();
+    // ✅ Load journal list untuk tab Jurnal Umum
+    await this.loadJournalListForKasir();
 
     // 6. Muat Inventory Realtime, Resep Bahan Baku & Riwayat Shift (BAGIAN 3)
     this.loadInventory();
@@ -6426,39 +6429,43 @@ try {
     };
   },
 
-  getAccountingJournal() {
-    const today = new Date().toLocaleDateString('id-ID');
-    const summary = this.getAccountingSummary();
+    getAccountingJournal() {
+    // ✅ FIX: Fetch real dari state, fallback ke empty array (bukan dummy)
+    const list = Array.isArray(this.accountingJournalList) ? this.accountingJournalList : [];
+    if (list.length === 0) return [];
 
-    return [
-      {
-        date: today,
-        ref: 'JU-001',
-        desc: 'Penerimaan Penjualan Kasir POS (Tunai / QRIS)',
-        debitAccount: '101 - Kas & Bank',
-        debitAmount: summary.totalRev,
-        creditAccount: '401 - Pendapatan Penjualan',
-        creditAmount: summary.totalRev
-      },
-      {
-        date: today,
-        ref: 'JU-002',
-        desc: 'Pengakuan HPP Bahan Baku Terpakai Penjualan',
-        debitAccount: '501 - Harga Pokok Penjualan (HPP)',
-        debitAmount: summary.totalCOGS,
-        creditAccount: '103 - Persediaan Bahan Baku',
-        creditAmount: summary.totalCOGS
-      },
-      {
-        date: today,
-        ref: 'JU-003',
-        desc: 'Pengakuan Beban Operasional Dapur & Utility',
-        debitAccount: '601 - Beban Operasional & Listrik',
-        debitAmount: summary.totalOpEx,
-        creditAccount: '101 - Kas & Bank',
-        creditAmount: summary.totalOpEx
-      }
-    ];
+    // Transform ke format yang ditampilkan di template
+    const today = new Date().toLocaleDateString('id-ID');
+    return list
+      .filter(j => {
+        // Filter hanya approved/posted (biar tidak tampil pending/draft)
+        const s = String(j.status || '').toLowerCase();
+        return s === 'approved' || s === 'posted';
+      })
+      .map(j => {
+        const lines = Array.isArray(j.lines) ? j.lines : [];
+        const debitLine = lines.find(l => Number(l.debit) > 0);
+        const creditLine = lines.find(l => Number(l.credit) > 0);
+        const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+
+        return {
+          date: j.date || today,
+          ref: j.noEntry || j.ref || j.entryId || '-',
+          desc: j.desc || j.description || 'Transaksi Jurnal',
+          debitAccount: debitLine
+            ? (debitLine.acc || '-') + ' - ' + this.getAccountName(debitLine.acc)
+            : '-',
+          debitAmount: Number(debitLine?.debit) || 0,
+          creditAccount: creditLine
+            ? (creditLine.acc || '-') + ' - ' + this.getAccountName(creditLine.acc)
+            : '-',
+          creditAmount: Number(creditLine?.credit) || 0,
+          totalAmount: totalDebit,
+          status: j.status || 'approved'
+        };
+      })
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .slice(0, 20); // Tampilkan max 20 terbaru
   },
 
   // -------------------------------------------------------------------------
@@ -6658,6 +6665,7 @@ try {
         // Refresh list
         await this.loadPendingApprovals();
         await this.loadJournalList(bulan);
+        await this.loadJournalListForKasir(); // ✅ refresh tab Jurnal Umum
       } else {
         this.showToast(data.error || 'Gagal membuat jurnal', 'error');
       }
@@ -6803,8 +6811,11 @@ try {
       
       // Refresh list approval
       await this.loadPendingApprovals();
-      if (typeof this.loadJournalList === 'function') {
+        if (typeof this.loadJournalList === 'function') {
         await this.loadJournalList(bulan);
+      }
+      if (typeof this.loadJournalListForKasir === 'function') {
+        await this.loadJournalListForKasir(); // ✅ refresh tab Jurnal Umum
       }
       
       // Refresh summary P&L
@@ -7016,6 +7027,31 @@ try {
     }
   },
  
+   async loadJournalListForKasir() {
+    try {
+      this.accountingJournalLoading = true;
+      const bulan = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+      const res = await fetch(`/accounting/journal/${bulan}`);
+      if (!res.ok) {
+        this.accountingJournalList = [];
+        return;
+      }
+      const json = await res.json();
+      if (json && json.success && Array.isArray(json.data)) {
+        this.accountingJournalList = json.data;
+        console.log(`[KASIR-JOURNAL] Loaded ${json.data.length} entries for ${bulan}`);
+      } else {
+        this.accountingJournalList = [];
+      }
+    } catch (e) {
+      console.warn('[KASIR-JOURNAL] Error:', e);
+      this.accountingJournalList = [];
+    } finally {
+      this.accountingJournalLoading = false;
+    }
+  },
+
  async loadCOAListFromBackend() {
     try {
       this.coaListBackendLoading = true;
