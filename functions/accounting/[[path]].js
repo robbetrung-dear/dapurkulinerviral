@@ -954,6 +954,31 @@ export async function onRequest(context) {
       }, 200);
     }
 
+        // =========================================================================
+    // ENDPOINT: /accounting/closed_periods[/{bulan}] — Cek status tutup buku
+    // Return 200 selalu (biar tidak muncul 404 di console browser)
+    // =========================================================================
+    if (parts[0] === 'closed_periods') {
+      const bulan = (parts[1] || '').replace(/\.json$/, '');
+
+      if (!bulan) {
+        // Return semua periode yang sudah ditutup
+        const res = await fetch(`${dbUrl}/accounting/closed_periods.json${authParam}`);
+        const data = await res.json() || {};
+        return jsonResponse({ success: true, data }, 200);
+      }
+
+      // Return status 1 periode spesifik — return 200 walau belum ditutup
+      const res = await fetch(`${dbUrl}/accounting/closed_periods/${encodeURIComponent(bulan)}.json${authParam}`);
+      const data = await res.json();
+      return jsonResponse({
+        success: true,
+        bulan,
+        closed: !!(data && data.closed),
+        data: data || null
+      }, 200);
+    }
+
     // Route tidak dikenali
     return jsonResponse({
       success: false,
