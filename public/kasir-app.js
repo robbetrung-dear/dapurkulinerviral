@@ -4379,12 +4379,16 @@ try {
     this.showToast('CSV riwayat pembelian berhasil didownload', 'success');
   },
 
-  openEditStockModal(item) {
+    openEditStockModal(item) {
     if (!item) return;
     this.selectedStockItem = {
       id: item.id || '',
       name: item.name || '',
       category: item.category || 'Bahan Baku',
+      sku: item.sku || '',
+      skuSource: item.skuSource || 'internal',
+      barcodeFormat: item.barcodeFormat || 'CODE128',
+      barcode: item.barcode || '',
       stock: Number(item.stock || item.stok || 0),
       minStock: Number(item.minStock || 0),
       unit: item.unit || 'unit',
