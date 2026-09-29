@@ -224,14 +224,24 @@ async function fetchLedgerAccount(dbUrl, accCode, bulan, apiKey) {
     const url = `${dbUrl}/accounting/ledger/${encodeURIComponent(accCode)}/${encodeURIComponent(bulan)}.json${auth}`;
     const res = await fetch(url);
     let data = await res.json();
-    if (!data && accCode.length === 3) {
-      const altCode = accCode === '101' ? '1001' : accCode === '102' ? '1002' : accCode === '103' ? '1003' : accCode === '105' ? '1004' : accCode === '201' ? '2001' : accCode === '301' ? '3001' : accCode === '401' ? '4001' : accCode === '402' ? '4002' : accCode === '501' ? '5001' : accCode === '601' ? '6001' : null;
-      if (altCode) {
-        const altRes = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(altCode)}/${encodeURIComponent(bulan)}.json${auth}`);
-        data = await altRes.json();
-      }
+
+    // ✅ FIX: Pakai ACC_MAP_TO_4DIGIT constant (mapping lengkap 3→4 digit)
+    if (!data && accCode.length === 3 && ACC_MAP_TO_4DIGIT[accCode]) {
+      const altCode = ACC_MAP_TO_4DIGIT[accCode];
+      const altRes = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(altCode)}/${encodeURIComponent(bulan)}.json${auth}`);
+      data = await altRes.json();
     } else if (!data && accCode.length === 4) {
-      const altCode = accCode === '1001' ? '101' : accCode === '1002' ? '102' : accCode === '1003' ? '103' : accCode === '1004' ? '105' : accCode === '2001' ? '201' : null;
+      // Reverse mapping 4-digit → 3-digit (legacy fallback)
+      const reverseMap = {
+        '1001':'101', '1002':'102', '1003':'103', '1004':'105', '1005':'106',
+        '2001':'201', '2002':'202',
+        '3001':'301', '3003':'302', '3002':'303',
+        '4001':'401', '4002':'402',
+        '5001':'501',
+        '6001':'601', '6002':'602', '6003':'603',
+        '6004':'604', '6005':'605', '6006':'606'
+      };
+      const altCode = reverseMap[accCode];
       if (altCode) {
         const altRes = await fetch(`${dbUrl}/accounting/ledger/${encodeURIComponent(altCode)}/${encodeURIComponent(bulan)}.json${auth}`);
         data = await altRes.json();
