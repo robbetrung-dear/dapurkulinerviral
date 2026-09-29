@@ -4542,7 +4542,170 @@ try {
   return Math.max(0, startCash + cashSales - cashExpenses);
 },
 
-  openAddInventoryModal() {
+   // =========================================================================
+  // 🏷️ SKU & BARCODE SYSTEM (Sesi 1)
+  // =========================================================================
+
+  // State scan modal (dipakai scan dari camera)
+  scanModal: {
+    open: false,
+    target: '',           // 'inventory-add' | 'edit-stock' | 'journal-purchase'
+    mode: '',             // 'receive' | 'external-sku'
+    result: '',
+    error: '',
+    _scanner: null
+  },
+
+  /**
+   * Generate SKU internal
+   * Format: SKU-{KATEGORI}-{URUT}-{TAHUN}
+   */
+  generateSKU(category, skuSource = 'internal') {
+    if (skuSource === 'external') return null;
+
+    const year = new Date().getFullYear();
+    const catMap = {
+      'Bahan Baku': 'BHN', 'Daging & Ayam': 'BHN', 'Sayur & Bumbu': 'BHN',
+      'Minuman': 'MNM', 'Packaging': 'PKG', 'Lainnya': 'LNY'
+    };
+    const prefix = catMap[category] || 'LNY';
+    const existing = (this.inventoryList || [])
+      .map(i => i.sku || '')
+      .filter(s => s.startsWith(`SKU-${prefix}-`))
+      .map(s => {
+        const m = s.match(/SKU-[A-Z]+-(\d{4})-/);
+        return m ? parseInt(m[1], 10) : 0;
+      });
+    const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+    return `SKU-${prefix}-${String(nextNum).padStart(4, '0')}-${year}`;
+  },
+
+  /**
+   * Render barcode → data URL
+   * Auto-detect format: 12-13 digit angka = EAN13, else CODE128
+   */
+  async generateBarcodeDataURL(text, format = 'auto') {
+    if (!window.JsBarcode || !text) return '';
+    try {
+      let fmt = format;
+      if (fmt === 'auto') {
+        // EAN13 butuh tepat 13 digit angka
+        if (/^\d{13}$/.test(text)) fmt = 'EAN13';
+        else if (/^\d{12}$/.test(text)) fmt = 'UPC';
+        else fmt = 'CODE128';
+      }
+      const canvas = document.createElement('canvas');
+      window.JsBarcode(canvas, String(text), {
+        format: fmt,
+        width: 1.5,
+        height: 50,
+        displayValue: false,
+        margin: 4
+      });
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      console.warn('[SKU] Barcode generate error:', e);
+      return '';
+    }
+  },
+
+  /**
+   * Buka modal scan dari kamera
+   * callback: function(scannedText) → dipanggil setelah scan sukses
+   */
+  openScanModal(target, mode, onScanned) {
+    this.scanModal = {
+      open: true,
+      target,
+      mode,
+      result: '',
+      error: '',
+      _scanner: null,
+      _onScanned: onScanned
+    };
+    this.$nextTick(() => {
+      setTimeout(() => this._startScanner(), 200);
+    });
+  },
+
+  async _startScanner() {
+    try {
+      if (!window.Html5Qrcode) {
+        this.scanModal.error = 'Library scanner belum dimuat';
+        return;
+      }
+      const scanner = new window.Html5Qrcode("scan-camera-viewport");
+      this.scanModal._scanner = scanner;
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        (decodedText) => {
+          this._onScanSuccess(decodedText);
+        },
+        () => { /* ignore per-frame errors */ }
+      );
+    } catch (e) {
+      this.scanModal.error = 'Tidak bisa akses kamera: ' + (e.message || e);
+    }
+  },
+
+  _onScanSuccess(text) {
+    const clean = String(text || '').trim();
+    if (!clean) return;
+    this.scanModal.result = clean;
+    this.playSound('success');
+    if (typeof this.scanModal._onScanned === 'function') {
+      this.scanModal._onScanned(clean);
+    }
+    this.closeScanModal();
+  },
+
+  async closeScanModal() {
+    try {
+      if (this.scanModal._scanner) {
+        await this.scanModal._scanner.stop();
+        this.scanModal._scanner.clear();
+      }
+    } catch (e) { /* ignore */ }
+    this.scanModal = { open: false, target: '', mode: '', result: '', error: '', _scanner: null };
+  },
+
+  /**
+   * Input manual kalau scan gagal / tidak ada kamera
+   */
+  submitManualScan() {
+    const val = String(this.scanModal.result || '').trim();
+    if (!val) { this.scanModal.error = 'Isi kode terlebih dahulu'; return; }
+    this._onScanSuccess(val);
+  },
+
+  /**
+   * Regen SKU untuk item lama
+   */
+  async regenSKUForExistingItems() {
+    if (!confirm('Regenerate SKU internal untuk semua item yang belum punya SKU?')) return;
+    let count = 0;
+    for (const item of this.inventoryList) {
+      if (!item.sku) {
+        item.sku = this.generateSKU(item.category, 'internal');
+        item.skuSource = 'internal';
+        item.barcodeFormat = 'CODE128';
+        const barcode = await this.generateBarcodeDataURL(item.sku);
+        if (barcode) item.barcode = barcode;
+
+        if (this._fbDb && this._fbSet && this._fbRef) {
+          try {
+            const ref = this._fbRef(this._fbDb, `inventory/${item.id}`);
+            await this._fbSet(ref, JSON.parse(JSON.stringify(item)));
+            count++;
+          } catch (e) { console.warn('[SKU-REGEN]', e); }
+        }
+      }
+    }
+    this.showToast(`${count} item berhasil dapat SKU baru`, 'success');
+  },
+ 
+ openAddInventoryModal() {
     this.newInventoryForm = {
       nama: '',
       category: 'Bahan Baku',
@@ -4609,10 +4772,19 @@ try {
 
     // 3. Buat objek item inventori baru
     const newItemId = 'inv_' + Date.now();
+    const skuSource = form.skuSource || 'internal';
+    const newSKU = skuSource === 'external' ? (form.externalSKU || '') : this.generateSKU(form.category || 'Bahan Baku', 'internal');
+    const newBarcodeFormat = form.barcodeFormat || (skuSource === 'external' ? 'auto' : 'CODE128');
+    const newBarcode = newSKU ? await this.generateBarcodeDataURL(newSKU, newBarcodeFormat) : '';
+
     const newItem = {
       id: newItemId,
       name: itemName,
       category: form.category || 'Bahan Baku',
+      sku: newSKU,
+      skuSource: skuSource,
+      barcodeFormat: newBarcodeFormat,
+      barcode: newBarcode,
       stock: stokAwal,
       stok: stokAwal,
       minStock: minStok,
