@@ -131,6 +131,7 @@ window.accountingApp = function() {
     activeTab: 'dashboard',
     reportSubTab: 'pl',
     mobileMenuOpen: false,
+    siteName: 'Dapur Kuliner Viral',  // fallback, akan di-load dari site_config/brandName
     
     // Filter & Periode
     bulanAktif: '2026-09',
@@ -146,10 +147,9 @@ window.accountingApp = function() {
     dataPreview: { journals: 0, ledgers: 0, orders: 0, transactions: 0 },
     isNeracaBalanced: false,
     // State: simpan status per-periode yang sudah ditutup (contoh: {"2026-09": true})
-closedPeriods: {},
-
-// Helper: dipanggil dari HTML untuk cek apakah suatu bulan sudah ditutup
     closedPeriods: {},
+
+    // Helper: dipanggil dari HTML untuk cek apakah suatu bulan sudah ditutup
     isPeriodClosed(bulan) {
     if (!bulan) return false;
     return !!this.closedPeriods[bulan];
@@ -323,6 +323,7 @@ closedPeriods: {},
 
       // 2. Muat konfigurasi Firebase jika ada
       await this.initFirebaseConfig();
+            await this.loadSiteName();
 
       // 3. Muat Data Real dari Backend (Summary, COA, Journal)
       await this.loadSummary(this.bulanAktif);
@@ -376,6 +377,35 @@ closedPeriods: {},
     /**
      * Inisialisasi Firebase Config
      */
+      async loadSiteName() {
+      try {
+        if (!this._fbConfig || !this._fbConfig.databaseURL) {
+          await this.initFirebaseConfig();
+        }
+        let dbUrl = (this._fbConfig?.databaseURL || '').replace(/\/$/, '');
+        // Fallback: derive dari hostname kalau endpoint gagal
+        if (!dbUrl && typeof window !== 'undefined' && window.location) {
+          const host = window.location.hostname || '';
+          if (host.includes('dapurkulinerviral')) {
+            dbUrl = 'https://dapurkulinerviral-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+          } else if (host.includes('dapurkulinerviral')) {
+            dbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
+          }
+        }
+        if (!dbUrl) return;
+        const res = await fetch(`${dbUrl}/site_config/brandName.json`);
+        if (res.ok) {
+          const name = await res.json();
+          if (name && typeof name === 'string' && name.trim()) {
+            this.siteName = name.trim();
+            console.log('[ACCT-APP] Site name loaded:', this.siteName);
+          }
+        }
+      } catch (e) {
+        console.warn('[ACCT-APP] loadSiteName error:', e);
+      }
+    },
+
     async initFirebaseConfig() {
       try {
         const res = await fetch('/api/firebase-config');
