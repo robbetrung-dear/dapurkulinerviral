@@ -387,7 +387,7 @@ window.accountingApp = function() {
         if (!dbUrl && typeof window !== 'undefined' && window.location) {
           const host = window.location.hostname || '';
           if (host.includes('dapurkulinerviral')) {
-            dbUrl = 'https://dapurkulinerviral-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+            dbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
           } else if (host.includes('dapurkulinerviral')) {
             dbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
           }
