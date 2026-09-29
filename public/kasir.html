@@ -2410,8 +2410,8 @@
             </div>
 
             <div class="max-w-3xl mx-auto bg-stone-50 p-6 rounded-2xl border border-stone-200 space-y-4">
-              <div class="text-center pb-4 border-b border-stone-200">
-                <h4 class="font-extrabold text-stone-900 text-lg uppercase tracking-tight">Dapur Kuliner Viral</h4>
+                <div class="text-center pb-4 border-b border-stone-200">
+                <h4 class="font-extrabold text-stone-900 text-lg uppercase tracking-tight" x-text="(siteInfo && siteInfo.brandName ? siteInfo.brandName : (customKasirSubtitle || 'Dapur Kuliner Viral')).toUpperCase()">DAPUR KULINER VIRAL</h4>
                 <h5 class="font-black text-emerald-800 text-base">LAPORAN LABA RUGI OPERASIONAL</h5>
                 <p class="text-xs text-stone-500 font-mono mt-0.5">Untuk Periode Berakhir Hari Ini</p>
               </div>
@@ -2515,6 +2515,12 @@
 
           <!-- TAMPILAN B: JURNAL UMUM -->
           <div x-show="accountingTab === 'journal'" class="space-y-4">
+            <!-- Empty state kalau tidak ada jurnal -->
+            <div x-show="getAccountingJournal().length === 0" class="py-10 text-center space-y-2 bg-stone-50 rounded-2xl border border-dashed border-stone-300">
+              <i class="fa-solid fa-book text-stone-300 text-3xl"></i>
+              <p class="font-bold text-stone-700 text-xs">Belum ada jurnal tercatat</p>
+              <p class="text-[11px] text-stone-400">Jurnal yang di-approve akan tampil di sini</p>
+            </div>
             <div class="overflow-x-auto rounded-2xl border border-stone-200">
               <table class="w-full text-left text-xs">
                 <thead class="bg-stone-100 text-stone-700 font-extrabold uppercase border-b border-stone-200">
@@ -3458,11 +3464,11 @@
       </div>
 
       <!-- Preview Kertas Struk Thermal (Monokrom) -->
-      <div id="receiptPrintArea" class="bg-stone-50 p-5 rounded-2xl border border-stone-200 font-mono text-[12px] space-y-3 text-stone-800">
+        <div id="receiptPrintArea" class="bg-stone-50 p-5 rounded-2xl border border-stone-200 font-mono text-[12px] space-y-3 text-stone-800">
         <div class="text-center border-b border-dashed border-stone-300 pb-3">
-          <h5 class="font-black text-sm uppercase">DAPUR KULINER VIRAL</h5>
-          <p class="text-[10px] text-stone-500">Jl. Kuliner Viral No. 88, Jakarta Selatan</p>
-          <p class="text-[10px] text-stone-500">Telp/WA: 0812-3456-7890</p>
+          <h5 class="font-black text-sm uppercase" x-text="(siteInfo && siteInfo.brandName ? siteInfo.brandName : 'Dapur Kuliner Viral').toUpperCase()">DAPUR KULINER VIRAL</h5>
+          <p class="text-[10px] text-stone-500" x-text="(siteInfo && siteInfo.address) || 'Jl. Kuliner Viral No. 88, Jakarta Selatan'">Jl. Kuliner Viral No. 88, Jakarta Selatan</p>
+          <p class="text-[10px] text-stone-500" x-text="'Telp/WA: ' + ((siteInfo && siteInfo.phone) || '0812-3456-7890')">Telp/WA: 0812-3456-7890</p>
         </div>
 
         <div class="text-[11px] space-y-0.5 border-b border-dashed border-stone-300 pb-2">
