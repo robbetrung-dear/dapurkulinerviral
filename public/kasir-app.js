@@ -7170,7 +7170,7 @@ try {
 
         return {
           date: j.date || today,
-          id: j.id || j.entryId || j.ref || (j.date + '_' + (j.desc || '').slice(0,20)),
+          id: j.id || j.entryId || j.ref || (j.date + '_' + String(j.desc || '').slice(0, 20)).replace(/\s/g, '_'),
           ref: j.noEntry || j.ref || j.entryId || '-',
           desc: j.desc || j.description || 'Transaksi Jurnal',
           debitAccount: debitLine

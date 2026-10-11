@@ -3055,7 +3055,7 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-stone-200 font-medium bg-white">
-                  <template x-for="j in getAccountingJournal()" :key="j.ref">
+                  <template x-for="(j, jIdx) in getAccountingJournal()" :key="'je-' + (j.id || j.ref || j.date) + '-' + jIdx">
                     <tr class="hover:bg-stone-50">
                       <td class="p-3 font-mono text-stone-500" x-text="j.date"></td>
                       <td class="p-3 font-mono font-bold text-emerald-700" x-text="j.ref"></td>
