@@ -124,6 +124,26 @@
   <script>
     window.__splashStart = Date.now();
   </script>
+  <script>
+    // ✅ Splash preload di head — jalan sebelum body parse
+    window.__splashConfig = (function() {
+      try {
+        const cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
+        return {
+          brandName: cfg.brandName || 'DIGITAL CULINARY',
+          logoBgColor: cfg.logoBgColor || '#ea580c',
+          logoImage: cfg.logoImage || ''
+        };
+      } catch(e) { return { brandName: 'DIGITAL CULINARY', logoBgColor: '#ea580c', logoImage: '' }; }
+    })();
+    
+    // Preload image START di head (paralel dengan body parse)
+    if (window.__splashConfig.logoImage && window.__splashConfig.logoImage.length > 10) {
+      const preloadImg = new Image();
+      preloadImg.src = window.__splashConfig.logoImage;
+      window.__splashPreloadImg = preloadImg;
+    }
+  </script>
 </head>
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
@@ -133,9 +153,9 @@
        style="position:fixed; inset:0; z-index:99999; background:#1c1917; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; pointer-events:none;">
     <div id="splashLogoBoxStatic"
          style="width:96px; height:96px; border-radius:24px; background:#ea580c; display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.6);">
-      <i id="splashIconStatic" class="fa-solid fa-utensils" style="color:#fff; font-size:2.5rem; display:none;"></i>
+      <i id="splashIconStatic" class="fa-solid fa-utensils" style="color:#fff; font-size:2.5rem; display:none; visibility:hidden; opacity:0;"></i>
       <img id="splashImgStatic" alt="Logo"
-           style="display:none; width:100%; height:100%; object-fit:cover;"
+           style="display:none; visibility:hidden; opacity:0; width:100%; height:100%; object-fit:cover;"
            onerror="this.style.display='none'; document.getElementById('splashIconStatic').style.display='block';" />
     </div>
     <h1 id="splashTitleStatic"
@@ -144,10 +164,10 @@
     </h1>
   </div>
   <script>
-    // ✅ SINKRON: set logo src langsung — icon di-hide via JS biar tidak flash
-    (function() {
+    // ✅ Apply config setelah DOM siap
+    document.addEventListener('DOMContentLoaded', function() {
       try {
-        const cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
+        const cfg = window.__splashConfig || {};
         const img = document.getElementById('splashImgStatic');
         const icon = document.getElementById('splashIconStatic');
         const box = document.getElementById('splashLogoBoxStatic');
@@ -158,30 +178,24 @@
         
         const logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
         if (logoUrl && logoUrl.length > 10) {
-          // Ada logo custom → img block, icon tetap hidden
           img.src = logoUrl;
           img.style.display = 'block';
+          img.style.visibility = 'visible';
+          img.style.opacity = '1';
           img.onerror = function() {
             img.style.display = 'none';
             icon.style.display = 'block';
+            icon.style.visibility = 'visible';
+            icon.style.opacity = '1';
           };
         } else {
-          // Tidak ada logo custom → icon muncul
           img.style.display = 'none';
           icon.style.display = 'block';
+          icon.style.visibility = 'visible';
+          icon.style.opacity = '1';
         }
-      } catch (e) { console.warn('[SPLASH-PRELOAD] error:', e); }
-    })();
-    
-    // ✅ FALLBACK: kalau script tidak jalan / localStorage corrupt → setelah DOM ready 200ms, 
-    // cek apakah icon & img keduanya hidden → paksa tampil icon
-    setTimeout(function() {
-      const img = document.getElementById('splashImgStatic');
-      const icon = document.getElementById('splashIconStatic');
-      if (img && icon && img.style.display === 'none' && icon.style.display === 'none') {
-        icon.style.display = 'block';
-      }
-    }, 200);
+      } catch (e) { console.warn('[SPLASH-APPLY] error:', e); }
+    });
   </script>
 
   <!-- Top Notification Ribbon Running Text (Marquee Background Hitam) -->
@@ -6667,10 +6681,14 @@ git push -u origin main</pre>
           if (logoUrl && logoUrl.length > 10) {
             img.src = logoUrl;
             img.style.display = 'block';
+            img.style.visibility = 'visible';
+            img.style.opacity = '1';
             icon.style.display = 'none';
           } else {
             img.style.display = 'none';
             icon.style.display = 'block';
+            icon.style.visibility = 'visible';
+            icon.style.opacity = '1';
           }
         },
 
