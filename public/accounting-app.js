@@ -129,6 +129,8 @@ window.accountingApp = function() {
     // STATE VARIABEL
     // ------------------------------------------------------------------------
     appReady: false,
+    splashAkunTitle: 'AKUNTANSI',
+    splashAkunSubtitle: 'Digital Culinary',
     activeTab: 'dashboard',
     reportSubTab: 'pl',
     mobileMenuOpen: false,
@@ -521,10 +523,10 @@ window.accountingApp = function() {
       window._accountingAppInstance = this;
       console.log('[ACCT-APP] Accounting App initialized with real data');
 
-      // ✅ Splash minimum display 1000ms
+      // ✅ Splash minimum display 1800ms
       if (typeof window.__splashStart === 'undefined') window.__splashStart = Date.now();
       const _elapsed = Date.now() - window.__splashStart;
-      const _remaining = Math.max(0, 1000 - _elapsed);
+      const _remaining = Math.max(0, 1800 - _elapsed);
       setTimeout(() => { this.appReady = true; }, _remaining);
     },
 
@@ -552,6 +554,8 @@ window.accountingApp = function() {
           const name = await res.json();
           if (name && typeof name === 'string' && name.trim()) {
             this.siteName = name.trim();
+            this.splashAkunTitle = 'AKUNTANSI';
+            this.splashAkunSubtitle = this.siteName || 'Digital Culinary';
             console.log('[ACCT-APP] Site name loaded:', this.siteName);
           }
         }

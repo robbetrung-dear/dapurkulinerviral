@@ -130,15 +130,13 @@
        x-transition.opacity.duration.300ms
        class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
     <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
-         :style="'background-color:' + (siteConfig.logoBgColor || '#ea580c')">
-      <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" 
-         class="text-white text-3xl"></i>
+         :style="'background-color:' + splashLogoBg">
+      <i :class="splashLogoIcon" class="text-white text-3xl"></i>
     </div>
     <div class="text-center space-y-1">
       <h1 class="font-black text-white text-lg tracking-tight uppercase"
-          x-text="siteConfig.brandName || 'DIGITAL CULINARY'"></h1>
-      <p class="text-stone-400 text-xs" 
-         x-text="siteConfig.tagline || 'Kuliner & Catering'"></p>
+          x-text="splashBrandName"></h1>
+      <p class="text-stone-400 text-xs" x-text="splashTagline"></p>
     </div>
     <div class="w-32 h-1 bg-stone-700 rounded-full overflow-hidden">
       <div class="h-full bg-brand-500 animate-pulse" style="width:70%"></div>
@@ -5746,6 +5744,10 @@ git push -u origin main</pre>
     function dapurApp() {
       return {
         appReady: false,
+        splashBrandName: 'DIGITAL CULINARY',
+        splashTagline: 'Kuliner & Catering',
+        splashLogoIcon: 'fa-solid fa-utensils',
+        splashLogoBg: '#ea580c',
         activeTab: 'menu',
         selectedCategory: 'all',
         isCartOpen: false,
@@ -6365,6 +6367,11 @@ git push -u origin main</pre>
             if (savedConfig) {
               const parsed = JSON.parse(savedConfig);
               this.siteConfig = { ...this.siteConfig, ...parsed };
+              // ✅ Sync splash state
+              this.splashBrandName = this.siteConfig.brandName || 'DIGITAL CULINARY';
+              this.splashTagline = this.siteConfig.tagline || 'Kuliner & Catering';
+              this.splashLogoIcon = this.siteConfig.logoIcon || 'fa-solid fa-utensils';
+              this.splashLogoBg = this.siteConfig.logoBgColor || '#ea580c';
               if (parsed.cateringPackages) {
                 this.cateringPackages = parsed.cateringPackages;
               }
@@ -6475,6 +6482,11 @@ git push -u origin main</pre>
                       };
                     }
                     this.siteConfig = mergedConfig;
+                    // ✅ Sync splash state setelah Firebase sync
+                    this.splashBrandName = this.siteConfig.brandName || this.splashBrandName;
+                    this.splashTagline = this.siteConfig.tagline || this.splashTagline;
+                    this.splashLogoIcon = this.siteConfig.logoIcon || this.splashLogoIcon;
+                    this.splashLogoBg = this.siteConfig.logoBgColor || this.splashLogoBg;
                     if (liveConfig.cateringPackages) {
                       this.cateringPackages = liveConfig.cateringPackages;
                     }
@@ -6596,10 +6608,10 @@ git push -u origin main</pre>
             }
           } catch (e) {}
 
-          // ✅ Splash minimum display 1000ms
+          // ✅ Splash minimum display 1800ms
           if (typeof window.__splashStart === 'undefined') window.__splashStart = Date.now();
           const _elapsed = Date.now() - window.__splashStart;
-          const _remaining = Math.max(0, 1000 - _elapsed);
+          const _remaining = Math.max(0, 1800 - _elapsed);
           setTimeout(() => { this.appReady = true; }, _remaining);
         },
 

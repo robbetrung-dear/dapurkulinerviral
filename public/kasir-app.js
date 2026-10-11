@@ -24,6 +24,8 @@ window.kasirApp = () => ({
     _scanListenerBound: false,
     appReady: false,
     scannerEnabled: true,
+    splashKasirTitle: 'KASIR',
+    splashKasirSubtitle: 'Digital Culinary',
 
   // =========================================================================
   // 1. STATE DASAR & NAVIGASI
@@ -659,6 +661,8 @@ try {
       if (val) {
         if (val.kasirTitle) this.customKasirTitle = val.kasirTitle;
         if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
+        this.splashKasirTitle = 'KASIR';
+        this.splashKasirSubtitle = this.customKasirSubtitle || 'Digital Culinary';
         console.log('[KASIR] Custom title loaded:', val.kasirTitle);
 
                // 🏢 Sync info bisnis (brand, alamat, telepon)
@@ -778,10 +782,10 @@ try {
       });
     }
 
-    // ✅ Splash minimum display 1000ms
+    // ✅ Splash minimum display 1800ms
     if (typeof window.__splashStart === 'undefined') window.__splashStart = Date.now();
     const _elapsed = Date.now() - window.__splashStart;
-    const _remaining = Math.max(0, 1000 - _elapsed);
+    const _remaining = Math.max(0, 1800 - _elapsed);
     setTimeout(() => { this.appReady = true; }, _remaining);
   },
 

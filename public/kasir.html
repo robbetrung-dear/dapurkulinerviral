@@ -266,7 +266,7 @@
   }" 
   class="h-full font-sans text-stone-800 antialiased flex flex-col bg-stone-100 selection:bg-brand-500 selection:text-white pb-16 md:pb-0">
 
-  <!-- ✅ SPLASH SCREEN (1 tahap) -->
+  <!-- ✅ SPLASH SCREEN -->
   <div x-show="!appReady"
        x-transition.opacity.duration.300ms
        class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
@@ -274,9 +274,8 @@
       <i class="fa-solid fa-cash-register text-white text-3xl"></i>
     </div>
     <div class="text-center space-y-1">
-      <h1 class="font-black text-white text-xl tracking-tight uppercase">KASIR</h1>
-      <p class="text-stone-400 text-xs tracking-wide" 
-         x-text="customKasirSubtitle || 'Digital Culinary'"></p>
+      <h1 class="font-black text-white text-xl tracking-tight uppercase" x-text="splashKasirTitle"></h1>
+      <p class="text-stone-400 text-xs tracking-wide" x-text="splashKasirSubtitle"></p>
     </div>
     <div class="w-32 h-1 bg-stone-700 rounded-full overflow-hidden">
       <div class="h-full bg-emerald-500 animate-pulse" style="width:70%"></div>
