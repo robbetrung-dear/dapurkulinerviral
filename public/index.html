@@ -61,6 +61,11 @@
   <!-- Google Fonts: Plus Jakarta Sans & Playfair Display -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- ✅ OPTIMASI: Preconnect Firebase RTDB untuk parallel handshake -->
+  <link rel="preconnect" href="https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app" crossorigin>
+  <link rel="dns-prefetch" href="https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap" rel="stylesheet">
 
   <!-- Tailwind CSS via CDN -->
@@ -6659,18 +6664,25 @@ git push -u origin main</pre>
                 });
               }
 
-              if (window.FirebaseBridge && window.FirebaseBridge.listenMenu) {
+                if (window.FirebaseBridge && window.FirebaseBridge.listenMenu) {
                 window.FirebaseBridge.listenMenu((liveMenu) => {
+                  // ✅ OPTIMASI: Jangan override kalau Firebase kirim kosong DAN lokal sudah ada data
+                  // Ini cegah flicker + menu ready instan dari cache localStorage
+                  const hasLocalData = Array.isArray(this.menuItems) && this.menuItems.length > 0;
+                  const firebaseEmpty = !Array.isArray(liveMenu) || liveMenu.length === 0;
+
+                  if (firebaseEmpty && hasLocalData) {
+                    // Firebase belum ready atau kosong, pakai cache lokal
+                    console.log('[ADMIN-MENU] Firebase empty, keep local cache:', this.menuItems.length, 'items');
+                    this.syncCategoriesWithKasir();
+                    attachNonCriticalListeners();
+                    return;
+                  }
+
                   if (Array.isArray(liveMenu)) {
                     this.menuItems = liveMenu;
                     this.syncCategoriesWithKasir();
                     console.log('[ADMIN-MENU] Loaded from Firebase:', liveMenu.length, 'items');
-                    // ✅ Menu sudah siap → attach non-critical listener SEKARANG
-                    attachNonCriticalListeners();
-                  } else {
-                    this.menuItems = [];
-                    this.syncCategoriesWithKasir();
-                    console.log('[ADMIN-MENU] Firebase menu empty');
                     attachNonCriticalListeners();
                   }
                 });
