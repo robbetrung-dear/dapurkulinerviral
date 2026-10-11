@@ -5577,7 +5577,7 @@ git push -u origin main</pre>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    // ✅ OPTIMASI: firebase-auth.js tidak di-import — tidak dipakai (auth anonim skip)
     import { firebaseConfig, IS_DEMO_MODE } from "/firebase-config.js?v=3";
 
     // Inisialisasi Firebase & Dynamic Custom Configuration
@@ -5597,16 +5597,17 @@ git push -u origin main</pre>
       console.warn("Error reading stored custom firebase config:", e);
     }
 
-    function initFirebaseModule(cfg) {
+        function initFirebaseModule(cfg) {
       try {
         if (cfg && cfg.apiKey && !cfg.apiKey.includes("YOUR_FIREBASE")) {
           if (!app) {
             app = initializeApp(cfg);
           }
           db = getDatabase(app);
-          auth = getAuth(app);
-          signInAnonymously(auth).catch(err => console.warn("Anon Auth note:", err));
-          console.log("Firebase RTDB aktif terhubung untuk Project:", cfg.projectId);
+          // ✅ OPTIMASI: Skip signInAnonymously karena Firebase Rules `.read: true` (public read)
+          // Auth anonim hanya perlu kalau Rules butuh `auth != null`. Skip ini hemat 500-1500ms.
+          // auth = getAuth(app); (tidak dipakai lagi untuk sekarang)
+          console.log("[FIREBASE] RTDB connected (auth skipped):", cfg.projectId);
           return true;
         }
       } catch (e) {
