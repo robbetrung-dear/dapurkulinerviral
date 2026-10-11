@@ -200,17 +200,29 @@
       const logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
       const state = window.__splashImageState;
 
+      // ✅ SELALU sembunyikan box saat loading/idle — hindari flash box kosong/icon default
+      if (state === 'loading' || state === 'idle') {
+        box.style.display = 'none';
+        return true;
+      }
+
+      // State loaded → tampilkan box + image
       if (logoUrl && state === 'loaded') {
-        // Logo siap → tampilkan image
+        box.style.display = 'flex';
         if (img.getAttribute('src') !== logoUrl) img.src = logoUrl;
         img.style.display = 'block';
         icon.style.display = 'none';
-      } else if (state === 'failed' || (!logoUrl && state !== 'loading')) {
-        // Gagal atau tidak ada logo → fallback icon
+        return true;
+      }
+
+      // State failed / none → tampilkan box + icon fallback
+      if (state === 'failed' || state === 'none') {
+        box.style.display = 'flex';
         img.style.display = 'none';
         icon.style.display = 'block';
+        return true;
       }
-      // state 'loading' → tunggu, jangan tampil apapun (biar hitam polos sesaat, bukan flip)
+
       return true;
     };
 
@@ -226,10 +238,10 @@
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
   <!-- ✅ SPLASH STATIC — icon hidden by default, logo render via JS -->
-    <div id="splashStatic"
+      <div id="splashStatic"
        style="position:fixed; inset:0; z-index:99999; background:#1c1917; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; pointer-events:none;">
     <div id="splashLogoBoxStatic"
-         style="width:96px; height:96px; border-radius:24px; background:#ea580c; display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.6);">
+         style="width:96px; height:96px; border-radius:24px; background:#ea580c; display:none; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.6);">
       <i id="splashIconStatic" class="fa-solid fa-utensils"
          style="color:#fff; font-size:2.5rem; display:none;"></i>
       <img id="splashImgStatic" alt="Logo"
@@ -6741,18 +6753,20 @@ git push -u origin main</pre>
         },
 
           updateSplashLogo() {
-          // ✅ Idempotent wrapper — delegasi ke window.__renderSplash
-          // Sinkronkan config Alpine ke window.__splashConfig dulu (biar pakai config terbaru)
+          // Idempotent — sinkronkan config Alpine ke window, lalu re-render
           if (this.siteConfig) {
             if (this.siteConfig.logoImage && String(this.siteConfig.logoImage).trim().length > 10) {
-              window.__splashConfig.logoImage = String(this.siteConfig.logoImage).trim();
-              // Kalau image belum di-load, set state ke loading + preload
-              if (window.__splashImageState !== 'loaded' && window.__splashImageState !== 'loading') {
-                window.__splashImageState = 'loading';
-                const pImg = new Image();
-                pImg.onload = () => { window.__splashImageState = 'loaded'; window.__renderSplash(); };
-                pImg.onerror = () => { window.__splashImageState = 'failed'; window.__splashConfig.logoImage = ''; window.__renderSplash(); };
-                pImg.src = window.__splashConfig.logoImage;
+              const newLogo = String(this.siteConfig.logoImage).trim();
+              if (window.__splashConfig.logoImage !== newLogo) {
+                window.__splashConfig.logoImage = newLogo;
+                // Preload kalau belum
+                if (window.__splashImageState !== 'loaded') {
+                  window.__splashImageState = 'loading';
+                  const pImg = new Image();
+                  pImg.onload = () => { window.__splashImageState = 'loaded'; window.__renderSplash(); };
+                  pImg.onerror = () => { window.__splashImageState = 'failed'; window.__splashConfig.logoImage = ''; window.__renderSplash(); };
+                  pImg.src = newLogo;
+                }
               }
             }
             if (this.siteConfig.brandName) window.__splashConfig.brandName = this.siteConfig.brandName;
