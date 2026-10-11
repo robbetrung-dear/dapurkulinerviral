@@ -121,17 +121,28 @@
       animation-play-state: paused;
     }
   </style>
+  <script>
+    window.__splashStart = Date.now();
+  </script>
 </head>
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
   <!-- ✅ SPLASH SCREEN (1 tahap) -->
   <div x-show="!appReady"
-       x-transition.opacity.duration.300ms
-       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
+       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none"
+       style="transition: opacity 300ms ease-out;">
     <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
          :style="'background-color:' + splashLogoBg">
-      <i :class="splashLogoIcon" class="text-white text-3xl"></i>
+      <img x-show="splashLogoImage && splashLogoImage.length > 10"
+           :src="splashLogoImage"
+           alt="Logo"
+           class="w-full h-full object-cover"
+           style="display: none;" />
+      <i x-show="!splashLogoImage || splashLogoImage.length <= 10"
+         :class="splashLogoIcon"
+         class="text-white text-3xl"
+         style="display: none;"></i>
     </div>
     <div class="text-center space-y-1">
       <h1 class="font-black text-white text-lg tracking-tight uppercase"
@@ -5748,6 +5759,7 @@ git push -u origin main</pre>
         splashTagline: 'Kuliner & Catering',
         splashLogoIcon: 'fa-solid fa-utensils',
         splashLogoBg: '#ea580c',
+        splashLogoImage: '',
         activeTab: 'menu',
         selectedCategory: 'all',
         isCartOpen: false,
@@ -6372,6 +6384,13 @@ git push -u origin main</pre>
               this.splashTagline = this.siteConfig.tagline || 'Kuliner & Catering';
               this.splashLogoIcon = this.siteConfig.logoIcon || 'fa-solid fa-utensils';
               this.splashLogoBg = this.siteConfig.logoBgColor || '#ea580c';
+              this.splashLogoImage = this.siteConfig.logoImage || '';
+
+              // ✅ Pre-decode logo image (kalau ada) supaya tidak loading saat render splash
+              if (this.splashLogoImage && this.splashLogoImage.length > 10) {
+                const preload = new Image();
+                preload.src = this.splashLogoImage;
+              }
               if (parsed.cateringPackages) {
                 this.cateringPackages = parsed.cateringPackages;
               }
@@ -6487,6 +6506,7 @@ git push -u origin main</pre>
                     this.splashTagline = this.siteConfig.tagline || this.splashTagline;
                     this.splashLogoIcon = this.siteConfig.logoIcon || this.splashLogoIcon;
                     this.splashLogoBg = this.siteConfig.logoBgColor || this.splashLogoBg;
+                    this.splashLogoImage = this.siteConfig.logoImage || this.splashLogoImage;
                     if (liveConfig.cateringPackages) {
                       this.cateringPackages = liveConfig.cateringPackages;
                     }
@@ -6608,10 +6628,9 @@ git push -u origin main</pre>
             }
           } catch (e) {}
 
-          // ✅ Splash minimum display 1800ms
-          if (typeof window.__splashStart === 'undefined') window.__splashStart = Date.now();
-          const _elapsed = Date.now() - window.__splashStart;
-          const _remaining = Math.max(0, 1800 - _elapsed);
+          // ✅ Splash minimum display 2500ms
+          const _elapsed = Date.now() - (window.__splashStart || Date.now());
+          const _remaining = Math.max(0, 2500 - _elapsed);
           setTimeout(() => { this.appReady = true; }, _remaining);
         },
 
