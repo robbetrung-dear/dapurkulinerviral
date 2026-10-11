@@ -128,26 +128,78 @@
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
-  <!-- ✅ SPLASH SCREEN (static, minimalist) -->
-  <div x-show="!appReady"
-       id="splashOverlay"
-       class="fixed inset-0 z-[9999] bg-stone-900 flex flex-col items-center justify-center gap-6 pointer-events-none">
-    <!-- Kotak Logo -->
-    <div class="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl overflow-hidden"
-         :style="'background-color:' + splashLogoBg"
-         id="splashLogoBox">
-      <i id="splashIcon"
-         :class="splashLogoIcon"
-         class="text-white text-4xl"></i>
-      <img id="splashImg"
-           alt="Logo"
-           style="display: none; width: 100%; height: 100%; object-fit: cover;"
-           onerror="this.style.display='none'; document.getElementById('splashIcon').style.display='block';" />
+  <!-- ✅ SPLASH STATIC — render instan, logo dari localStorage -->
+  <div id="splashStatic"
+       style="position:fixed; inset:0; z-index:99999; background:#1c1917; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; pointer-events:none; transition:opacity 300ms ease-out;">
+    <div id="splashLogoBoxStatic"
+         style="width:96px; height:96px; border-radius:24px; background:#ea580c; display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.6);">
+      <i id="splashIconStatic" class="fa-solid fa-utensils" style="color:#fff; font-size:2.5rem; display:none;"></i>
+      <img id="splashImgStatic" alt="Logo"
+           style="display:none; width:100%; height:100%; object-fit:cover;"
+           onerror="this.style.display='none'; document.getElementById('splashIconStatic').style.display='block';" />
     </div>
-    <!-- Judul Brand -->
-    <h1 class="font-black text-white text-2xl tracking-tight uppercase text-center px-6"
-        x-text="splashBrandName"></h1>
+    <h1 id="splashTitleStatic"
+        style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:900; color:#ffffff; font-size:1.5rem; letter-spacing:-0.025em; text-transform:uppercase; text-align:center; padding:0 24px; margin:0;">
+      DIGITAL CULINARY
+    </h1>
   </div>
+  <script>
+    (function() {
+      window.syncSplashStatic = function(cfg) {
+        try {
+          if (!cfg) {
+            var raw = localStorage.getItem('dapur_site_config');
+            if (raw) cfg = JSON.parse(raw);
+          }
+          if (!cfg) cfg = {};
+          var box = document.getElementById('splashLogoBoxStatic');
+          var icon = document.getElementById('splashIconStatic');
+          var img = document.getElementById('splashImgStatic');
+          var title = document.getElementById('splashTitleStatic');
+          if (box && cfg.logoBgColor) box.style.background = cfg.logoBgColor;
+          if (title && cfg.brandName) title.textContent = cfg.brandName;
+          if (icon && cfg.logoIcon) icon.className = cfg.logoIcon;
+          var logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
+          if (img && icon) {
+            if (logoUrl && logoUrl.length > 10) {
+              img.onload = function() {
+                img.style.display = 'block';
+                icon.style.display = 'none';
+              };
+              img.onerror = function() {
+                img.style.display = 'none';
+                icon.style.display = 'block';
+              };
+              if (img.getAttribute('src') !== logoUrl) {
+                img.src = logoUrl;
+              }
+              if (img.complete && img.naturalWidth > 0) {
+                img.style.display = 'block';
+                icon.style.display = 'none';
+              }
+            } else {
+              img.style.display = 'none';
+              icon.style.display = 'block';
+            }
+          }
+        } catch (e) {
+          var ic = document.getElementById('splashIconStatic');
+          if (ic) ic.style.display = 'block';
+        }
+      };
+      window.hideSplashStatic = function() {
+        var el = document.getElementById('splashStatic');
+        if (!el || el.dataset.hiding === '1') return;
+        el.dataset.hiding = '1';
+        el.style.opacity = '0';
+        setTimeout(function() {
+          if (el && el.parentNode) el.style.display = 'none';
+        }, 320);
+      };
+      window.syncSplashStatic();
+      setTimeout(window.hideSplashStatic, 5000);
+    })();
+  </script>
 
   <!-- Top Notification Ribbon Running Text (Marquee Background Hitam) -->
   <div class="bg-black text-white text-xs py-2 overflow-hidden relative border-b border-stone-800 select-none z-30" :style="{ backgroundColor: siteConfig.promoRibbonBg || '#000000' }">
@@ -6625,39 +6677,18 @@ git push -u origin main</pre>
         },
 
         updateSplashLogo() {
-          const img = document.getElementById('splashImg');
-          const icon = document.getElementById('splashIcon');
-          if (!img || !icon) return;
-          const logoUrl = (this.siteConfig && this.siteConfig.logoImage) ? String(this.siteConfig.logoImage).trim() : '';
-          if (logoUrl && logoUrl.length > 10) {
-            img.onload = () => {
-              img.style.display = 'block';
-              icon.style.display = 'none';
-            };
-            img.src = logoUrl;
-            setTimeout(() => {
-              if (img.style.display !== 'block') {
-                img.style.display = 'none';
-                icon.style.display = 'block';
-              }
-            }, 800);
-          } else {
-            img.style.display = 'none';
-            icon.style.display = 'block';
+          if (typeof window.syncSplashStatic === 'function') {
+            window.syncSplashStatic(this.siteConfig);
           }
         },
 
         hideSplash() {
           if (this._splashHideRequested) return;
           this._splashHideRequested = true;
-          const el = document.getElementById('splashOverlay');
-          if (el) {
-            el.style.transition = 'opacity 250ms ease-out';
-            el.style.opacity = '0';
-            setTimeout(() => { this.appReady = true; }, 260);
-          } else {
-            this.appReady = true;
+          if (typeof window.hideSplashStatic === 'function') {
+            window.hideSplashStatic();
           }
+          setTimeout(() => { this.appReady = true; }, 320);
         },
 
         normalizeCatId(catId) {
