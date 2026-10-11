@@ -130,19 +130,60 @@
       try {
         const cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
         return {
-          brandName: cfg.brandName || 'DIGITAL CULINARY',
+          brandName: cfg.brandName || '',
           logoBgColor: cfg.logoBgColor || '#ea580c',
           logoImage: cfg.logoImage || ''
         };
-      } catch(e) { return { brandName: 'DIGITAL CULINARY', logoBgColor: '#ea580c', logoImage: '' }; }
+      } catch(e) { return { brandName: '', logoBgColor: '#ea580c', logoImage: '' }; }
     })();
-    
+
     // Preload image START di head (paralel dengan body parse)
     if (window.__splashConfig.logoImage && window.__splashConfig.logoImage.length > 10) {
       const preloadImg = new Image();
       preloadImg.src = window.__splashConfig.logoImage;
       window.__splashPreloadImg = preloadImg;
     }
+
+    // ✅ Apply segera begitu elemen splash ada di DOM (tanpa tunggu DOMContentLoaded)
+    (function applySplashEarly() {
+      const img = document.getElementById('splashImgStatic');
+      const icon = document.getElementById('splashIconStatic');
+      const box = document.getElementById('splashLogoBoxStatic');
+      const title = document.getElementById('splashTitleStatic');
+      if (!img || !icon || !box || !title) {
+        requestAnimationFrame(applySplashEarly);
+        return;
+      }
+      // Re-read localStorage sekali lagi (handle cold-start lambat di HP Samsung)
+      let cfg = window.__splashConfig || {};
+      if (!cfg.logoImage || cfg.logoImage.length <= 10) {
+        try {
+          const fresh = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
+          if (fresh && (fresh.logoImage || fresh.brandName)) cfg = fresh;
+        } catch(e) {}
+      }
+      if (cfg.brandName) title.textContent = String(cfg.brandName).toUpperCase();
+      if (cfg.logoBgColor) box.style.background = cfg.logoBgColor;
+      const logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
+      if (logoUrl && logoUrl.length > 10) {
+        icon.style.display = 'none';
+        icon.style.visibility = 'hidden';
+        icon.style.opacity = '0';
+        img.src = logoUrl;
+        img.style.display = 'block';
+        img.style.visibility = 'visible';
+        img.style.opacity = '1';
+      } else {
+        // Tunda tampilkan icon 350ms — beri kesempatan Alpine/Firebase isi logoImage dulu
+        setTimeout(function() {
+          if (img.style.display !== 'block') {
+            icon.style.display = 'block';
+            icon.style.visibility = 'visible';
+            icon.style.opacity = '1';
+          }
+        }, 350);
+      }
+    })();
   </script>
 </head>
 
@@ -6664,9 +6705,22 @@ git push -u origin main</pre>
           this.splashLogoBg = this.siteConfig.logoBgColor || '#ea580c';
           this.$nextTick(() => this.updateSplashLogo());
 
-          // ✅ Splash: hide & hard cap
-          setTimeout(() => { this.hideSplash(); }, 1800);
-          setTimeout(() => { this.hideSplash(); }, 5000);
+          // ✅ Splash: hide dinamis saat halaman utama (menu) siap + min display 600ms + hard cap 4500ms
+          const splashMinMs = 600;
+          const waitForMenuReady = () => {
+            const elapsed = Date.now() - (window.__splashStart || Date.now());
+            const menuReady = Array.isArray(this.menuItems) && this.menuItems.length > 0;
+            const domPainted = document.querySelectorAll('[x-for*="filteredMenus"], .menu-card, main img').length > 0 || menuReady;
+            if (domPainted && elapsed >= splashMinMs) {
+              this.$nextTick(() => {
+                requestAnimationFrame(() => { this.hideSplash(); });
+              });
+            } else {
+              setTimeout(waitForMenuReady, 80);
+            }
+          };
+          setTimeout(waitForMenuReady, 120);
+          setTimeout(() => { this.hideSplash(); }, 4500);
         },
 
         updateSplashLogo() {
@@ -6674,21 +6728,22 @@ git push -u origin main</pre>
           const icon = document.getElementById('splashIconStatic');
           const box = document.getElementById('splashLogoBoxStatic');
           const title = document.getElementById('splashTitleStatic');
-          if (this.siteConfig && this.siteConfig.brandName && title) title.textContent = this.siteConfig.brandName.toUpperCase();
-          if (this.siteConfig && this.siteConfig.logoBgColor && box) box.style.background = this.siteConfig.logoBgColor;
+          let cfg = (this.siteConfig && (this.siteConfig.logoImage || this.siteConfig.brandName)) ? this.siteConfig : null;
+          if (!cfg) {
+            try { cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}'); } catch(e) { cfg = {}; }
+          }
+          if (cfg && cfg.brandName && title) title.textContent = String(cfg.brandName).toUpperCase();
+          if (cfg && cfg.logoBgColor && box) box.style.background = cfg.logoBgColor;
           if (!img || !icon) return;
-          const logoUrl = (this.siteConfig && this.siteConfig.logoImage) ? String(this.siteConfig.logoImage).trim() : '';
+          const logoUrl = (cfg && cfg.logoImage) ? String(cfg.logoImage).trim() : '';
           if (logoUrl && logoUrl.length > 10) {
-            img.src = logoUrl;
+            icon.style.display = 'none';
+            icon.style.visibility = 'hidden';
+            icon.style.opacity = '0';
+            if (img.getAttribute('src') !== logoUrl) img.src = logoUrl;
             img.style.display = 'block';
             img.style.visibility = 'visible';
             img.style.opacity = '1';
-            icon.style.display = 'none';
-          } else {
-            img.style.display = 'none';
-            icon.style.display = 'block';
-            icon.style.visibility = 'visible';
-            icon.style.opacity = '1';
           }
         },
 
