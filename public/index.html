@@ -131,14 +131,17 @@
        x-transition:leave-start="opacity-100"
        x-transition:leave-end="opacity-0"
        class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
-    <div class="w-20 h-20 rounded-2xl bg-brand-600 flex items-center justify-center shadow-2xl overflow-hidden"
+    <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
          :style="'background-color:' + (siteConfig.logoBgColor || '#ea580c')">
-      <img :src="siteConfig.logoImage || ''" 
-           :style="'display:' + (siteConfig.logoImage ? 'block' : 'none')"
-           alt="Logo" class="w-full h-full object-cover" />
-      <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" 
-         :style="'display:' + (siteConfig.logoImage ? 'none' : 'block')"
+      <!-- Icon: hanya render kalau logoImage KOSONG -->
+      <i x-show="!siteConfig.logoImage" 
+         :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" 
          class="text-white text-3xl"></i>
+      <!-- Image: hanya render kalau logoImage ADA -->
+      <img x-show="siteConfig.logoImage" 
+           x-cloak
+           :src="siteConfig.logoImage || ''" 
+           alt="Logo" class="w-full h-full object-cover" />
     </div>
     <div class="text-center space-y-1">
       <h1 class="font-black text-white text-lg tracking-tight uppercase"
