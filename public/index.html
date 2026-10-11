@@ -215,11 +215,17 @@
         return true;
       }
 
-      // State failed / none → tampilkan box + icon fallback
-      if (state === 'failed' || state === 'none') {
+      // State failed → tampilkan logo box + icon default fallback
+      if (state === 'failed') {
         box.style.display = 'flex';
         img.style.display = 'none';
         icon.style.display = 'block';
+        return true;
+      }
+
+      // State none → box hidden (tunggu Firebase kasih logo atau timeout)
+      if (state === 'none') {
+        box.style.display = 'none';
         return true;
       }
 
@@ -232,6 +238,14 @@
         requestAnimationFrame(tryEarlyRender);
       }
     })();
+
+    // ✅ Fallback timeout: kalau 1.5s state masih 'none'/'idle' → tampil icon fallback
+    setTimeout(function() {
+      if (window.__splashImageState === 'none' || window.__splashImageState === 'idle') {
+        window.__splashImageState = 'failed';
+        window.__renderSplash();
+      }
+    }, 1500);
   </script>
 </head>
 
