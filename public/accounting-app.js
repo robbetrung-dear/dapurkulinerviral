@@ -522,7 +522,7 @@ window.accountingApp = function() {
       console.log('[ACCT-APP] Accounting App initialized with real data');
 
       // ✅ Splash screen: hide setelah init selesai
-      setTimeout(() => { this.appReady = true; }, 400);
+      setTimeout(() => { this.appReady = true; }, 600);
     },
 
     /**

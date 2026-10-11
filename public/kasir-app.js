@@ -779,7 +779,7 @@ try {
     }
 
     // ✅ Splash screen: hide setelah init selesai
-    setTimeout(() => { this.appReady = true; }, 500);
+    setTimeout(() => { this.appReady = true; }, 700);
   },
 
   /**
