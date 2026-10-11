@@ -272,17 +272,16 @@
        x-transition:leave-start="opacity-100"
        x-transition:leave-end="opacity-0"
        class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
-    <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
-         style="background-color: #ea580c">
-      <i class="fa-solid fa-utensils text-white text-3xl"></i>
+    <div class="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-2xl">
+      <i class="fa-solid fa-cash-register text-white text-3xl"></i>
     </div>
-    <div class="text-center">
-      <h1 class="font-black text-white text-lg tracking-tight uppercase"
-          x-text="customKasirTitle || 'KASIR PINTAR'"></h1>
-      <p class="text-stone-400 text-xs mt-1" x-text="customKasirSubtitle || 'Dapur Kuliner Viral'"></p>
+    <div class="text-center space-y-1">
+      <h1 class="font-black text-white text-xl tracking-tight uppercase">KASIR</h1>
+      <p class="text-stone-400 text-xs tracking-wide" 
+         x-text="customKasirSubtitle || 'Digital Culinary'"></p>
     </div>
     <div class="w-32 h-1 bg-stone-700 rounded-full overflow-hidden">
-      <div class="h-full bg-brand-500 animate-pulse" style="width:70%"></div>
+      <div class="h-full bg-emerald-500 animate-pulse" style="width:70%"></div>
     </div>
     <p class="text-stone-500 text-[11px] tracking-wider uppercase">Memuat...</p>
   </div>

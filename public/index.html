@@ -131,19 +131,20 @@
        x-transition:leave-start="opacity-100"
        x-transition:leave-end="opacity-0"
        class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
-    <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden transition-all"
-         :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
-      <template x-if="siteConfig.logoType === 'image' && siteConfig.logoImage">
-        <img :src="siteConfig.logoImage" alt="Logo" class="w-full h-full object-cover" />
-      </template>
-      <template x-if="siteConfig.logoType !== 'image' || !siteConfig.logoImage">
-        <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" class="text-white text-3xl"></i>
-      </template>
+    <div class="w-20 h-20 rounded-2xl bg-brand-600 flex items-center justify-center shadow-2xl overflow-hidden"
+         :style="'background-color:' + (siteConfig.logoBgColor || '#ea580c')">
+      <img :src="siteConfig.logoImage || ''" 
+           :style="'display:' + (siteConfig.logoImage ? 'block' : 'none')"
+           alt="Logo" class="w-full h-full object-cover" />
+      <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" 
+         :style="'display:' + (siteConfig.logoImage ? 'none' : 'block')"
+         class="text-white text-3xl"></i>
     </div>
-    <div class="text-center">
+    <div class="text-center space-y-1">
       <h1 class="font-black text-white text-lg tracking-tight uppercase"
           x-text="siteConfig.brandName || 'DIGITAL CULINARY'"></h1>
-      <p class="text-stone-400 text-xs mt-1" x-text="siteConfig.tagline || 'Kuliner & Catering'"></p>
+      <p class="text-stone-400 text-xs" 
+         x-text="siteConfig.tagline || 'Kuliner & Catering'"></p>
     </div>
     <div class="w-32 h-1 bg-stone-700 rounded-full overflow-hidden">
       <div class="h-full bg-brand-500 animate-pulse" style="width:70%"></div>
