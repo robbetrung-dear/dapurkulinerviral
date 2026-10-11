@@ -6602,25 +6602,15 @@ git push -u origin main</pre>
             }
           } catch (e) {}
 
-          // ✅ Splash: tunggu siteConfig sync + buffer animasi
-          const startHide = () => {
-            this.$nextTick(() => {
-              setTimeout(() => { this.appReady = true; }, 600);
-            });
+          // ✅ Splash minimum display 1200ms (biar logo sempat render)
+          const splashStartTime = Date.now();
+          const MIN_SPLASH_MS = 1200;
+          const hideSplash = () => {
+            const elapsed = Date.now() - splashStartTime;
+            const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
+            setTimeout(() => { this.appReady = true; }, remaining);
           };
-          if (this.siteConfig && this.siteConfig.brandName) {
-            startHide();
-          } else {
-            // Fallback: kalau siteConfig belum sync, max tunggu 1.5s
-            let waited = 0;
-            const waitConfig = setInterval(() => {
-              waited += 100;
-              if ((this.siteConfig && this.siteConfig.brandName) || waited >= 1500) {
-                clearInterval(waitConfig);
-                startHide();
-              }
-            }, 100);
-          }
+          hideSplash();
         },
 
         normalizeCatId(catId) {
