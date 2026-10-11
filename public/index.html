@@ -6596,9 +6596,46 @@ git push -u origin main</pre>
             })
             .catch(() => {});
 
-          // 3. Realtime Listener dari Firebase jika aktif
+                    // 3. Realtime Listener dari Firebase jika aktif (OPTIMIZED — critical first, defer non-critical)
+          let _nonCriticalListenersAttached = false;
+          const attachNonCriticalListeners = () => {
+            if (_nonCriticalListenersAttached) return;
+            _nonCriticalListenersAttached = true;
+            console.log('[FIREBASE] Attaching non-critical listeners...');
+
+            if (window.FirebaseBridge && window.FirebaseBridge.listenCategories) {
+              window.FirebaseBridge.listenCategories((liveCats) => {
+                if (liveCats && Array.isArray(liveCats) && liveCats.length > 0) {
+                  this.menuCategories = liveCats;
+                  this.syncCategoriesWithKasir();
+                }
+              });
+            }
+            if (window.FirebaseBridge && window.FirebaseBridge.listenInventory) {
+              window.FirebaseBridge.listenInventory((liveInv) => {
+                if (Array.isArray(liveInv)) {
+                  this.inventoryList = liveInv;
+                  console.log('[INV-LISTENER] Loaded:', liveInv.length, 'items');
+                }
+              });
+            }
+            if (window.FirebaseBridge && window.FirebaseBridge.listenMenuRecipes) {
+              window.FirebaseBridge.listenMenuRecipes((liveRec) => {
+                if (liveRec && typeof liveRec === 'object') {
+                  this.menuRecipes = liveRec;
+                }
+              });
+            }
+            if (window.FirebaseBridge && window.FirebaseBridge.listenAllOrders) {
+              window.FirebaseBridge.listenAllOrders((liveOrders) => {
+                this.adminOrders = liveOrders;
+              });
+            }
+          };
+
           const syncFirebaseListeners = () => {
             try {
+              // ✅ CRITICAL — attach LANGSUNG untuk mempercepat splash hide
               if (window.FirebaseBridge && window.FirebaseBridge.listenSiteConfig) {
                 window.FirebaseBridge.listenSiteConfig((liveConfig) => {
                   if (liveConfig) {
@@ -6610,7 +6647,6 @@ git push -u origin main</pre>
                       };
                     }
                     this.siteConfig = mergedConfig;
-                    // ✅ Sync splash state setelah Firebase sync
                     this.splashBrandName = this.siteConfig.brandName || this.splashBrandName;
                     this.splashLogoIcon = this.siteConfig.logoIcon || this.splashLogoIcon;
                     this.splashLogoBg = this.siteConfig.logoBgColor || this.splashLogoBg;
@@ -6622,52 +6658,28 @@ git push -u origin main</pre>
                   }
                 });
               }
-                if (window.FirebaseBridge && window.FirebaseBridge.listenMenu) {
+
+              if (window.FirebaseBridge && window.FirebaseBridge.listenMenu) {
                 window.FirebaseBridge.listenMenu((liveMenu) => {
-                  // ✅ FIX: Override selalu (bahkan kalau kosong) — hindari hardcoded fallback
                   if (Array.isArray(liveMenu)) {
                     this.menuItems = liveMenu;
                     this.syncCategoriesWithKasir();
                     console.log('[ADMIN-MENU] Loaded from Firebase:', liveMenu.length, 'items');
+                    // ✅ Menu sudah siap → attach non-critical listener SEKARANG
+                    attachNonCriticalListeners();
                   } else {
-                    // Firebase return null → anggap kosong
                     this.menuItems = [];
                     this.syncCategoriesWithKasir();
                     console.log('[ADMIN-MENU] Firebase menu empty');
+                    attachNonCriticalListeners();
                   }
                 });
               }
-          
-              if (window.FirebaseBridge && window.FirebaseBridge.listenCategories) {
-                window.FirebaseBridge.listenCategories((liveCats) => {
-                  if (liveCats && Array.isArray(liveCats) && liveCats.length > 0) {
-                    this.menuCategories = liveCats;
-                    this.syncCategoriesWithKasir();
-                  }
-                });
-              }
-              if (window.FirebaseBridge && window.FirebaseBridge.listenInventory) {
-                window.FirebaseBridge.listenInventory((liveInv) => {
-                  if (Array.isArray(liveInv)) {
-                    this.inventoryList = liveInv;
-                    console.log('[INV-LISTENER] Loaded:', liveInv.length, 'items');
-                  }
-                });
-              }
-              if (window.FirebaseBridge && window.FirebaseBridge.listenMenuRecipes) {
-                window.FirebaseBridge.listenMenuRecipes((liveRec) => {
-                  if (liveRec && typeof liveRec === 'object') {
-                    this.menuRecipes = liveRec;
-                  }
-                });
-              }
-              if (window.FirebaseBridge && window.FirebaseBridge.listenAllOrders) {
-                window.FirebaseBridge.listenAllOrders((liveOrders) => {
-                  this.adminOrders = liveOrders;
-                });
-              }
-            } catch (e) {}
+            } catch (e) {
+              console.warn('[FIREBASE] syncFirebaseListeners error:', e);
+            }
           };
+          
           syncFirebaseListeners();
 
           // 4. Cek Sesi Admin yang masih aktif
@@ -6764,6 +6776,13 @@ git push -u origin main</pre>
               this.hideSplash();
             }
           };
+          // ✅ SAFETY NET: attach non-critical listener setelah 3s apa pun yang terjadi
+          setTimeout(() => {
+            if (typeof attachNonCriticalListeners === 'function') {
+              attachNonCriticalListeners();
+            }
+          }, 3000);
+
           _waitMenuReady();
         },
 
