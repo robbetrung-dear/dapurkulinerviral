@@ -128,27 +128,25 @@
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
-  <!-- ✅ SPLASH SCREEN (1 tahap) -->
+  <!-- ✅ SPLASH SCREEN (static, minimalist) -->
   <div x-show="!appReady"
-       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none"
-       style="transition: opacity 300ms ease-out;">
-    <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
-         :style="'background-color:' + splashLogoBg">
-      <img :src="splashLogoImage || ''"
-           :style="'display:' + ((splashLogoImage && splashLogoImage.length > 10) ? 'block' : 'none') + '; width: 100%; height: 100%; object-fit: cover;'"
-           alt="Logo" />
-      <i :class="splashLogoIcon"
-         :style="'display:' + ((!splashLogoImage || splashLogoImage.length <= 10) ? 'block' : 'none') + '; color: white; font-size: 1.875rem;'"></i>
+       id="splashOverlay"
+       class="fixed inset-0 z-[9999] bg-stone-900 flex flex-col items-center justify-center gap-6 pointer-events-none">
+    <!-- Kotak Logo -->
+    <div class="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl overflow-hidden"
+         :style="'background-color:' + splashLogoBg"
+         id="splashLogoBox">
+      <i id="splashIcon"
+         :class="splashLogoIcon"
+         class="text-white text-4xl"></i>
+      <img id="splashImg"
+           alt="Logo"
+           style="display: none; width: 100%; height: 100%; object-fit: cover;"
+           onerror="this.style.display='none'; document.getElementById('splashIcon').style.display='block';" />
     </div>
-    <div class="text-center space-y-1">
-      <h1 class="font-black text-white text-lg tracking-tight uppercase"
-          x-text="splashBrandName"></h1>
-      <p class="text-stone-400 text-xs" x-text="splashTagline"></p>
-    </div>
-    <div class="w-32 h-1 bg-stone-700 rounded-full overflow-hidden">
-      <div class="h-full bg-brand-500 animate-pulse" style="width:70%"></div>
-    </div>
-    <p class="text-stone-500 text-[11px] tracking-wider uppercase">Memuat...</p>
+    <!-- Judul Brand -->
+    <h1 class="font-black text-white text-2xl tracking-tight uppercase text-center px-6"
+        x-text="splashBrandName"></h1>
   </div>
 
   <!-- Top Notification Ribbon Running Text (Marquee Background Hitam) -->
@@ -5749,20 +5747,13 @@ git push -u origin main</pre>
   <!-- ALPINE.JS APPLICATION COMPONENT -->
   <script>
     function dapurApp() {
-      const savedConfigSplash = (() => {
-        try {
-          const sc = localStorage.getItem("dapur_site_config");
-          if (sc) return JSON.parse(sc);
-        } catch(e) {}
-        return {};
-      })();
       return {
         appReady: false,
-        splashBrandName: savedConfigSplash.brandName || 'DIGITAL CULINARY',
-        splashTagline: savedConfigSplash.tagline || 'Kuliner & Catering',
-        splashLogoIcon: savedConfigSplash.logoIcon || 'fa-solid fa-utensils',
-        splashLogoBg: savedConfigSplash.logoBgColor || '#ea580c',
-        splashLogoImage: savedConfigSplash.logoImage || '',
+        splashBrandName: 'DIGITAL CULINARY',
+        splashLogoImage: '',
+        splashLogoBg: '#ea580c',
+        splashLogoIcon: 'fa-solid fa-utensils',
+        _splashHideRequested: false,
         activeTab: 'menu',
         selectedCategory: 'all',
         isCartOpen: false,
@@ -6382,18 +6373,6 @@ git push -u origin main</pre>
             if (savedConfig) {
               const parsed = JSON.parse(savedConfig);
               this.siteConfig = { ...this.siteConfig, ...parsed };
-              // ✅ Sync splash state
-              this.splashBrandName = this.siteConfig.brandName || 'DIGITAL CULINARY';
-              this.splashTagline = this.siteConfig.tagline || 'Kuliner & Catering';
-              this.splashLogoIcon = this.siteConfig.logoIcon || 'fa-solid fa-utensils';
-              this.splashLogoBg = this.siteConfig.logoBgColor || '#ea580c';
-              this.splashLogoImage = this.siteConfig.logoImage || '';
-
-              // ✅ Pre-decode logo image (kalau ada) supaya tidak loading saat render splash
-              if (this.splashLogoImage && this.splashLogoImage.length > 10) {
-                const preload = new Image();
-                preload.src = this.splashLogoImage;
-              }
               if (parsed.cateringPackages) {
                 this.cateringPackages = parsed.cateringPackages;
               }
@@ -6506,10 +6485,9 @@ git push -u origin main</pre>
                     this.siteConfig = mergedConfig;
                     // ✅ Sync splash state setelah Firebase sync
                     this.splashBrandName = this.siteConfig.brandName || this.splashBrandName;
-                    this.splashTagline = this.siteConfig.tagline || this.splashTagline;
                     this.splashLogoIcon = this.siteConfig.logoIcon || this.splashLogoIcon;
                     this.splashLogoBg = this.siteConfig.logoBgColor || this.splashLogoBg;
-                    this.splashLogoImage = this.siteConfig.logoImage || this.splashLogoImage;
+                    this.$nextTick(() => this.updateSplashLogo());
                     if (liveConfig.cateringPackages) {
                       this.cateringPackages = liveConfig.cateringPackages;
                     }
@@ -6631,10 +6609,55 @@ git push -u origin main</pre>
             }
           } catch (e) {}
 
-          // ✅ Splash minimum display 1500ms
-          const _elapsed = Date.now() - (window.__splashStart || Date.now());
-          const _remaining = Math.max(0, 1500 - _elapsed);
-          setTimeout(() => { this.appReady = true; }, _remaining);
+          // ✅ Splash: init state
+          this.splashBrandName = this.siteConfig.brandName || 'DIGITAL CULINARY';
+          this.splashLogoIcon = this.siteConfig.logoIcon || 'fa-solid fa-utensils';
+          this.splashLogoBg = this.siteConfig.logoBgColor || '#ea580c';
+          this.$nextTick(() => this.updateSplashLogo());
+
+          // ✅ Splash: hard cap max 5s — paksa hilang kalau data belum ready
+          setTimeout(() => { this.hideSplash(); }, 5000);
+
+          // ✅ Splash: hide setelah semua yang penting ready (dengan slight delay untuk paint)
+          this.$nextTick(() => {
+            setTimeout(() => { this.hideSplash(); }, 400);
+          });
+        },
+
+        updateSplashLogo() {
+          const img = document.getElementById('splashImg');
+          const icon = document.getElementById('splashIcon');
+          if (!img || !icon) return;
+          const logoUrl = (this.siteConfig && this.siteConfig.logoImage) ? String(this.siteConfig.logoImage).trim() : '';
+          if (logoUrl && logoUrl.length > 10) {
+            img.onload = () => {
+              img.style.display = 'block';
+              icon.style.display = 'none';
+            };
+            img.src = logoUrl;
+            setTimeout(() => {
+              if (img.style.display !== 'block') {
+                img.style.display = 'none';
+                icon.style.display = 'block';
+              }
+            }, 800);
+          } else {
+            img.style.display = 'none';
+            icon.style.display = 'block';
+          }
+        },
+
+        hideSplash() {
+          if (this._splashHideRequested) return;
+          this._splashHideRequested = true;
+          const el = document.getElementById('splashOverlay');
+          if (el) {
+            el.style.transition = 'opacity 250ms ease-out';
+            el.style.opacity = '0';
+            setTimeout(() => { this.appReady = true; }, 260);
+          } else {
+            this.appReady = true;
+          }
         },
 
         normalizeCatId(catId) {
