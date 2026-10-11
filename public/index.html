@@ -125,21 +125,14 @@
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
-  <!-- ✅ SPLASH SCREEN -->
-  <div x-show="!appReady" 
-       x-transition:leave="transition ease-out duration-500"
-       x-transition:leave-start="opacity-100"
-       x-transition:leave-end="opacity-0"
+  <!-- ✅ SPLASH SCREEN (1 tahap) -->
+  <div x-show="!appReady"
+       x-transition.opacity.duration.300ms
        class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
     <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
          :style="'background-color:' + (siteConfig.logoBgColor || '#ea580c')">
-      <img id="splash-logo-img"
-           :src="siteConfig.logoImage || ''"
-           alt="Logo" 
-           :style="'display:' + (siteConfig.logoImage ? 'block' : 'none') + '; width:100%; height:100%; object-fit:cover;'" />
-      <i id="splash-logo-icon"
-         :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" 
-         :style="'display:' + (siteConfig.logoImage ? 'none' : 'block') + '; color:#fff; font-size:1.875rem;'"></i>
+      <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" 
+         class="text-white text-3xl"></i>
     </div>
     <div class="text-center space-y-1">
       <h1 class="font-black text-white text-lg tracking-tight uppercase"
@@ -6603,15 +6596,11 @@ git push -u origin main</pre>
             }
           } catch (e) {}
 
-          // ✅ Splash minimum display 1200ms (biar logo sempat render)
-          const splashStartTime = Date.now();
-          const MIN_SPLASH_MS = 1200;
-          const hideSplash = () => {
-            const elapsed = Date.now() - splashStartTime;
-            const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
-            setTimeout(() => { this.appReady = true; }, remaining);
-          };
-          hideSplash();
+          // ✅ Splash minimum display 1000ms
+          if (typeof window.__splashStart === 'undefined') window.__splashStart = Date.now();
+          const _elapsed = Date.now() - window.__splashStart;
+          const _remaining = Math.max(0, 1000 - _elapsed);
+          setTimeout(() => { this.appReady = true; }, _remaining);
         },
 
         normalizeCatId(catId) {

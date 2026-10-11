@@ -778,12 +778,11 @@ try {
       });
     }
 
-    // ✅ Splash screen: hide setelah init selesai
-    const splashStartTime = Date.now();
-    const MIN_SPLASH_MS = 1200;
-    const elapsed = Date.now() - splashStartTime;
-    const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
-    setTimeout(() => { this.appReady = true; }, remaining);
+    // ✅ Splash minimum display 1000ms
+    if (typeof window.__splashStart === 'undefined') window.__splashStart = Date.now();
+    const _elapsed = Date.now() - window.__splashStart;
+    const _remaining = Math.max(0, 1000 - _elapsed);
+    setTimeout(() => { this.appReady = true; }, _remaining);
   },
 
   /**
