@@ -128,9 +128,9 @@
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
-  <!-- ✅ SPLASH STATIC — render instan, logo dari localStorage -->
+  <!-- ✅ SPLASH STATIC — icon hidden by default, logo render via JS -->
   <div id="splashStatic"
-       style="position:fixed; inset:0; z-index:99999; background:#1c1917; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; pointer-events:none; transition:opacity 300ms ease-out;">
+       style="position:fixed; inset:0; z-index:99999; background:#1c1917; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; pointer-events:none;">
     <div id="splashLogoBoxStatic"
          style="width:96px; height:96px; border-radius:24px; background:#ea580c; display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.6);">
       <i id="splashIconStatic" class="fa-solid fa-utensils" style="color:#fff; font-size:2.5rem; display:none;"></i>
@@ -139,66 +139,49 @@
            onerror="this.style.display='none'; document.getElementById('splashIconStatic').style.display='block';" />
     </div>
     <h1 id="splashTitleStatic"
-        style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:900; color:#ffffff; font-size:1.5rem; letter-spacing:-0.025em; text-transform:uppercase; text-align:center; padding:0 24px; margin:0;">
+        style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:900; color:#fff; font-size:1.75rem; letter-spacing:-0.025em; text-transform:uppercase; text-align:center; padding:0 24px; margin:0;">
       DIGITAL CULINARY
     </h1>
   </div>
   <script>
+    // ✅ SINKRON: set logo src langsung — icon di-hide via JS biar tidak flash
     (function() {
-      window.syncSplashStatic = function(cfg) {
-        try {
-          if (!cfg) {
-            var raw = localStorage.getItem('dapur_site_config');
-            if (raw) cfg = JSON.parse(raw);
-          }
-          if (!cfg) cfg = {};
-          var box = document.getElementById('splashLogoBoxStatic');
-          var icon = document.getElementById('splashIconStatic');
-          var img = document.getElementById('splashImgStatic');
-          var title = document.getElementById('splashTitleStatic');
-          if (box && cfg.logoBgColor) box.style.background = cfg.logoBgColor;
-          if (title && cfg.brandName) title.textContent = cfg.brandName;
-          if (icon && cfg.logoIcon) icon.className = cfg.logoIcon;
-          var logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
-          if (img && icon) {
-            if (logoUrl && logoUrl.length > 10) {
-              img.onload = function() {
-                img.style.display = 'block';
-                icon.style.display = 'none';
-              };
-              img.onerror = function() {
-                img.style.display = 'none';
-                icon.style.display = 'block';
-              };
-              if (img.getAttribute('src') !== logoUrl) {
-                img.src = logoUrl;
-              }
-              if (img.complete && img.naturalWidth > 0) {
-                img.style.display = 'block';
-                icon.style.display = 'none';
-              }
-            } else {
-              img.style.display = 'none';
-              icon.style.display = 'block';
-            }
-          }
-        } catch (e) {
-          var ic = document.getElementById('splashIconStatic');
-          if (ic) ic.style.display = 'block';
+      try {
+        const cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
+        const img = document.getElementById('splashImgStatic');
+        const icon = document.getElementById('splashIconStatic');
+        const box = document.getElementById('splashLogoBoxStatic');
+        const title = document.getElementById('splashTitleStatic');
+        
+        if (cfg.brandName && title) title.textContent = cfg.brandName.toUpperCase();
+        if (cfg.logoBgColor && box) box.style.background = cfg.logoBgColor;
+        
+        const logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
+        if (logoUrl && logoUrl.length > 10) {
+          // Ada logo custom → img block, icon tetap hidden
+          img.src = logoUrl;
+          img.style.display = 'block';
+          img.onerror = function() {
+            img.style.display = 'none';
+            icon.style.display = 'block';
+          };
+        } else {
+          // Tidak ada logo custom → icon muncul
+          img.style.display = 'none';
+          icon.style.display = 'block';
         }
-      };
-      window.hideSplashStatic = function() {
-        var el = document.getElementById('splashStatic');
-        if (!el || el.dataset.hiding === '1') return;
-        el.dataset.hiding = '1';
-        el.style.opacity = '0';
-        setTimeout(function() {
-          if (el && el.parentNode) el.style.display = 'none';
-        }, 320);
-      };
-      window.syncSplashStatic();
-      setTimeout(window.hideSplashStatic, 5000);
+      } catch (e) { console.warn('[SPLASH-PRELOAD] error:', e); }
     })();
+    
+    // ✅ FALLBACK: kalau script tidak jalan / localStorage corrupt → setelah DOM ready 200ms, 
+    // cek apakah icon & img keduanya hidden → paksa tampil icon
+    setTimeout(function() {
+      const img = document.getElementById('splashImgStatic');
+      const icon = document.getElementById('splashIconStatic');
+      if (img && icon && img.style.display === 'none' && icon.style.display === 'none') {
+        icon.style.display = 'block';
+      }
+    }, 200);
   </script>
 
   <!-- Top Notification Ribbon Running Text (Marquee Background Hitam) -->
@@ -6667,28 +6650,44 @@ git push -u origin main</pre>
           this.splashLogoBg = this.siteConfig.logoBgColor || '#ea580c';
           this.$nextTick(() => this.updateSplashLogo());
 
-          // ✅ Splash: hard cap max 5s — paksa hilang kalau data belum ready
+          // ✅ Splash: hide & hard cap
+          setTimeout(() => { this.hideSplash(); }, 1800);
           setTimeout(() => { this.hideSplash(); }, 5000);
-
-          // ✅ Splash: hide setelah semua yang penting ready (dengan slight delay untuk paint)
-          this.$nextTick(() => {
-            setTimeout(() => { this.hideSplash(); }, 400);
-          });
         },
 
         updateSplashLogo() {
-          if (typeof window.syncSplashStatic === 'function') {
-            window.syncSplashStatic(this.siteConfig);
+          const img = document.getElementById('splashImgStatic');
+          const icon = document.getElementById('splashIconStatic');
+          const box = document.getElementById('splashLogoBoxStatic');
+          const title = document.getElementById('splashTitleStatic');
+          if (this.siteConfig && this.siteConfig.brandName && title) title.textContent = this.siteConfig.brandName.toUpperCase();
+          if (this.siteConfig && this.siteConfig.logoBgColor && box) box.style.background = this.siteConfig.logoBgColor;
+          if (!img || !icon) return;
+          const logoUrl = (this.siteConfig && this.siteConfig.logoImage) ? String(this.siteConfig.logoImage).trim() : '';
+          if (logoUrl && logoUrl.length > 10) {
+            img.src = logoUrl;
+            img.style.display = 'block';
+            icon.style.display = 'none';
+          } else {
+            img.style.display = 'none';
+            icon.style.display = 'block';
           }
         },
 
         hideSplash() {
           if (this._splashHideRequested) return;
           this._splashHideRequested = true;
-          if (typeof window.hideSplashStatic === 'function') {
-            window.hideSplashStatic();
+          const el = document.getElementById('splashStatic');
+          if (el) {
+            el.style.transition = 'opacity 250ms ease-out';
+            el.style.opacity = '0';
+            setTimeout(() => {
+              el.style.display = 'none';
+              this.appReady = true;
+            }, 260);
+          } else {
+            this.appReady = true;
           }
-          setTimeout(() => { this.appReady = true; }, 320);
         },
 
         normalizeCatId(catId) {
