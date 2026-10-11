@@ -121,67 +121,103 @@
       animation-play-state: paused;
     }
   </style>
-  <script>
+    <script>
+    // ✅ SPLASH ATOMIC v2 — Baca config SEKALI di head, preload image paralel
     window.__splashStart = Date.now();
-  </script>
-  <script>
-    // ✅ Splash preload di head — jalan sebelum body parse
+    window.__splashImageState = 'idle'; // 'idle' | 'loading' | 'loaded' | 'failed' | 'none'
     window.__splashConfig = (function() {
-      try {
-        const cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
-        return {
-          brandName: cfg.brandName || '',
-          logoBgColor: cfg.logoBgColor || '#ea580c',
-          logoImage: cfg.logoImage || ''
-        };
-      } catch(e) { return { brandName: '', logoBgColor: '#ea580c', logoImage: '' }; }
+      // Retry 3× untuk HP lambat (Samsung, Xiaomi, dsb)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const raw = localStorage.getItem('dapur_site_config');
+          if (raw) {
+            const cfg = JSON.parse(raw);
+            if (cfg && typeof cfg === 'object') {
+              return {
+                brandName: String(cfg.brandName || 'DIGITAL CULINARY').trim(),
+                logoBgColor: String(cfg.logoBgColor || '#ea580c').trim(),
+                logoImage: (cfg.logoImage && String(cfg.logoImage).trim().length > 10)
+                  ? String(cfg.logoImage).trim() : ''
+              };
+            }
+          }
+        } catch(e) { /* retry */ }
+      }
+      return { brandName: 'DIGITAL CULINARY', logoBgColor: '#ea580c', logoImage: '' };
     })();
 
-    // Preload image START di head (paralel dengan body parse)
-    if (window.__splashConfig.logoImage && window.__splashConfig.logoImage.length > 10) {
+    // Preload image paralel dengan body parse
+    if (window.__splashConfig.logoImage) {
+      window.__splashImageState = 'loading';
       const preloadImg = new Image();
+      preloadImg.onload = function() {
+        window.__splashImageState = 'loaded';
+        window.__splashPreloadImg = preloadImg;
+      };
+      preloadImg.onerror = function() {
+        window.__splashImageState = 'failed';
+        window.__splashConfig.logoImage = '';
+      };
       preloadImg.src = window.__splashConfig.logoImage;
       window.__splashPreloadImg = preloadImg;
+    } else {
+      window.__splashImageState = 'none';
     }
 
-    // ✅ Apply segera begitu elemen splash ada di DOM (tanpa tunggu DOMContentLoaded)
-    (function applySplashEarly() {
+    // ✅ Satu fungsi global untuk render splash — idempotent
+    window.__renderSplash = function() {
       const img = document.getElementById('splashImgStatic');
       const icon = document.getElementById('splashIconStatic');
       const box = document.getElementById('splashLogoBoxStatic');
       const title = document.getElementById('splashTitleStatic');
-      if (!img || !icon || !box || !title) {
-        requestAnimationFrame(applySplashEarly);
-        return;
-      }
-      // Re-read localStorage sekali lagi (handle cold-start lambat di HP Samsung)
+      if (!img || !icon || !box || !title) return false;
+
+      // Re-baca config jika belum ada logo (cold start)
       let cfg = window.__splashConfig || {};
-      if (!cfg.logoImage || cfg.logoImage.length <= 10) {
+      if ((!cfg.logoImage || cfg.logoImage.length <= 10) && window.__splashImageState !== 'failed' && window.__splashImageState !== 'none') {
         try {
           const fresh = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
-          if (fresh && (fresh.logoImage || fresh.brandName)) cfg = fresh;
+          if (fresh && fresh.logoImage && String(fresh.logoImage).trim().length > 10) {
+            cfg = {
+              brandName: fresh.brandName || cfg.brandName,
+              logoBgColor: fresh.logoBgColor || cfg.logoBgColor,
+              logoImage: String(fresh.logoImage).trim()
+            };
+            window.__splashConfig = cfg;
+            // Preload yang baru ditemukan
+            const newImg = new Image();
+            newImg.onload = () => { window.__splashImageState = 'loaded'; window.__renderSplash(); };
+            newImg.onerror = () => { window.__splashImageState = 'failed'; cfg.logoImage = ''; window.__renderSplash(); };
+            newImg.src = cfg.logoImage;
+            window.__splashImageState = 'loading';
+          }
         } catch(e) {}
       }
-      if (cfg.brandName) title.textContent = String(cfg.brandName).toUpperCase();
-      if (cfg.logoBgColor) box.style.background = cfg.logoBgColor;
+
+      if (cfg.brandName && title) title.textContent = String(cfg.brandName).toUpperCase();
+      if (cfg.logoBgColor && box) box.style.background = cfg.logoBgColor;
+
       const logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
-      if (logoUrl && logoUrl.length > 10) {
-        icon.style.display = 'none';
-        icon.style.visibility = 'hidden';
-        icon.style.opacity = '0';
-        img.src = logoUrl;
+      const state = window.__splashImageState;
+
+      if (logoUrl && state === 'loaded') {
+        // Logo siap → tampilkan image
+        if (img.getAttribute('src') !== logoUrl) img.src = logoUrl;
         img.style.display = 'block';
-        img.style.visibility = 'visible';
-        img.style.opacity = '1';
-      } else {
-        // Tunda tampilkan icon 350ms — beri kesempatan Alpine/Firebase isi logoImage dulu
-        setTimeout(function() {
-          if (img.style.display !== 'block') {
-            icon.style.display = 'block';
-            icon.style.visibility = 'visible';
-            icon.style.opacity = '1';
-          }
-        }, 350);
+        icon.style.display = 'none';
+      } else if (state === 'failed' || (!logoUrl && state !== 'loading')) {
+        // Gagal atau tidak ada logo → fallback icon
+        img.style.display = 'none';
+        icon.style.display = 'block';
+      }
+      // state 'loading' → tunggu, jangan tampil apapun (biar hitam polos sesaat, bukan flip)
+      return true;
+    };
+
+    // Coba render segera via requestAnimationFrame
+    (function tryEarlyRender() {
+      if (!window.__renderSplash()) {
+        requestAnimationFrame(tryEarlyRender);
       }
     })();
   </script>
@@ -190,14 +226,14 @@
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
   <!-- ✅ SPLASH STATIC — icon hidden by default, logo render via JS -->
-  <div id="splashStatic"
+    <div id="splashStatic"
        style="position:fixed; inset:0; z-index:99999; background:#1c1917; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; pointer-events:none;">
     <div id="splashLogoBoxStatic"
          style="width:96px; height:96px; border-radius:24px; background:#ea580c; display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.6);">
-      <i id="splashIconStatic" class="fa-solid fa-utensils" style="color:#fff; font-size:2.5rem; display:none; visibility:hidden; opacity:0;"></i>
+      <i id="splashIconStatic" class="fa-solid fa-utensils"
+         style="color:#fff; font-size:2.5rem; display:none;"></i>
       <img id="splashImgStatic" alt="Logo"
-           style="display:none; visibility:hidden; opacity:0; width:100%; height:100%; object-fit:cover;"
-           onerror="this.style.display='none'; document.getElementById('splashIconStatic').style.display='block';" />
+           style="display:none; width:100%; height:100%; object-fit:cover;" />
     </div>
     <h1 id="splashTitleStatic"
         style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:900; color:#fff; font-size:1.75rem; letter-spacing:-0.025em; text-transform:uppercase; text-align:center; padding:0 24px; margin:0;">
@@ -205,37 +241,11 @@
     </h1>
   </div>
   <script>
-    // ✅ Apply config setelah DOM siap
+    // ✅ SPLASH: Render ulang saat DOM ready (untuk update kalau __renderSplash sudah jalan sebelumnya)
     document.addEventListener('DOMContentLoaded', function() {
-      try {
-        const cfg = window.__splashConfig || {};
-        const img = document.getElementById('splashImgStatic');
-        const icon = document.getElementById('splashIconStatic');
-        const box = document.getElementById('splashLogoBoxStatic');
-        const title = document.getElementById('splashTitleStatic');
-        
-        if (cfg.brandName && title) title.textContent = cfg.brandName.toUpperCase();
-        if (cfg.logoBgColor && box) box.style.background = cfg.logoBgColor;
-        
-        const logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
-        if (logoUrl && logoUrl.length > 10) {
-          img.src = logoUrl;
-          img.style.display = 'block';
-          img.style.visibility = 'visible';
-          img.style.opacity = '1';
-          img.onerror = function() {
-            img.style.display = 'none';
-            icon.style.display = 'block';
-            icon.style.visibility = 'visible';
-            icon.style.opacity = '1';
-          };
-        } else {
-          img.style.display = 'none';
-          icon.style.display = 'block';
-          icon.style.visibility = 'visible';
-          icon.style.opacity = '1';
-        }
-      } catch (e) { console.warn('[SPLASH-APPLY] error:', e); }
+      if (typeof window.__renderSplash === 'function') {
+        window.__renderSplash();
+      }
     });
   </script>
 
@@ -6699,51 +6709,57 @@ git push -u origin main</pre>
             }
           } catch (e) {}
 
-          // ✅ Splash: init state
-          this.splashBrandName = this.siteConfig.brandName || 'DIGITAL CULINARY';
-          this.splashLogoIcon = this.siteConfig.logoIcon || 'fa-solid fa-utensils';
-          this.splashLogoBg = this.siteConfig.logoBgColor || '#ea580c';
-          this.$nextTick(() => this.updateSplashLogo());
+          // ✅ SPLASH: panggil render ulang dengan config dari Alpine (idempotent)
+          if (typeof window.__renderSplash === 'function') {
+            window.__renderSplash();
+          }
 
-          // ✅ Splash: hide dinamis saat halaman utama (menu) siap + min display 600ms + hard cap 4500ms
-          const splashMinMs = 600;
-          const waitForMenuReady = () => {
-            const elapsed = Date.now() - (window.__splashStart || Date.now());
+          // ✅ SPLASH: hide saat menu ready — min tampil 800ms, hard cap 4s
+          const _splashStart = window.__splashStart || Date.now();
+          let _pollCount = 0;
+          const _waitMenuReady = () => {
+            const elapsed = Date.now() - _splashStart;
             const menuReady = Array.isArray(this.menuItems) && this.menuItems.length > 0;
-            const domPainted = document.querySelectorAll('[x-for*="filteredMenus"], .menu-card, main img').length > 0 || menuReady;
-            if (domPainted && elapsed >= splashMinMs) {
-              this.$nextTick(() => {
-                requestAnimationFrame(() => { this.hideSplash(); });
-              });
+
+            if (menuReady && elapsed >= 800) {
+              this.hideSplash();
+              return;
+            }
+            if (elapsed >= 4000) {
+              console.warn('[SPLASH] Hard cap 4s — force hide');
+              this.hideSplash();
+              return;
+            }
+            if (_pollCount < 40) {
+              _pollCount++;
+              setTimeout(_waitMenuReady, 100);
             } else {
-              setTimeout(waitForMenuReady, 80);
+              this.hideSplash();
             }
           };
-          setTimeout(waitForMenuReady, 120);
-          setTimeout(() => { this.hideSplash(); }, 4500);
+          _waitMenuReady();
         },
 
-        updateSplashLogo() {
-          const img = document.getElementById('splashImgStatic');
-          const icon = document.getElementById('splashIconStatic');
-          const box = document.getElementById('splashLogoBoxStatic');
-          const title = document.getElementById('splashTitleStatic');
-          let cfg = (this.siteConfig && (this.siteConfig.logoImage || this.siteConfig.brandName)) ? this.siteConfig : null;
-          if (!cfg) {
-            try { cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}'); } catch(e) { cfg = {}; }
+          updateSplashLogo() {
+          // ✅ Idempotent wrapper — delegasi ke window.__renderSplash
+          // Sinkronkan config Alpine ke window.__splashConfig dulu (biar pakai config terbaru)
+          if (this.siteConfig) {
+            if (this.siteConfig.logoImage && String(this.siteConfig.logoImage).trim().length > 10) {
+              window.__splashConfig.logoImage = String(this.siteConfig.logoImage).trim();
+              // Kalau image belum di-load, set state ke loading + preload
+              if (window.__splashImageState !== 'loaded' && window.__splashImageState !== 'loading') {
+                window.__splashImageState = 'loading';
+                const pImg = new Image();
+                pImg.onload = () => { window.__splashImageState = 'loaded'; window.__renderSplash(); };
+                pImg.onerror = () => { window.__splashImageState = 'failed'; window.__splashConfig.logoImage = ''; window.__renderSplash(); };
+                pImg.src = window.__splashConfig.logoImage;
+              }
+            }
+            if (this.siteConfig.brandName) window.__splashConfig.brandName = this.siteConfig.brandName;
+            if (this.siteConfig.logoBgColor) window.__splashConfig.logoBgColor = this.siteConfig.logoBgColor;
           }
-          if (cfg && cfg.brandName && title) title.textContent = String(cfg.brandName).toUpperCase();
-          if (cfg && cfg.logoBgColor && box) box.style.background = cfg.logoBgColor;
-          if (!img || !icon) return;
-          const logoUrl = (cfg && cfg.logoImage) ? String(cfg.logoImage).trim() : '';
-          if (logoUrl && logoUrl.length > 10) {
-            icon.style.display = 'none';
-            icon.style.visibility = 'hidden';
-            icon.style.opacity = '0';
-            if (img.getAttribute('src') !== logoUrl) img.src = logoUrl;
-            img.style.display = 'block';
-            img.style.visibility = 'visible';
-            img.style.opacity = '1';
+          if (typeof window.__renderSplash === 'function') {
+            window.__renderSplash();
           }
         },
 
