@@ -130,19 +130,14 @@
 
   <!-- ✅ SPLASH SCREEN (1 tahap) -->
   <div x-show="!appReady"
-       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none"
-       style="transition: opacity 300ms ease-out;">
+       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
     <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
          :style="'background-color:' + splashLogoBg">
-      <img x-show="splashLogoImage && splashLogoImage.length > 10"
-           :src="splashLogoImage"
-           alt="Logo"
-           class="w-full h-full object-cover"
-           style="display: none;" />
-      <i x-show="!splashLogoImage || splashLogoImage.length <= 10"
-         :class="splashLogoIcon"
-         class="text-white text-3xl"
-         style="display: none;"></i>
+      <img :src="splashLogoImage || ''"
+           :style="'display:' + ((splashLogoImage && splashLogoImage.length > 10) ? 'block' : 'none') + '; width: 100%; height: 100%; object-fit: cover;'"
+           alt="Logo" />
+      <i :class="splashLogoIcon"
+         :style="'display:' + ((!splashLogoImage || splashLogoImage.length <= 10) ? 'block' : 'none') + '; color: white; font-size: 1.875rem;'"></i>
     </div>
     <div class="text-center space-y-1">
       <h1 class="font-black text-white text-lg tracking-tight uppercase"
@@ -6628,9 +6623,9 @@ git push -u origin main</pre>
             }
           } catch (e) {}
 
-          // ✅ Splash minimum display 2500ms
+          // ✅ Splash minimum display 1500ms
           const _elapsed = Date.now() - (window.__splashStart || Date.now());
-          const _remaining = Math.max(0, 2500 - _elapsed);
+          const _remaining = Math.max(0, 1500 - _elapsed);
           setTimeout(() => { this.appReady = true; }, _remaining);
         },
 
