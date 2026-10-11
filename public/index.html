@@ -130,7 +130,8 @@
 
   <!-- ✅ SPLASH SCREEN (1 tahap) -->
   <div x-show="!appReady"
-       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
+       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none"
+       style="transition: opacity 300ms ease-out;">
     <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden"
          :style="'background-color:' + splashLogoBg">
       <img :src="splashLogoImage || ''"
@@ -5748,13 +5749,20 @@ git push -u origin main</pre>
   <!-- ALPINE.JS APPLICATION COMPONENT -->
   <script>
     function dapurApp() {
+      const savedConfigSplash = (() => {
+        try {
+          const sc = localStorage.getItem("dapur_site_config");
+          if (sc) return JSON.parse(sc);
+        } catch(e) {}
+        return {};
+      })();
       return {
         appReady: false,
-        splashBrandName: 'DIGITAL CULINARY',
-        splashTagline: 'Kuliner & Catering',
-        splashLogoIcon: 'fa-solid fa-utensils',
-        splashLogoBg: '#ea580c',
-        splashLogoImage: '',
+        splashBrandName: savedConfigSplash.brandName || 'DIGITAL CULINARY',
+        splashTagline: savedConfigSplash.tagline || 'Kuliner & Catering',
+        splashLogoIcon: savedConfigSplash.logoIcon || 'fa-solid fa-utensils',
+        splashLogoBg: savedConfigSplash.logoBgColor || '#ea580c',
+        splashLogoImage: savedConfigSplash.logoImage || '',
         activeTab: 'menu',
         selectedCategory: 'all',
         isCartOpen: false,
