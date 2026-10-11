@@ -125,6 +125,32 @@
 
 <body class="font-sans antialiased min-h-screen transition-colors duration-200" :style="{ backgroundColor: siteConfig.pageBgColor || '#fafaf9', color: siteConfig.pageTextColor || '#1c1917', backgroundImage: siteConfig.pageBgImage ? 'url(\'' + siteConfig.pageBgImage + '\')' : 'none', backgroundSize: 'cover', backgroundAttachment: 'fixed', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }" x-data="dapurApp()" x-init="initApp()">
 
+  <!-- ✅ SPLASH SCREEN -->
+  <div x-show="!appReady" 
+       x-transition:leave="transition ease-out duration-500"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       class="fixed inset-0 z-[9999] bg-gradient-to-br from-stone-900 to-stone-800 flex flex-col items-center justify-center gap-5 pointer-events-none">
+    <div class="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl overflow-hidden transition-all"
+         :style="{ backgroundColor: siteConfig.logoBgColor || '#ea580c' }">
+      <template x-if="siteConfig.logoType === 'image' && siteConfig.logoImage">
+        <img :src="siteConfig.logoImage" alt="Logo" class="w-full h-full object-cover" />
+      </template>
+      <template x-if="siteConfig.logoType !== 'image' || !siteConfig.logoImage">
+        <i :class="siteConfig.logoIcon || 'fa-solid fa-utensils'" class="text-white text-3xl"></i>
+      </template>
+    </div>
+    <div class="text-center">
+      <h1 class="font-black text-white text-lg tracking-tight uppercase"
+          x-text="siteConfig.brandName || 'DIGITAL CULINARY'"></h1>
+      <p class="text-stone-400 text-xs mt-1" x-text="siteConfig.tagline || 'Kuliner & Catering'"></p>
+    </div>
+    <div class="w-32 h-1 bg-stone-700 rounded-full overflow-hidden">
+      <div class="h-full bg-brand-500 animate-pulse" style="width:70%"></div>
+    </div>
+    <p class="text-stone-500 text-[11px] tracking-wider uppercase">Memuat...</p>
+  </div>
+
   <!-- Top Notification Ribbon Running Text (Marquee Background Hitam) -->
   <div class="bg-black text-white text-xs py-2 overflow-hidden relative border-b border-stone-800 select-none z-30" :style="{ backgroundColor: siteConfig.promoRibbonBg || '#000000' }">
     <div class="w-full overflow-hidden flex">
@@ -5724,6 +5750,7 @@ git push -u origin main</pre>
   <script>
     function dapurApp() {
       return {
+        appReady: false,
         activeTab: 'menu',
         selectedCategory: 'all',
         isCartOpen: false,
@@ -6573,6 +6600,11 @@ git push -u origin main</pre>
               }
             }
           } catch (e) {}
+
+          // ✅ Splash screen: hide setelah init selesai
+          this.$nextTick(() => {
+            setTimeout(() => { this.appReady = true; }, 400);
+          });
         },
 
         normalizeCatId(catId) {

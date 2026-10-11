@@ -22,6 +22,7 @@ window.kasirApp = () => ({
     _scanBuffer: '',
     _scanLastTime: 0,
     _scanListenerBound: false,
+    appReady: false,
     scannerEnabled: true,
 
   // =========================================================================
@@ -776,6 +777,9 @@ try {
         }
       });
     }
+
+    // ✅ Splash screen: hide setelah init selesai
+    setTimeout(() => { this.appReady = true; }, 500);
   },
 
   /**

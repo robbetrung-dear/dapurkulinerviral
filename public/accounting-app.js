@@ -128,6 +128,7 @@ window.accountingApp = function() {
     // ------------------------------------------------------------------------
     // STATE VARIABEL
     // ------------------------------------------------------------------------
+    appReady: false,
     activeTab: 'dashboard',
     reportSubTab: 'pl',
     mobileMenuOpen: false,
@@ -519,6 +520,9 @@ window.accountingApp = function() {
       // 9. Daftarkan hook global ke window
       window._accountingAppInstance = this;
       console.log('[ACCT-APP] Accounting App initialized with real data');
+
+      // ✅ Splash screen: hide setelah init selesai
+      setTimeout(() => { this.appReady = true; }, 400);
     },
 
     /**
