@@ -211,6 +211,10 @@
         if (img.getAttribute('src') !== logoUrl) img.src = logoUrl;
         img.style.display = 'block';
         icon.style.display = 'none';
+        // ✅ Track kapan logo pertama kali muncul (untuk min visible timer)
+        if (!window.__splashLogoVisibleStart) {
+          window.__splashLogoVisibleStart = Date.now();
+        }
         return true;
       }
 
@@ -6752,27 +6756,42 @@ git push -u origin main</pre>
           }
 
           // ✅ SPLASH: hide saat menu ready — min tampil 800ms, hard cap 4s
-          const _splashStart = window.__splashStart || Date.now();
+                    const _splashStart = window.__splashStart || Date.now();
+          const LOGO_MIN_VISIBLE_MS = 1200;  // ✅ Min tampil logo custom 1.2s
+          const SPLASH_HARD_CAP_MS = 8000;   // ✅ Hard cap 8s (fresh browser)
           let _pollCount = 0;
+
           const _waitMenuReady = () => {
             const elapsed = Date.now() - _splashStart;
             const menuReady = Array.isArray(this.menuItems) && this.menuItems.length > 0;
+            const logoStart = window.__splashLogoVisibleStart;
+            const logoVisibleMs = logoStart ? (Date.now() - logoStart) : 0;
 
-              if (menuReady && elapsed >= 200) {
+            // ✅ Cek: menu ready DAN logo sudah visible cukup lama
+            if (menuReady && logoVisibleMs >= LOGO_MIN_VISIBLE_MS) {
               this.hideSplash();
               return;
             }
-            if (elapsed >= 8000) {
+
+            // ✅ Kalau menu ready TAPI logo belum visible / belum cukup lama → TUNGGU
+            // (biar logo custom sempat terlihat user)
+
+            // ✅ Hard cap 8s — kalau logo belum muncul juga (Firebase gagal), hide paksa
+            if (elapsed >= SPLASH_HARD_CAP_MS) {
               console.warn('[SPLASH] Hard cap 8s — force hide');
               this.hideSplash();
               return;
             }
-            if (_pollCount < 80) {
+
+            if (_pollCount < 100) {
               _pollCount++;
               setTimeout(_waitMenuReady, 100);
             } else {
               this.hideSplash();
             }
+          };
+          _waitMenuReady();
+        },
           };
           // ✅ SAFETY NET: attach non-critical listener setelah 3s apa pun yang terjadi
           setTimeout(() => {
