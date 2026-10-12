@@ -751,17 +751,7 @@
             
             <div class="relative">
               <img :src="item.image" :alt="item.name" class="w-full h-44 object-cover group-hover:scale-105 transition duration-300" loading="lazy" />
-              <!-- Stock Badge Pojok Kiri Atas (Sinkron dari POS Kasir) -->
-              <div x-show="siteConfig.showMenuStockOnMain" class="absolute top-2 left-2 z-10">
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-black shadow-sm border"
-                  :class="getMenuDisplayStock(item) === 0
-                    ? 'bg-red-600 text-white border-red-400'
-                    : (getMenuDisplayStock(item) !== null && getMenuDisplayStock(item) <= 5
-                        ? 'bg-amber-500 text-white border-amber-300'
-                        : 'bg-emerald-600 text-white border-emerald-400')"
-                  x-text="getMenuDisplayStock(item) === null ? '∞' : getMenuDisplayStock(item)">
-                </span>
-              </div>
+              
               <div class="absolute top-2 right-2 flex flex-col gap-1 items-end">
                 <span x-show="item.badge" class="px-2.5 py-1 text-[11px] font-extrabold uppercase rounded-lg shadow-sm" :class="item.badgeColor || 'bg-brand-600 text-white'" x-text="item.badge"></span>
                 <span x-show="item.originalPrice && item.originalPrice > item.price" class="px-2 py-0.5 text-[10px] font-extrabold uppercase bg-red-600 text-white rounded shadow-sm">
@@ -772,11 +762,15 @@
                 <span class="px-2 py-0.5 text-[10px] font-bold bg-stone-900/80 text-white rounded backdrop-blur-sm" x-text="item.categoryLabel"></span>
               </div>
 
-              <!-- ✅ Stock Indicator (dari inventory) -->
+              <!-- ✅ Stock Indicator (dari inventory real) — Sold Out saat 0 -->
               <template x-if="siteConfig.showMenuStockOnMain && getInventoryStockForMenu(item)">
                 <div class="absolute top-2 left-2 z-10">
-                  <span class="px-2 py-0.5 text-[10px] font-bold bg-white/95 backdrop-blur-sm text-stone-800 rounded-md shadow-sm border border-stone-200"
-                        x-text="'Stok: ' + getInventoryStockForMenu(item).stock">
+                  <span 
+                    :class="getInventoryStockForMenu(item).stock === 0 
+                      ? 'bg-red-600 text-white border-red-400' 
+                      : 'bg-white/95 backdrop-blur-sm text-stone-800 border-stone-200'"
+                    class="px-2 py-0.5 text-[11px] font-black shadow-sm border rounded-full"
+                    x-text="getInventoryStockForMenu(item).stock === 0 ? 'Sold Out' : ('Stok: ' + getInventoryStockForMenu(item).stock)">
                   </span>
                 </div>
               </template>
@@ -837,18 +831,6 @@
             <div class="relative">
               <img :src="item.image" :alt="item.name" class="w-full h-28 sm:h-36 object-cover group-hover:scale-105 transition duration-300" loading="lazy" />
               
-              <!-- Stock Badge Pojok Kiri Atas -->
-              <div x-show="siteConfig.showMenuStockOnMain" class="absolute top-1.5 left-1.5 z-10">
-                <span class="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black shadow-sm border"
-                  :class="getMenuDisplayStock(item) === 0
-                    ? 'bg-red-600 text-white border-red-400'
-                    : (getMenuDisplayStock(item) !== null && getMenuDisplayStock(item) <= 5
-                        ? 'bg-amber-500 text-white border-amber-300'
-                        : 'bg-emerald-600 text-white border-emerald-400')"
-                  x-text="getMenuDisplayStock(item) === null ? '∞' : getMenuDisplayStock(item)">
-                </span>
-              </div>
-
               <!-- Promo & Hemat Badge -->
               <div class="absolute top-1.5 right-1.5 flex flex-col gap-0.5 items-end">
                 <span x-show="item.badge" class="px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded shadow-xs" :class="item.badgeColor || 'bg-brand-600 text-white'" x-text="item.badge"></span>
@@ -862,11 +844,15 @@
                 <span class="px-1.5 py-0.5 text-[9px] font-bold bg-stone-900/80 text-white rounded backdrop-blur-sm truncate max-w-[85px] sm:max-w-none inline-block" x-text="item.categoryLabel"></span>
               </div>
 
-              <!-- Stock Indicator Inventory -->
+                            <!-- Stock Indicator Inventory — Sold Out saat 0 -->
               <template x-if="siteConfig.showMenuStockOnMain && getInventoryStockForMenu(item)">
                 <div class="absolute top-1.5 left-1.5 z-10">
-                  <span class="px-1.5 py-0.5 text-[8px] sm:text-[9px] font-bold bg-white/95 backdrop-blur-sm text-stone-800 rounded shadow-xs border border-stone-200"
-                        x-text="'Stok: ' + getInventoryStockForMenu(item).stock">
+                  <span 
+                    :class="getInventoryStockForMenu(item).stock === 0 
+                      ? 'bg-red-600 text-white border-red-400' 
+                      : 'bg-white/95 backdrop-blur-sm text-stone-800 border-stone-200'"
+                    class="px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black shadow-sm border rounded-full"
+                    x-text="getInventoryStockForMenu(item).stock === 0 ? 'Sold Out' : ('Stok: ' + getInventoryStockForMenu(item).stock)">
                   </span>
                 </div>
               </template>
@@ -921,24 +907,15 @@
             <!-- Thumbnail Kecil -->
             <div class="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden flex-shrink-0 border border-stone-100 bg-stone-100">
               <img :src="item.image" :alt="item.name" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy" />
-              
-              <!-- Stock Badge Pojok Kiri Atas -->
-              <div x-show="siteConfig.showMenuStockOnMain" class="absolute top-1 left-1 z-10">
-                <span class="px-1.5 py-0.2 rounded-full text-[9px] font-black shadow-xs border"
-                  :class="getMenuDisplayStock(item) === 0
-                    ? 'bg-red-600 text-white border-red-400'
-                    : (getMenuDisplayStock(item) !== null && getMenuDisplayStock(item) <= 5
-                        ? 'bg-amber-500 text-white border-amber-300'
-                        : 'bg-emerald-600 text-white border-emerald-400')"
-                  x-text="getMenuDisplayStock(item) === null ? '∞' : getMenuDisplayStock(item)">
-                </span>
-              </div>
-
-              <!-- Stock Inventory -->
+                            <!-- Stock Inventory — Sold Out saat 0 -->
               <template x-if="siteConfig.showMenuStockOnMain && getInventoryStockForMenu(item)">
                 <div class="absolute top-1 left-1 z-10">
-                  <span class="px-1.5 py-0.5 text-[8px] font-bold bg-white/95 backdrop-blur-sm text-stone-800 rounded shadow-xs border border-stone-200"
-                        x-text="'Stok: ' + getInventoryStockForMenu(item).stock">
+                  <span 
+                    :class="getInventoryStockForMenu(item).stock === 0 
+                      ? 'bg-red-600 text-white border-red-400' 
+                      : 'bg-white/95 backdrop-blur-sm text-stone-800 border-stone-200'"
+                    class="px-1.5 py-0.5 text-[9px] font-black shadow-xs border rounded-full"
+                    x-text="getInventoryStockForMenu(item).stock === 0 ? 'Sold Out' : ('Stok: ' + getInventoryStockForMenu(item).stock)">
                   </span>
                 </div>
               </template>
