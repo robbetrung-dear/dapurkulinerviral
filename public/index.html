@@ -6790,9 +6790,6 @@ git push -u origin main</pre>
               this.hideSplash();
             }
           };
-          _waitMenuReady();
-        },
-          };
           // ✅ SAFETY NET: attach non-critical listener setelah 3s apa pun yang terjadi
           setTimeout(() => {
             if (typeof attachNonCriticalListeners === 'function') {
@@ -6803,7 +6800,7 @@ git push -u origin main</pre>
           _waitMenuReady();
         },
 
-          updateSplashLogo() {
+        updateSplashLogo() {
           // Idempotent — sinkronkan config Alpine ke window, lalu re-render
           if (this.siteConfig) {
             if (this.siteConfig.logoImage && String(this.siteConfig.logoImage).trim().length > 10) {
