@@ -61,27 +61,6 @@
   <!-- Google Fonts: Plus Jakarta Sans & Playfair Display -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- ✅ OPTIMASI: Preload logo image ASAP (sebelum Firebase init) -->
-  <script>
-    (function() {
-      try {
-        var raw = localStorage.getItem('dapur_site_config');
-        if (raw) {
-          var cfg = JSON.parse(raw);
-          if (cfg && cfg.logoImage && String(cfg.logoImage).trim().length > 10) {
-            var url = String(cfg.logoImage).trim();
-            var link = document.createElement('link');
-            link.rel = 'preload';
-            link.as = 'image';
-            link.href = url;
-            document.head.appendChild(link);
-            var img = new Image();
-            img.src = url;
-          }
-        }
-      } catch(e) {}
-    })();
-  </script>  
   <!-- ✅ OPTIMASI: Preconnect Firebase RTDB untuk parallel handshake -->
   <link rel="preconnect" href="https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app" crossorigin>
   <link rel="dns-prefetch" href="https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app">
@@ -6797,12 +6776,12 @@ git push -u origin main</pre>
               this.hideSplash();
               return;
             }
-            if (elapsed >= 5000) {
-              console.warn('[SPLASH] Hard cap 5s — force hide');
+            if (elapsed >= 8000) {
+              console.warn('[SPLASH] Hard cap 8s — force hide');
               this.hideSplash();
               return;
             }
-            if (_pollCount < 50) {
+            if (_pollCount < 80) {
               _pollCount++;
               setTimeout(_waitMenuReady, 100);
             } else {
