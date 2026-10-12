@@ -205,13 +205,7 @@
       const logoUrl = cfg.logoImage ? String(cfg.logoImage).trim() : '';
       const state = window.__splashImageState;
 
-      // ✅ SELALU sembunyikan box saat loading/idle — hindari flash box kosong/icon default
-      if (state === 'loading' || state === 'idle') {
-        box.style.display = 'none';
-        return true;
-      }
-
-      // State loaded → tampilkan box + image
+      // ✅ HANYA state 'loaded' yang tampilkan logo box. State lain = box hidden.
       if (logoUrl && state === 'loaded') {
         box.style.display = 'flex';
         if (img.getAttribute('src') !== logoUrl) img.src = logoUrl;
@@ -220,20 +214,9 @@
         return true;
       }
 
-      // State failed → tampilkan logo box + icon default fallback
-      if (state === 'failed') {
-        box.style.display = 'flex';
-        img.style.display = 'none';
-        icon.style.display = 'block';
-        return true;
-      }
-
-      // State none → box hidden (tunggu Firebase kasih logo atau timeout)
-      if (state === 'none') {
-        box.style.display = 'none';
-        return true;
-      }
-
+      // State lain (loading/idle/none/failed) → box hidden, judul polos saja
+      // Icon garpu TIDAK PERNAH tampil
+      box.style.display = 'none';
       return true;
     };
 
@@ -244,13 +227,16 @@
       }
     })();
 
-    // ✅ Fallback timeout: kalau 1.5s state masih 'none'/'idle' → tampil icon fallback
+    // ✅ Timeout TIDAK force ke 'failed'. Biarkan state apa adanya.
+    // Splash tampil judul polos kalau logo belum ready. Logo muncul saat Firebase responds.
+    // Tidak ada icon garpu, tidak ada hard switch ke state 'failed'.
+    window.__splashTimeoutReached = false;
     setTimeout(function() {
-      if (window.__splashImageState === 'none' || window.__splashImageState === 'idle') {
-        window.__splashImageState = 'failed';
+      window.__splashTimeoutReached = true;
+      if (typeof window.__renderSplash === 'function') {
         window.__renderSplash();
       }
-    }, 1500);
+    }, 3000);
   </script>
 </head>
 
@@ -6823,17 +6809,14 @@ git push -u origin main</pre>
           }
         },
 
-        hideSplash() {
+          hideSplash() {
           if (this._splashHideRequested) return;
           this._splashHideRequested = true;
           const el = document.getElementById('splashStatic');
           if (el) {
-            el.style.transition = 'opacity 250ms ease-out';
-            el.style.opacity = '0';
-            setTimeout(() => {
-              el.style.display = 'none';
-              this.appReady = true;
-            }, 260);
+            // ✅ INSTANT HIDE — tanpa fadeout
+            el.style.display = 'none';
+            this.appReady = true;
           } else {
             this.appReady = true;
           }
