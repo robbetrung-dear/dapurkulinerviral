@@ -4373,22 +4373,24 @@
           </div>
         </div>
 
-        <!-- ✅ FEATURE-3: Input nomor WA pelanggan -->
+        <!-- ✅ FEATURE-3 + FASE 5: nomor WA pelanggan (auto-populate readonly untuk order online) -->
         <div class="mb-1">
           <label class="block text-xs font-bold text-stone-600 mb-1.5">
             <i class="fa-brands fa-whatsapp text-emerald-600 mr-1"></i>
-            Nomor WA Pelanggan (Opsional)
+            Nomor WA Pelanggan <span x-text="receiptWaAuto ? '(dari order online)' : '(Opsional)'"></span>
           </label>
           <input
             type="tel"
             inputmode="numeric"
             x-model="receiptWAPhone"
+            :readonly="receiptWaAuto"
+            :class="receiptWaAuto ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-stone-300 bg-stone-50'"
             placeholder="08xxxxxxxxxx — kosongkan untuk share manual"
-            class="w-full h-11 px-3.5 rounded-xl border border-stone-300 bg-stone-50 text-xs font-mono font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            class="w-full h-11 px-3.5 rounded-xl border text-xs font-mono font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
-          <p class="text-[10px] text-stone-400 mt-1 italic">
-            Isi nomor → langsung buka chat pelanggan. Kosong → pilih kontak manual.
-          </p>
+          <p class="text-[10px] text-stone-400 mt-1 italic" x-text="receiptWaAuto
+            ? 'Nomor WA customer order online terisi otomatis (format 62xxx). Klik Kirim WA untuk mengirim struk.'
+            : 'Isi nomor → langsung buka chat pelanggan. Kosong → pilih kontak manual.'"></p>
         </div>
 
         <!-- Tombol Aksi Struk: [Cetak] [Download PDF] [Kirim WA] -->

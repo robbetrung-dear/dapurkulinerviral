@@ -136,6 +136,7 @@ window.kasirApp = () => ({
   splitModal: false,
   receiptModal: false,
   receiptWAPhone: '',   // ✅ FEATURE-3: state nomor WA pelanggan untuk struk POS
+  receiptWaAuto: false, // FASE 5: nomor WA auto-populate dari order online (readonly)
   closeShiftModal: false,
   reconcileModal: false,
   pendingReconcileModal: false,
@@ -1045,6 +1046,7 @@ try {
       total: Number(order.total) || 0,
       paymentMethod: 'qris',
       customer: (order.customer && order.customer.name) || 'Pelanggan',
+      customerPhone: (order.customer && order.customer.phone) || '',
       note: 'Order Online (Pickup) — tanpa ongkir',
     };
 
@@ -2837,6 +2839,7 @@ try {
       this.showToast('Transaksi berhasil!', 'success');
       this.receiptModal = true;
       this.receiptWAPhone = ''; // ✅ FEATURE-3: reset field WA tiap struk baru
+      this.receiptWaAuto = false; // FASE 5: reset mode auto-populate (struk kasir walk-in)
     }
   },
 
@@ -2883,6 +2886,16 @@ try {
   // =========================================================================
   // 7. CETAK STRUK & DOKUMEN (jsPDF, RawBT Android, WhatsApp)
   // =========================================================================
+
+  /**
+   * FASE 5: format nomor WA ke tampilan 62xxx (tanpa + / spasi / tanda hubung).
+   */
+  formatWaNumber(raw) {
+    let p = String(raw || '').replace(/[^0-9]/g, '');
+    if (p.startsWith('0')) p = '62' + p.slice(1);
+    else if (p.startsWith('8')) p = '62' + p;
+    return p;
+  },
 
   /**
    * Preview struk modal
@@ -2949,6 +2962,31 @@ try {
       };
       this.selectedPaymentMethod = pm;
       this.cashReceived = this.currentOrder.cashReceived;
+
+      // FASE 5: auto-populate nomor WA customer dari order online (readonly);
+      // order kasir walk-in tetap manual (field kosong & editable).
+      const autoPhone = this.formatWaNumber(
+        txData.customerPhone || txData.waPhone ||
+        (txData.customer && typeof txData.customer === 'object' ? txData.customer.phone : '') ||
+        (txData.cust && typeof txData.cust === 'object' ? txData.cust.phone : '')
+      );
+      if (autoPhone) {
+        this.receiptWAPhone = autoPhone;
+        this.receiptWaAuto = true;
+      } else {
+        this.receiptWAPhone = '';
+        this.receiptWaAuto = false;
+        // Recall transaksi online dari riwayat: ambil nomor dari detail order (tanpa blok UI)
+        if (txData.online_order_id) {
+          fetch('/online-orders/' + encodeURIComponent(txData.online_order_id))
+            .then(r => r.json())
+            .then(d => {
+              const p = this.formatWaNumber(d && d.order && d.order.customer && d.order.customer.phone);
+              if (p) { this.receiptWAPhone = p; this.receiptWaAuto = true; }
+            })
+            .catch(() => {});
+        }
+      }
     }
     this.receiptModal = true;
     this.playSound('click');
