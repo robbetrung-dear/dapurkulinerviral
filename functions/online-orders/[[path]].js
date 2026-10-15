@@ -144,14 +144,21 @@ export async function onRequest(context) {
         gateway: (order.payment && order.payment.gateway) || "admin",
         kasir,
         method: (order.payment && order.payment.method) || "qris_static",
+        origin: url.origin,
       });
 
       // Shift kasir yang memverifikasi (kalau dikirim) langsung dicatat di transaksi POS.
       if (shiftId) {
-        await applyKasirShift(ctx, orderId, kasir, shiftId, order.pos_date || dateKey(Date.now()));
+        try {
+          await applyKasirShift(ctx, orderId, kasir, shiftId, order.pos_date || dateKey(Date.now()));
+        } catch (e) {
+          result.steps.shift = `failed: ${e.message}`;
+        }
       }
 
-      return json({ success: true, orderId, status: "paid", result });
+      // Kirim ulang data order terbaru (untuk UI kasir & halaman customer)
+      const fresh = await fbGet(ctx, `online_orders/${encodeURIComponent(orderId)}`);
+      return json({ success: true, orderId, status: (fresh && fresh.status) || "paid", result });
     }
 
     /* ---------------------------------------------------------------- */

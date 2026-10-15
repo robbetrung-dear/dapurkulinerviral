@@ -97,6 +97,7 @@ export async function onRequest(context) {
         gateway: "ifortepay",
         kasir: "gateway",
         method: (order.payment && order.payment.method) || "qris_dynamic",
+        origin: new URL(request.url).origin,
       });
       return json({ success: true, orderId, status: "paid", result });
     }
