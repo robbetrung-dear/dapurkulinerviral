@@ -8027,9 +8027,12 @@ git push -u origin main</pre>
           try {
             const { jsPDF } = window.jspdf;
 
-            // Hitung tinggi halaman dinamis berdasarkan jumlah items (wrap-aware)
+            // FASE 5: nama outlet untuk footer struk (siteConfig.brandName, tanpa uppercase)
+            const brandNameRaw = String(this.siteConfig.brandName || "Dapur Kuliner Viral").trim();
+
+            // Hitung tinggi halaman dinamis berdasarkan jumlah items + footer (wrap-aware)
             const itemCount = (order.items || []).length;
-            const pageHeight = Math.max(160, 130 + (itemCount * 10));
+            const pageHeight = Math.max(170, 142 + (itemCount * 10));
 
             const doc = new jsPDF({
               orientation: 'portrait',
@@ -8127,11 +8130,15 @@ git push -u origin main</pre>
             doc.text("*** LUNAS ***", 40, y, { align: "center" });
             y += 7;
 
-            // === FOOTER ===
+            // === FOOTER (FASE 5: ending standar + nama outlet) ===
             doc.setFont("courier", "normal");
             doc.setFontSize(7);
-            doc.text("Terima kasih atas pesanan Anda!", 40, y, { align: "center" });
-            doc.text("Simpan struk ini sebagai bukti order.", 40, y + 4, { align: "center" });
+            const brandFooterLines = doc.splitTextToSize(`Terima kasih sudah berbelanja di ${brandNameRaw} & selamat menikmati.`, 72);
+            brandFooterLines.forEach(line => {
+              doc.text(line, 40, y, { align: "center" });
+              y += 4;
+            });
+            doc.text("Simpan struk ini sebagai bukti order.", 40, y, { align: "center" });
 
             // Trigger auto download
             doc.save(`Struk_Dapur_${order.orderId || 'Order'}.pdf`);

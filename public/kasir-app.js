@@ -2888,6 +2888,73 @@ try {
   // =========================================================================
 
   /**
+   * FASE 5: teks footer struk standar (nama outlet dari siteConfig.brandName).
+   */
+  strukFooterText() {
+    const brand = (this.siteInfo && this.siteInfo.brandName) ? String(this.siteInfo.brandName).trim() : 'Dapur Kuliner Viral';
+    return `Terima kasih sudah berbelanja di ${brand} & selamat menikmati.`;
+  },
+
+  strukFooterLines(doc, width = 72) {
+    try {
+      const lines = doc.splitTextToSize(this.strukFooterText(), width);
+      return (Array.isArray(lines) && lines.length) ? lines : [this.strukFooterText()];
+    } catch (e) {
+      return [this.strukFooterText()];
+    }
+  },
+
+  /**
+   * FASE 5: estimasi tinggi halaman struk 80mm (mm) supaya item + footer tidak terpotong.
+   * Mengikuti urutan gambar di downloadStrukPDF.
+   */
+  estimateStrukHeightPdf(order, measure) {
+    let h = 53; // header + blok info order + separator
+    (order.items || []).forEach(it => {
+      const name = it.name || (Array.isArray(it) ? it[0] : 'Menu');
+      let lines = 1;
+      try { lines = Math.max(1, measure.splitTextToSize(String(name), 50).length); } catch (e) {}
+      h += (lines * 3.5) + 1;
+      if (Number(it.itemDiscount) > 0) h += 3;
+    });
+    h += 8; // separator + subtotal
+    if ((Number(order.discount || order.disc) || 0) > 0) h += 4;
+    const scP = (order.serviceCharge !== undefined) ? Number(order.serviceCharge) : this.getCartServiceCharge();
+    if (scP > 0) h += 4;
+    const taxP = (order.tax !== undefined) ? Number(order.tax) : this.getCartTax();
+    if (taxP > 0) h += 4;
+    h += 5; // TOTAL
+    if (order.cashReceived) h += 8; // Tunai + Kembali
+    h += 5; // garis penutup
+    h += 4 * this.strukFooterLines(measure, 72).length;
+    return Math.max(130, Math.ceil(h + 8)); // + margin bawah
+  },
+
+  /**
+   * FASE 5: versi untuk printStruk (RawBT / window.print) — layout 4mm per baris.
+   */
+  estimateStrukHeightPrint(order, measure) {
+    let h = 41; // header + No. Order / Tanggal / Kasir + separator
+    (order.items || []).forEach(it => {
+      const name = it.name || 'Menu';
+      let lines = 1;
+      try { lines = Math.max(1, measure.splitTextToSize(String(name), 50).length); } catch (e) {}
+      h += lines * 4;
+      h += 4; // baris harga
+      if (Number(it.itemDiscount) > 0) h += 3.5;
+    });
+    h += 8; // separator + subtotal
+    if ((Number(order.discount || order.disc) || 0) > 0) h += 4;
+    const scR = (order.serviceCharge !== undefined) ? Number(order.serviceCharge) : this.getCartServiceCharge();
+    if (scR > 0) h += 4;
+    const taxR = (order.tax !== undefined) ? Number(order.tax) : this.getCartTax();
+    if (taxR > 0) h += 4;
+    h += 8; // separator + TOTAL
+    h += 4 * this.strukFooterLines(measure, 72).length;
+    return Math.max(130, Math.ceil(h + 8));
+  },
+
+  /**
    * FASE 5: format nomor WA ke tampilan 62xxx (tanpa + / spasi / tanda hubung).
    */
   formatWaNumber(raw) {
@@ -3014,8 +3081,9 @@ try {
         paymentMethod: this.selectedPaymentMethod
       };
 
-      const itemsCount = (order.items || []).length;
-      const pageHeight = Math.max(130, 80 + (itemsCount * 8));
+      // FASE 5: tinggi halaman dihitung dari isi struk (item + baris opsional + footer)
+      const measure = new jsPDF({ unit: 'mm', format: [80, 400] });
+      const pageHeight = this.estimateStrukHeightPdf(order, measure);
 
       const doc = new jsPDF({
         unit: 'mm',
@@ -3105,8 +3173,13 @@ try {
       }
 
       doc.text('================================', 40, y, { align: 'center' }); y += 5;
-      doc.text('Terima kasih atas kunjungan Anda!', 40, y, { align: 'center' }); y += 4;
-      doc.text('Dari Dapur Kami, Viral di Meja Anda', 40, y, { align: 'center' });
+      // FASE 5: footer standar struk (nama outlet dari siteConfig.brandName)
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(7);
+      this.strukFooterLines(doc, 72).forEach(line => {
+        doc.text(line, 40, y, { align: 'center' });
+        y += 4;
+      });
 
       doc.save(`struk-${order.id || 'pos'}.pdf`);
       this.showToast('Struk PDF berhasil diunduh', 'success');
@@ -3127,8 +3200,9 @@ try {
       const { jsPDF } = window.jspdf || {};
       if (jsPDF) {
         const order = txData || this.currentOrder || { id: 'T' + Date.now(), items: this.cart, total: this.getCartGrandTotal() };
-        const itemsCount = (order.items || []).length;
-        const pageHeight = Math.max(130, 80 + (itemsCount * 8));
+        // FASE 5: tinggi halaman dinamis (item + footer lengkap, tidak terpotong)
+        const measureP = new jsPDF({ unit: 'mm', format: [80, 400] });
+        const pageHeight = this.estimateStrukHeightPrint(order, measureP);
         const doc = new jsPDF({ unit: 'mm', format: [80, pageHeight] });
 
         doc.setFont('courier', 'bold');
@@ -3191,6 +3265,14 @@ try {
         doc.text('--------------------------------', 40, y, { align: 'center' }); y += 4;
         doc.setFont('courier', 'bold');
         doc.text(`TOTAL : ${this.formatRupiah(order.total || order.tot || 0)}`, 5, y); y += 5;
+
+        // FASE 5: footer standar struk (nama outlet dari siteConfig.brandName)
+        doc.setFont('courier', 'normal');
+        doc.setFontSize(7);
+        this.strukFooterLines(doc, 72).forEach(line => {
+          doc.text(line, 40, y, { align: 'center' });
+          y += 4;
+        });
 
         const base64Pdf = doc.output('datauristring').split(',')[1];
         if (/android/i.test(navigator.userAgent)) {
