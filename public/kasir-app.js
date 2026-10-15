@@ -968,6 +968,7 @@ try {
       this.playSound('success');
       let msg = 'Pembayaran ' + order.orderId + ' terkonfirmasi — transaksi masuk POS.';
       if (String(steps.journal || '').indexOf('failed') === 0) msg += ' (jurnal akuntansi perlu dicek manual)';
+      if (String(steps.wa || '').indexOf('sent') === 0) msg += ' WA notif terkirim ke customer.';
       this.showToast(msg, 'success');
 
       await this.loadOrderOnline(true);
@@ -1007,7 +1008,9 @@ try {
         throw new Error((data && data.error) || ('HTTP ' + res.status));
       }
       this.playSound('success');
-      this.showToast('Order ' + order.orderId + ' selesai & tercatat di shift Anda.', 'success');
+      let msgDone = 'Order ' + order.orderId + ' selesai & tercatat di shift Anda.';
+      if (data.wa && data.wa.ok && !data.wa.skipped) msgDone += ' WA notif + struk terkirim ke customer.';
+      this.showToast(msgDone, 'success');
       this.closeOrderOnlineDetail();
       await this.loadOrderOnline(true);
       if (typeof this.loadLaporanHariIni === 'function') { try { await this.loadLaporanHariIni(); } catch (e) {} }
@@ -1209,6 +1212,7 @@ try {
       }
       if (String(steps.journal || '').indexOf('failed') === 0) msg += ' (jurnal perlu dicek manual)';
       if (String(steps.posVoid || '').indexOf('failed') === 0) msg += ' (void transaksi POS perlu dicek)';
+      if (String(steps.wa || '').indexOf('sent') === 0) msg += ' WA notif pembatalan terkirim ke customer.';
       this.showToast(msg, 'success');
 
       await this.logAudit('VOID ORDER ONLINE', order.orderId, 'executed', reason);

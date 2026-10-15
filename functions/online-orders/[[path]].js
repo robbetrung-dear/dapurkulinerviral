@@ -20,7 +20,7 @@
 import {
   json, preflight, methodNotAllowed, dbCtx, toNum, fbGet, fbPatch, casWrite,
   finalizePaid, expireOrder, expireStaleOrders, dateKey,
-  voidOrder, writeVoidAuditLog,
+  voidOrder, writeVoidAuditLog, sendOrderWa,
 } from "../../lib/rto-core.js";
 
 const ACTIVE_STATUSES = ["pending_payment", "pending", "paid", "done"];
@@ -244,7 +244,16 @@ export async function onRequest(context) {
         // Transaksi POS milik shift kasir yang menyerahkan pesanan (CONSTRAINT-4).
         const posResult = await applyKasirShift(ctx, orderId, kasir, shiftId, order.pos_date || dateKey(Date.now()));
 
-        return json({ success: true, orderId, status: "done", done_at: doneAt, done_by: kasir, pos: posResult });
+        // FASE 4 item 3: WA notif terima kasih + struk text ke customer.
+        let waResult = null;
+        try {
+          const freshOrder = (await fbGet(ctx, `online_orders/${encodeURIComponent(orderId)}`)) || order;
+          waResult = await sendOrderWa(ctx, env, freshOrder, "done", { origin: url.origin });
+        } catch (e) {
+          waResult = { ok: false, status: "done", reason: e.message };
+        }
+
+        return json({ success: true, orderId, status: "done", done_at: doneAt, done_by: kasir, pos: posResult, wa: waResult });
       }
 
       // Kasir void/refund order (WAJIB PIN supervisor + alasan)
