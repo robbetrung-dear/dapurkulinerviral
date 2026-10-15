@@ -287,22 +287,24 @@
   <!-- 1. HEADER (Sticky top-0, z-40)                                         -->
   <!-- ===================================================================== -->
   <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-sm transition-all">
-    <div class="px-4 sm:px-6 min-h-[64px] py-2 flex items-center justify-between gap-3">
+    <div class="px-4 sm:px-6 min-h-[64px] py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
       
-      <!-- Kiri: Logo Mini + Kasir Pintar + Operator Aktif -->
-      <div class="flex items-center gap-3 min-w-0">
-        <a href="/" class="flex items-center gap-2.5 flex-shrink-0 group" title="Kembali ke Beranda Dapur Kuliner">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
-            <i class="fa-solid fa-cash-register text-lg"></i>
+      <!-- Kiri: Logo Mini + Judul Kasir + Operator Aktif -->
+      <div class="flex flex-row items-center gap-2 sm:gap-3 min-w-0">
+        <a href="/"
+           class="flex flex-row items-center gap-2.5 sm:gap-3 flex-shrink-0 group py-0.5 sm:py-1"
+           title="Kembali ke Beranda Dapur Kuliner">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform flex-shrink-0">
+            <i class="fa-solid fa-cash-register text-base sm:text-lg"></i>
           </div>
-          <div class="hidden sm:block">
-          <div class="hidden sm:flex flex-col justify-center leading-tight">
-  <div class="flex items-center gap-1.5">
-    <span class="font-extrabold text-sm tracking-tight text-stone-900" x-text="customKasirTitle || 'Kasir Pintar'"></span>
-    <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-extrabold uppercase">POS</span>
-  </div>
-  <p class="text-[10px] text-stone-500 truncate mt-0.5" x-text="customKasirSubtitle || 'Dapur Kuliner Viral'"></p>
-</div>
+          <!-- Blok nama aplikasi: sejajar horizontal di samping logo -->
+          <div class="hidden sm:flex flex-col justify-center leading-tight min-w-0 text-left">
+            <div class="flex flex-row flex-wrap items-center gap-1.5">
+              <span class="font-extrabold text-sm sm:text-base tracking-tight text-stone-900 truncate" x-text="customKasirTitle || 'Kasir Pintar'"></span>
+              <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-extrabold uppercase flex-shrink-0">POS</span>
+            </div>
+            <p class="text-[10px] text-stone-500 truncate mt-0.5" x-text="customKasirSubtitle || 'Dapur Kuliner Viral'"></p>
+          </div>
         </a>
 
         <!-- Pemisah Garis Vertikal -->
