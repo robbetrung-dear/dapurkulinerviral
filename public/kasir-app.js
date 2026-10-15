@@ -5342,9 +5342,21 @@ try {
     filteredTxHistory() {
     let list = this.txHistoryList || [];
 
+    // FASE 5: transaksi order online (landing page) punya kolom filter sendiri ("Online"),
+    // tidak digabung ke QRIS. Sumber: source === 'landing-page' atau online_order_id terisi.
+    const filterVal = String(this.txHistoryPaymentFilter || 'all').toLowerCase();
+    const onlineOnly = filterVal === 'online';
+    const isOnlineTx = (t) => !!t && (t.source === 'landing-page' ||
+      (t.online_order_id !== undefined && t.online_order_id !== null && t.online_order_id !== ''));
+
     // ✅ FIX C3: Tampilkan transaksi POS langsung (T*) DAN order customer yang sudah reconciled (ORD-*)
     // Beda penanganan karena POS langsung selalu sah, order customer perlu direkonsiliasi
     list = list.filter(t => {
+      if (isOnlineTx(t)) {
+        // Order online: tampil di filter "Online" dan "Semua" saja
+        return onlineOnly || filterVal === 'all';
+      }
+      if (onlineOnly) return false;
       const id = String(t.id || t.orderId || '').toUpperCase();
       // Transaksi POS langsung (T-prefix): selalu tampil
       if (id.startsWith('T')) return true;
@@ -5357,17 +5369,17 @@ try {
     // ✅ VOID: sembunyikan transaksi yang sudah di-void
     list = list.filter(t => t.voided !== true);
 
-    if (this.txHistoryPaymentFilter && this.txHistoryPaymentFilter !== 'all') {
-  const filterVal = this.txHistoryPaymentFilter.toLowerCase();
-  list = list.filter(t => {
-    const pm = (t.pm || t.paymentMethod || '').toLowerCase();
-    // ✅ Handle alias: "tunai" = "cash"
-    if (filterVal === 'tunai' || filterVal === 'cash') {
-      return pm === 'tunai' || pm === 'cash' || pm === '';  // empty pm = cash default
+    // Filter metode pembayaran (tunai/qris/transfer) — order online dikecualikan
+    if (filterVal !== 'all' && !onlineOnly) {
+      list = list.filter(t => {
+        const pm = (t.pm || t.paymentMethod || '').toLowerCase();
+        // ✅ Handle alias: "tunai" = "cash"
+        if (filterVal === 'tunai' || filterVal === 'cash') {
+          return pm === 'tunai' || pm === 'cash' || pm === '';  // empty pm = cash default
+        }
+        return pm === filterVal;
+      });
     }
-    return pm === filterVal;
-  });
-}
 
     if (this.txHistorySearch) {
       const q = this.txHistorySearch.toLowerCase().trim();

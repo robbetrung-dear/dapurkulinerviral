@@ -6635,6 +6635,15 @@
             class="px-3 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap">
             Transfer
           </button>
+          <!-- FASE 5: filter khusus order online dari landing page (kolom terpisah dari QRIS) -->
+          <button 
+            type="button" 
+            @click="txHistoryPaymentFilter = 'online'"
+            :class="txHistoryPaymentFilter === 'online' ? 'bg-indigo-600 text-white font-bold' : 'bg-stone-100 text-stone-600 hover:bg-stone-200 font-semibold'"
+            class="px-3 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-1.5">
+            <i class="fa-solid fa-globe text-[11px]"></i>
+            <span>Online</span>
+          </button>
         </div>
       </div>
 
@@ -6660,6 +6669,13 @@
                   class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase"
                   :class="(tx.pm || tx.paymentMethod) === 'qris' ? 'bg-purple-100 text-purple-800' : ((tx.pm || tx.paymentMethod) === 'transfer' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800')"
                   x-text="(tx.pm || tx.paymentMethod || 'TUNAI').toUpperCase()">
+                </span>
+                <!-- FASE 5: badge khusus transaksi order online (landing page) -->
+                <span 
+                  x-show="tx.source === 'landing-page' || (tx.online_order_id !== undefined && tx.online_order_id !== null && tx.online_order_id !== '')"
+                  class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-600 text-white"
+                  title="Order online dari landing page">
+                  Online
                 </span>
                 <span class="text-xs text-stone-400" x-text="tx.t ? (new Date(tx.t).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB') : (tx.time || '')"></span>
               </div>
