@@ -6,3 +6,12 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Kredensial & konfigurasi sensitif (JANGAN di-commit)
+firebase-applet-config.json
+firebase-credentials.json
+public/firebase-config.js
+
+# Cloudflare Wrangler
+.dev.vars
+.wrangler/

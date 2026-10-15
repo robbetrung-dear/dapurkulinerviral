@@ -1835,11 +1835,16 @@ const handleKasirAuth = async (req: express.Request, res: express.Response) => {
     // 1. Coba baca data dari Firebase Realtime Database jika dikonfigurasi
     const databaseUrl = (process.env.FIREBASE_DATABASE_URL || "").replace(/\/$/, "");
     const apiKey = process.env.FIREBASE_API_KEY || "";
+    // Database Secret (admin REST) diutamakan agar pembacaan /users tidak
+    // bergantung pada aturan .read publik di Firebase Rules.
+    const dbSecret = process.env.FIREBASE_DATABASE_SECRET || "";
     let userData: any = null;
 
     if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
       try {
-        const authParam = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "";
+        const authParam = dbSecret
+          ? `?auth=${encodeURIComponent(dbSecret)}`
+          : (apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "");
         const userUrl = `${databaseUrl}/users/${encodeURIComponent(cleanUsername)}.json${authParam}`;
         const fbRes = await fetch(userUrl);
         if (fbRes.ok) {
@@ -1853,24 +1858,27 @@ const handleKasirAuth = async (req: express.Request, res: express.Response) => {
       }
     }
 
-    // Fallback default users jika belum ada di Firebase
-    const defaultUsers: Record<string, any> = {
+    // Fallback akun default HANYA aktif di development lokal.
+    // Aktifkan dengan env ALLOW_DEFAULT_KASIR=true. Di PRODUKSI, akun kasir
+    // WAJIB didaftarkan di Firebase (/users/{username} dengan pin_hash SHA-256),
+    // sehingga tidak ada kredensial default yang bisa ditebak dari source code.
+    const defaultUsers: Record<string, any> = process.env.ALLOW_DEFAULT_KASIR === 'true' ? {
       kasir: {
-        name: "Kasir Utama",
+        name: "Kasir Utama (Dev)",
         role: "kasir",
-        pin_hash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92" // 123456
+        pin_hash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
       },
       kasir1: {
-        name: "Kasir 1 (Shift Pagi)",
+        name: "Kasir 1 (Dev)",
         role: "kasir",
-        pin_hash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92" // 123456
+        pin_hash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
       },
       kasir2: {
-        name: "Kasir 2 (Shift Sore)",
+        name: "Kasir 2 (Dev)",
         role: "kasir",
-        pin_hash: "90a3ed9e32b2aaf4c61c410eb925426119e1a9dc53d4286ade99a809bae4e1e3" // 654321
+        pin_hash: "90a3ed9e32b2aaf4c61c410eb925426119e1a9dc53d4286ade99a809bae4e1e3"
       }
-    };
+    } : {};
 
     if (!userData && defaultUsers[cleanUsername]) {
       userData = defaultUsers[cleanUsername];
@@ -1912,7 +1920,9 @@ const handleKasirAuth = async (req: express.Request, res: express.Response) => {
 
     // Simpan shift baru ke Firebase jika ada
     if (databaseUrl && !databaseUrl.includes("YOUR_PROJECT_ID")) {
-      const authParam = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "";
+      const authParam = dbSecret
+        ? `?auth=${encodeURIComponent(dbSecret)}`
+        : (apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "");
       const shiftUrl = `${databaseUrl}/pos/shifts/${encodeURIComponent(shiftId)}.json${authParam}`;
       fetch(shiftUrl, {
         method: "PUT",
@@ -1995,19 +2005,16 @@ app.get('/api/firebase-config', (req, res) => {
   });
 });
 
+// KEAMANAN: Endpoint penulisan kredensial Firebase via HTTP DIHAPUS.
+// Sebelumnya siapa pun bisa POST ke endpoint ini untuk menimpa firebase-credentials.json
+// milik server (potensi pengalihan database & bypass login kasir).
+// Konfigurasi Firebase sisi server sekarang HANYA melalui Environment Variables:
+//   - Cloudflare Pages Dashboard > Settings > Environment Variables
+//   - atau file .env saat development lokal (lihat .env.example)
 app.post('/api/firebase-config', (req, res) => {
-  try {
-    const config = req.body;
-    if (config && config.apiKey) {
-      savedFirebaseConfig = config;
-      fs.writeFileSync('firebase-credentials.json', JSON.stringify(config, null, 2));
-      res.json({ success: true, message: "Credentials saved globally to server" });
-    } else {
-      res.status(400).json({ error: "Invalid config payload" });
-    }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  res.status(405).json({
+    error: "Endpoint ini dinonaktifkan demi keamanan. Set Firebase config via Environment Variables (FIREBASE_API_KEY, FIREBASE_DATABASE_URL, FIREBASE_PROJECT_ID)."
+  });
 });
 
 // Serve static assets from public/ directory

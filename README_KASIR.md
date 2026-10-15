@@ -60,7 +60,7 @@ Buka **Firebase Console > Realtime Database**, lalu tambahkan node user pada pat
 >   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pin));
 >   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 > }
-> console.log(await hashPin("123456")); // Output hash SHA-256
+> console.log(await hashPin("PIN-RAHASIA-6-DIGIT-ANDA")); // Output hash SHA-256
 > ```
 
 ### B. Konfigurasi Environment Variables di Cloudflare Pages

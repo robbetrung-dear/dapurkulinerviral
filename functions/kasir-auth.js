@@ -10,17 +10,17 @@
  * RESPONSE GAGAL:  { "success": false, "error": string }
  *
  * ----------------------------------------------------------------------------
- * CONTOH TEST MENGGUNAKAN CURL:
+ * CONTOH TEST MENGGUNAKAN CURL (ganti <PIN-RAHASIA> dengan PIN asli kasir):
  * ----------------------------------------------------------------------------
  * 1. Login Kasir Berhasil:
  *    curl -X POST https://<domain-anda>/kasir-auth \
  *      -H "Content-Type: application/json" \
- *      -d '{"username":"kasir","pin":"123456"}'
+ *      -d '{"username":"kasir","pin":"<PIN-RAHASIA>"}'
  *
  * 2. Login Kasir Gagal (PIN Salah):
  *    curl -X POST https://<domain-anda>/kasir-auth \
  *      -H "Content-Type: application/json" \
- *      -d '{"username":"kasir","pin":"999999"}'
+ *      -d '{"username":"kasir","pin":"000000"}'
  *
  * ----------------------------------------------------------------------------
  * SCRIPT GENERATE HASH PIN PERTAMA KALI (JALANKAN DI BROWSER CONSOLE / NODE.JS):
@@ -38,11 +38,9 @@
  *     }
  *   };
  *   console.log("JSON untuk diimport/set ke Firebase path /users :", JSON.stringify(dataFirebase, null, 2));
- *   console.log("Hash PIN (" + pinPlain + "):", pin_hash);
  * }
- * // Contoh eksekusi:
- * // buatUserKasir("kasir", "Kasir Utama", "123456");
- * // Hasil pin_hash untuk 123456: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
+ * // Contoh eksekusi (gunakan PIN rahasia milik Anda sendiri, JANGAN dipublikasikan):
+ * // buatUserKasir("kasir", "Kasir Utama", "PIN-RAHASIA-ANDA");
  * ============================================================================
  */
 
@@ -260,6 +258,9 @@ export async function onRequest(context) {
     ).replace(/\/$/, "");
 
     const apiKey = env?.FIREBASE_API_KEY || env?.VITE_FIREBASE_API_KEY || "";
+    // Database Secret (admin REST) diutamakan agar pembacaan /users tidak
+    // bergantung pada aturan .read publik di Firebase Rules.
+    const dbSecret = env?.FIREBASE_DATABASE_SECRET || env?.VITE_FIREBASE_DATABASE_SECRET || "";
 
     let userData = null;
     let isFirebaseConfigured = Boolean(
@@ -270,7 +271,9 @@ export async function onRequest(context) {
 
     // 5. Baca Data Kasir dari Firebase Realtime Database REST API
     if (isFirebaseConfigured) {
-      const authParam = apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "";
+      const authParam = dbSecret
+        ? `?auth=${encodeURIComponent(dbSecret)}`
+        : (apiKey ? `?auth=${encodeURIComponent(apiKey)}` : "");
       const userUrl = `${databaseUrl}/users/${encodeURIComponent(cleanUsername)}.json${authParam}`;
 
       try {
@@ -292,26 +295,26 @@ export async function onRequest(context) {
       }
     }
 
-    // Fallback Akun Kasir Default (Bila Firebase belum diisi atau akun default digunakan)
-    const DEFAULT_KASIR_MAP = {
+    // Fallback Akun Kasir Default HANYA untuk development lokal.
+    // Aktifkan dengan env ALLOW_DEFAULT_KASIR=true. Di PRODUKSI, akun kasir
+    // WAJIB didaftarkan di Firebase (/users/{username} dengan pin_hash SHA-256).
+    const DEFAULT_KASIR_MAP = env?.ALLOW_DEFAULT_KASIR === 'true' ? {
       "kasir": {
-        name: "Kasir Utama",
+        name: "Kasir Utama (Dev)",
         role: "kasir",
-        // SHA-256 dari "123456"
         pin_hash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
       },
       "kasir1": {
-        name: "Kasir 1 (Shift Pagi)",
+        name: "Kasir 1 (Dev)",
         role: "kasir",
         pin_hash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
       },
       "kasir2": {
-        name: "Kasir 2 (Shift Sore)",
+        name: "Kasir 2 (Dev)",
         role: "kasir",
-        // SHA-256 dari "654321"
         pin_hash: "90a3ed9e32b2aaf4c61c410eb925426119e1a9dc53d4286ade99a809bae4e1e3"
       }
-    };
+    } : {};
 
     if (!userData && DEFAULT_KASIR_MAP[cleanUsername]) {
       userData = DEFAULT_KASIR_MAP[cleanUsername];

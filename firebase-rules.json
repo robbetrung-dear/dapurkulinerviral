@@ -38,6 +38,7 @@
       "$orderId": {
         ".read": "auth != null || (data.exists() && data.child('customer/phone').val() != null)",
         ".write": "auth != null || !data.exists()",
+        ".validate": "newData.hasChild('orderId') && newData.hasChild('status') && newData.hasChild('total') && newData.child('orderId').isString() && newData.child('orderId').val().length <= 64 && newData.child('status').isString() && newData.child('status').val().length <= 30 && newData.child('total').isNumber()",
         "reconciled": {
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'kasir' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'owner')"
         },

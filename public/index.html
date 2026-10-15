@@ -7413,16 +7413,10 @@ git push -u origin main</pre>
             return;
           }
           
-          // Sinkronisasi ke server node.js agar tersimpan global
-          try {
-            await fetch('/api/firebase-config', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(this.firebaseConfigInput)
-            });
-          } catch(e) {
-            console.warn("Gagal sinkronisasi config ke server", e);
-          }
+          // Catatan keamanan: kredensial TIDAK lagi dikirim ke server via HTTP.
+          // Konfigurasi Firebase sisi server diatur melalui Environment Variables
+          // (Cloudflare Pages Dashboard / .env untuk dev lokal).
+          // Simpanan di bawah ini hanya tersimpan di browser perangkat ini.
 
           if (window.FirebaseBridge && window.FirebaseBridge.applyNewConfig) {
             const ok = window.FirebaseBridge.applyNewConfig(this.firebaseConfigInput);
