@@ -1068,15 +1068,21 @@ try {
     }
 
     this._lastVerifiedSupervisorPin = '';
+    // Modal PIN supervisor pakai z-[60] (di bawah modal detail RTO) → tutup dulu detailnya,
+    // lalu buka lagi setelah PIN valid supaya tidak ada layer yang tertutup.
+    const keepDetail = this.orderOnlineDetail;
+    this.closeOrderOnlineDetail();
     const pinOk = await this.requestSupervisorPin(
       'VOID ORDER ONLINE',
       `#${order.orderId} — Rp ${this.formatNumber(order.total)}`,
       { capturePin: true }
     );
     if (!pinOk) {
+      this.orderOnlineDetail = keepDetail;
       this.showToast('Void order dibatalkan', 'notify');
       return;
     }
+    this.orderOnlineDetail = keepDetail;
 
     this.rtoVoidTarget = order;
     this.rtoVoidReason = '';
