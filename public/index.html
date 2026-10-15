@@ -1271,7 +1271,8 @@
         <!-- PAID -->
         <div x-show="rtoStatus === 'paid'" class="p-6 text-center space-y-3">
           <i class="fa-solid fa-circle-check text-4xl text-emerald-600"></i>
-          <p class="text-sm font-extrabold text-stone-900">Pembayaran terkonfirmasi!</p>
+          <p class="text-sm font-extrabold text-stone-900">Pembayaran diterima.</p>
+          <p class="text-xs text-stone-600 leading-snug">Pesanan siap diambil di outlet.</p>
           <p class="text-xs text-stone-600 leading-snug">Tunjukkan nama &amp; nomor order ini ke kasir untuk mengambil pesanan Anda.</p>
           <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 text-left text-[11px] text-stone-700 space-y-1">
             <p>Order: <span class="font-bold" x-text="rtoOrderId"></span></p>
@@ -1303,7 +1304,7 @@
           <p class="text-stone-600 text-xs sm:text-sm mt-1">Tanpa kartu kredit. Mendukung QRIS (GoPay/ShopeePay/DANA/OVO/BCA) & Virtual Account Bank.</p>
         </div>
 
-        <form @submit.prevent="rtoPickup ? startRtoCheckout() : proceedToPayment()" class="space-y-6">
+        <form @submit.prevent="(rtoPickup || isRtoRestricted) ? startRtoCheckout() : proceedToPayment()" class="space-y-6">
           
           <!-- Informasi Pemesan -->
           <div class="bg-stone-50 p-5 rounded-2xl border border-stone-200 space-y-4">
@@ -1319,18 +1320,24 @@
               </div>
               <div>
                 <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Nomor WhatsApp Aktif *</label>
-                <input type="tel" x-model="customerPhone" required placeholder="Contoh: 081234567890" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs sm:text-sm bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+                <input type="tel" x-model="customerPhone" @input="checkRtoPhone()" required
+                  :placeholder="isRtoRestricted ? 'Contoh: 6281234567890' : 'Contoh: 081234567890'"
+                  :class="rtoPhoneError ? 'border-red-400 ring-2 ring-red-100' : 'border-stone-300'"
+                  class="w-full p-2.5 rounded-xl border text-xs sm:text-sm bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+                <!-- FASE 5: validasi inline format WA 62xxx (mode RTO restricted) -->
+                <p x-show="rtoPhoneError" x-text="rtoPhoneError" class="mt-1 text-[11px] font-bold text-red-600 leading-snug"></p>
               </div>
             </div>
 
             <!-- ==== RTO-PICKUP-TOGGLE (BLOK BARU) ==== -->
-            <div class="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl">
+            <div class="grid gap-1.5 p-1 bg-stone-100 rounded-xl" :class="isRtoRestricted ? 'grid-cols-1' : 'grid-cols-2'">
               <button type="button" @click="setRtoPickup(true)"
                 :class="rtoPickup ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
                 class="py-2 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5">
                 <i class="fa-solid fa-store"></i><span>Ambil di Outlet</span>
               </button>
-              <button type="button" @click="setRtoPickup(false)"
+              <!-- FASE 5: mode RTO restricted → opsi kurir disembunyikan -->
+              <button type="button" x-show="!isRtoRestricted" @click="setRtoPickup(false)"
                 :class="!rtoPickup ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
                 class="py-2 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5">
                 <i class="fa-solid fa-motorcycle"></i><span>Dikirim Kurir</span>
@@ -1439,9 +1446,15 @@
               <span class="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">Bebas Biaya Admin</span>
             </div>
 
+            <!-- FASE 5: mode RTO restricted → pembayaran hanya QRIS -->
+            <p x-show="isRtoRestricted" class="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 leading-snug flex items-start gap-2">
+              <i class="fa-solid fa-lock text-emerald-600 text-xs mt-0.5 flex-shrink-0"></i>
+              <span>Mode pesan-antar-ambil aktif: pembayaran hanya <strong>QRIS</strong>. Metode tunai, transfer bank, dan e-wallet dinonaktifkan.</span>
+            </p>
+
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <!-- Opsi 1: QRIS Instan -->
-              <template x-if="siteConfig.paymentConfig && siteConfig.paymentConfig.enableQris !== false">
+              <template x-if="isRtoRestricted || (siteConfig.paymentConfig && siteConfig.paymentConfig.enableQris !== false)">
                 <div 
                   @click="selectedPaymentMethod = 'qris'" 
                   :class="selectedPaymentMethod === 'qris' ? 'border-2 border-emerald-600 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20' : 'border border-stone-300 bg-white hover:border-stone-400'"
@@ -1459,7 +1472,7 @@
               </template>
 
               <!-- Opsi 2: E-Wallet Transfer -->
-              <template x-if="siteConfig.paymentConfig && siteConfig.paymentConfig.enableEwalletTransfer !== false">
+              <template x-if="!isRtoRestricted && siteConfig.paymentConfig && siteConfig.paymentConfig.enableEwalletTransfer !== false">
                 <div 
                   @click="selectedPaymentMethod = 'ewallet_transfer'" 
                   :class="selectedPaymentMethod === 'ewallet_transfer' ? 'border-2 border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-500/20' : 'border border-stone-300 bg-white hover:border-stone-400'"
@@ -1477,7 +1490,7 @@
               </template>
 
               <!-- Opsi 3: Transfer Bank Manual -->
-              <template x-if="siteConfig.paymentConfig && siteConfig.paymentConfig.enableBankTransfer !== false">
+              <template x-if="!isRtoRestricted && siteConfig.paymentConfig && siteConfig.paymentConfig.enableBankTransfer !== false">
                 <div 
                   @click="selectedPaymentMethod = 'bank_transfer'" 
                   :class="selectedPaymentMethod === 'bank_transfer' ? 'border-2 border-blue-600 bg-blue-50/50 shadow-md ring-2 ring-blue-500/20' : 'border border-stone-300 bg-white hover:border-stone-400'"
@@ -1505,7 +1518,7 @@
               <span x-show="isProcessingPayment"><i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan Pembayaran...</span>
               <span x-show="!isProcessingPayment" class="flex items-center gap-2">
                 <i :class="selectedPaymentMethod === 'qris' ? 'fa-solid fa-qrcode' : (selectedPaymentMethod === 'bank_transfer' ? 'fa-solid fa-building-columns' : 'fa-solid fa-shield-halved')"></i>
-                <span x-text="rtoPickup ? ('Bayar QRIS Pickup (' + formatRupiah(grandTotal) + ')') : (selectedPaymentMethod === 'qris' ? 'Lanjut Bayar QRIS (' + formatRupiah(grandTotal) + ')' : (selectedPaymentMethod === 'bank_transfer' ? 'Lanjut Transfer Bank (' + formatRupiah(grandTotal) + ')' : 'Bayar Sekarang (' + formatRupiah(grandTotal) + ')'))"></span>
+                <span x-text="(rtoPickup || isRtoRestricted) ? ('Bayar QRIS Pickup (' + formatRupiah(grandTotal) + ')') : (selectedPaymentMethod === 'qris' ? 'Lanjut Bayar QRIS (' + formatRupiah(grandTotal) + ')' : (selectedPaymentMethod === 'bank_transfer' ? 'Lanjut Transfer Bank (' + formatRupiah(grandTotal) + ')' : 'Bayar Sekarang (' + formatRupiah(grandTotal) + ')'))"></span>
               </span>
             </button>
             <p class="text-[11px] text-center text-stone-500 mt-2">
@@ -2192,9 +2205,15 @@
         </div>
 
         <div class="p-5 border-t border-stone-200 bg-stone-50 space-y-3">
-          <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed flex items-start gap-2">
+          <!-- FASE 5: info tanya-stok admin HANYA di mode non-RTO -->
+          <div x-show="!isRtoRestricted" class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed flex items-start gap-2">
             <i class="fa-brands fa-whatsapp text-emerald-600 text-sm mt-0.5 flex-shrink-0"></i>
             <span>Selalu tanyakan stok menu di keranjang belanja ini kepada admin terlebih dahulu melalui tombol whatsapp sebelum Anda memutuskan untuk lanjut checkout.</span>
+          </div>
+          <!-- FASE 5: info mode RTO restricted (pickup + QRIS saja) -->
+          <div x-show="isRtoRestricted" class="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 leading-relaxed flex items-start gap-2">
+            <i class="fa-solid fa-store text-emerald-600 text-sm mt-0.5 flex-shrink-0"></i>
+            <span>Stok menu di halaman ini real-time. Pesanan hanya bisa <strong>diambil sendiri di outlet (pickup)</strong> dan dibayar via <strong>QRIS</strong>.</span>
           </div>
           <div class="flex justify-between text-xs text-stone-600">
             <span>Subtotal:</span>
@@ -2277,12 +2296,12 @@
                     <span
                       class="px-2 py-0.5 rounded-full text-[10px] font-bold"
                       :class="{
-                        'bg-emerald-100 text-emerald-800': hist.status === 'Selesai',
+                        'bg-emerald-100 text-emerald-800': hist.status === 'Selesai' || hist.status === 'done',
                         'bg-blue-100 text-blue-800': hist.status === 'Dibayar' || hist.status === 'Diproses',
                         'bg-indigo-100 text-indigo-800': hist.status === 'Dikirim',
                         'bg-amber-100 text-amber-800': hist.status === 'Pending' || !hist.status
                       }"
-                      x-text="hist.status || 'Pending'"></span>
+                      x-text="hist.status === 'done' ? 'Selesai (Diambil)' : (hist.status || 'Pending')"></span>
                   </div>
                   <p class="text-[11px] text-stone-500 mt-1" x-text="formatHistoryDate(hist.createdAt)"></p>
                 </div>
@@ -6462,13 +6481,18 @@ git push -u origin main</pre>
         },
 
         getRecentOrders() {
-          if (Array.isArray(this.recentOrders) && this.recentOrders.length > 0) {
-            return this.recentOrders.slice(0, 5);
+          const src = (Array.isArray(this.recentOrders) && this.recentOrders.length > 0)
+            ? this.recentOrders
+            : (Array.isArray(this.adminOrders) ? this.adminOrders : []);
+          // FASE 5: mode RTO restricted → riwayat hanya menampilkan order status done
+          if (this.isRtoRestricted) {
+            const isDone = (o) => {
+              const s = String((o && (o.status || o.orderStatus)) || '').toLowerCase();
+              return s === 'done' || s === 'selesai';
+            };
+            return src.filter(isDone).slice(0, 5);
           }
-          if (Array.isArray(this.adminOrders) && this.adminOrders.length > 0) {
-            return this.adminOrders.slice(0, 5);
-          }
-          return [];
+          return src.slice(0, 5);
         },
 
         selectRecentOrderToTrack(histOrder) {
@@ -6615,6 +6639,9 @@ git push -u origin main</pre>
             console.warn("Error loading saved config:", e);
           }
 
+          // FASE 5: terapkan mode conditional modal keranjang/checkout
+          this.applyRtoRestrictions();
+
           this.refreshAvailablePlatforms();
           this.loadRecipes();
 
@@ -6754,6 +6781,7 @@ git push -u origin main</pre>
                       };
                     }
                     this.siteConfig = mergedConfig;
+                    this.applyRtoRestrictions();
                     this.splashBrandName = this.siteConfig.brandName || this.splashBrandName;
                     this.splashLogoIcon = this.siteConfig.logoIcon || this.splashLogoIcon;
                     this.splashLogoBg = this.siteConfig.logoBgColor || this.splashLogoBg;
@@ -7421,6 +7449,7 @@ git push -u origin main</pre>
         rtoBusy: false,
         rtoError: '',
         rtoReceiptDone: false,
+        rtoPhoneError: '',   // FASE 5: error inline format nomor WA 62xxx (mode RTO restricted)
 
         get rtoProgressPercent() {
           if (!this.rtoTtlSeconds || this.rtoTtlSeconds <= 0) return 0;
@@ -7428,17 +7457,65 @@ git push -u origin main</pre>
         },
 
         setRtoPickup(val) {
+          // FASE 5: mode RTO restricted → pickup wajib, kurir tidak tersedia
+          if (this.isRtoRestricted && !val) val = true;
           this.rtoPickup = !!val;
           if (this.rtoPickup) this.selectedPaymentMethod = 'qris';
           try { localStorage.setItem('dapur_rto_pickup', this.rtoPickup ? '1' : '0'); } catch (e) {}
+        },
+
+        // ==== FASE 5 — MODE CONDITIONAL MODAL KERANJANG (RTO restricted vs non-RTO) ====
+        /** True hanya saat stok landing ditampilkan → pickup + QRIS saja, WA wajib 62xxx. */
+        get isRtoRestricted() {
+          return !!(this.siteConfig && this.siteConfig.showMenuStockOnMain === true);
+        },
+
+        /** Normalisasi nomor WA ke format 62 (tanpa +, spasi, tanda hubung). */
+        normalizeWaPhone(raw) {
+          let p = String(raw || '').replace(/[^0-9]/g, '');
+          if (p.startsWith('0')) p = '62' + p.slice(1);
+          else if (p.startsWith('8')) p = '62' + p;
+          return p;
+        },
+
+        isValidRtoWaPhone(raw) {
+          return /^62\d{9,13}$/.test(this.normalizeWaPhone(raw));
+        },
+
+        checkRtoPhone() {
+          if (!this.isRtoRestricted) { this.rtoPhoneError = ''; return true; }
+          const v = String(this.customerPhone || '').trim();
+          if (!v) { this.rtoPhoneError = ''; return false; }
+          const ok = this.isValidRtoWaPhone(v);
+          this.rtoPhoneError = ok ? '' : 'Format nomor WA wajib 62xxxxxxxxx (tanpa +, spasi, atau tanda hubung). Contoh: 6281234567890';
+          return ok;
+        },
+
+        /** Terapkan pembatasan RTO begitu siteConfig diketahui (pickup + QRIS). */
+        applyRtoRestrictions() {
+          if (!this.isRtoRestricted) return;
+          if (!this.rtoPickup) this.setRtoPickup(true);
+          this.selectedPaymentMethod = 'qris';
         },
 
         // CHECKOUT PICKUP (RTO): create order + reserve stok + QRIS 5 menit
         async startRtoCheckout() {
           if (!this.cart || this.cart.length === 0) { this.showToast('Keranjang belanja Anda masih kosong!'); return; }
           if (!this.customerName || String(this.customerName).trim().length < 2) { this.showToast('Mohon isi nama pemesan!'); return; }
-          const phone = String(this.customerPhone || '').replace(/[^0-9]/g, '');
-          if (phone.length < 9) { this.showToast('Nomor WhatsApp belum valid (contoh: 081234567890)'); return; }
+          let phone = String(this.customerPhone || '').replace(/[^0-9]/g, '');
+          if (this.isRtoRestricted) {
+            // FASE 5: mode RTO → nomor WA wajib format 62xxx (regex /^62\d{9,13}$/)
+            if (!this.isValidRtoWaPhone(this.customerPhone)) {
+              this.rtoPhoneError = 'Format nomor WA wajib 62xxxxxxxxx (tanpa +, spasi, atau tanda hubung). Contoh: 6281234567890';
+              this.showToast('Nomor WhatsApp belum valid — wajib format 62xxxxxxxxx');
+              return;
+            }
+            phone = this.normalizeWaPhone(this.customerPhone);
+          } else if (phone.length < 9) {
+            this.showToast('Nomor WhatsApp belum valid (contoh: 081234567890)');
+            return;
+          }
+          this.rtoPhoneError = '';
 
           this.stopRtoWatch();
           this.stopRtoTimer();
@@ -7562,13 +7639,16 @@ git push -u origin main</pre>
           }
 
           if (status === 'paid' || status === 'done') {
-            if (this.rtoStatus === 'paid') return;
+            // FASE 5: simpan ke riwayat landing (localStorage dapur_recent_orders)
+            try { this.saveRtoRecentOrder(order || this.rtoOrder, status); } catch (e) {}
+            if (this.rtoStatus === 'paid' || this.rtoStatus === 'done') return;
             this.rtoStatus = 'paid';
             this.stopRtoTimer();
             this.stopRtoWatch();
             this.playNotificationSound();
             this.downloadRtoReceipt(); // AUTO-DOWNLOAD STRUK PDF
-            if (!this.rtoModal) this.showToast('Pembayaran terkonfirmasi! Struk PDF sedang diunduh.');
+            // FASE 5: status paid TIDAK kirim WA — cukup notifikasi di landing page
+            this.showToast('Pembayaran diterima. Pesanan siap diambil di outlet.');
             this.cart = [];
             return;
           }
@@ -7643,6 +7723,38 @@ git push -u origin main</pre>
           } catch (e) {
             this.showToast('Struk sedang disiapkan — klik tombol Unduh Struk PDF.');
           }
+        },
+
+        /**
+         * FASE 5: simpan/update order RTO ke riwayat landing (localStorage dapur_recent_orders).
+         * Modal Riwayat memfilter status done, jadi entry paid disimpan tapi belum tampil.
+         */
+        saveRtoRecentOrder(order, status) {
+          if (!order || !order.orderId) return;
+          const entry = {
+            orderId: order.orderId,
+            createdAt: order.created_at || order.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            totalAmount: Number(order.total) || 0,
+            subtotal: Number(order.subtotal) || Number(order.total) || 0,
+            status: String(status || order.status || 'pending_payment'),
+            items: (order.items || []).map(i => ({
+              name: i.name || i.id, price: Number(i.price) || 0, quantity: Number(i.qty || i.quantity) || 1
+            })),
+            isPickup: true,
+            courier: { name: 'Ambil di Outlet (Pickup)' },
+            source: 'landing-page',
+            customer: {
+              name: (order.customer && order.customer.name) || this.customerName || 'Pelanggan',
+              phone: (order.customer && order.customer.phone) || this.customerPhone || ''
+            }
+          };
+          const list = Array.isArray(this.recentOrders) ? this.recentOrders.slice() : [];
+          const idx = list.findIndex(o => o && o.orderId === entry.orderId);
+          if (idx >= 0) list[idx] = { ...list[idx], ...entry };
+          else list.unshift(entry);
+          this.recentOrders = list.slice(0, 5);
+          try { localStorage.setItem('dapur_recent_orders', JSON.stringify(this.recentOrders)); } catch (e) {}
         },
         // ==== /RTO (REALTIME ORDER) ====
 
