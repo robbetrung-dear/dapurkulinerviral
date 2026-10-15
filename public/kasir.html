@@ -2877,6 +2877,12 @@
                 <i class="fa-solid fa-ban"></i> VOID / Refund
               </button>
               <!-- ==== /RTO FASE 4 ==== -->
+              <!-- ==== RTO FASE 4 item 2: cetak struk manual (BLOK BARU) ==== -->
+              <button type="button" x-show="orderOnlineDetail" @click="autoPrintOrderOnlineStruk(orderOnlineDetail)"
+                class="h-10 px-4 rounded-xl bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold transition cursor-pointer">
+                <i class="fa-solid fa-print"></i> Cetak Struk
+              </button>
+              <!-- ==== /RTO FASE 4 ==== -->
               <button type="button" @click="closeOrderOnlineDetail()" class="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition cursor-pointer">Tutup</button>
             </div>
           </div>
@@ -6221,6 +6227,16 @@
             class="w-full h-11 px-3 rounded-xl border border-stone-300 font-bold font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none" 
           />
         </div>
+
+        <!-- ==== RTO FASE 4 item 2: toggle auto-print struk (BLOK BARU) ==== -->
+        <label class="flex items-start gap-3 p-3 rounded-2xl border border-stone-200 bg-stone-50 cursor-pointer">
+          <input type="checkbox" x-model="printerConfig.autoPrint" class="mt-0.5 w-4 h-4 accent-emerald-600" />
+          <span>
+            <span class="block font-bold text-stone-800">Auto-print struk saat order online di-Done</span>
+            <span class="block text-[11px] text-stone-500">Kalau dimatikan, struk tidak tercetak otomatis — kasir masih bisa cetak manual dari tombol "Cetak Struk" di tab Order Online.</span>
+          </span>
+        </label>
+        <!-- ==== /RTO FASE 4 ==== -->
 
         <div class="flex items-center justify-between pt-2">
           <button 

@@ -1011,6 +1011,8 @@ try {
       this.closeOrderOnlineDetail();
       await this.loadOrderOnline(true);
       if (typeof this.loadLaporanHariIni === 'function') { try { await this.loadLaporanHariIni(); } catch (e) {} }
+      // FASE 4 item 2: auto-print struk setelah Done (skip kalau printer config nonaktif)
+      this.autoPrintOrderOnlineStruk(order);
     } catch (e) {
       this.playSound('error');
       this.showToast('Gagal menandai Done: ' + (e && e.message ? e.message : e), 'error');
@@ -1018,6 +1020,65 @@ try {
       this.orderOnlineBusy = false;
     }
   },
+  /**
+   * Cetak struk order online — reuse pipeline struk POS existing:
+   * previewStruk() mengisi #receiptPrintArea (satu-satunya target `@media print`),
+   * lalu window.print(). Dipakai tombol manual "Cetak Struk" dan auto-print setelah Done.
+   */
+  printOnlineOrderStruk(order) {
+    if (!order || !order.orderId) return false;
+    const payload = {
+      id: order.orderId,
+      orderId: order.orderId,
+      date: this.formatDate(Date.now()),
+      time: this.formatTime(Date.now()),
+      items: (order.items || []).map((it) => ({
+        id: it.id || it.menuId,
+        name: it.name || it.id || 'Menu',
+        qty: Number(it.qty) || 1,
+        price: Number(it.price) || 0,
+      })),
+      subtotal: Number(order.subtotal) || 0,
+      total: Number(order.total) || 0,
+      paymentMethod: 'qris',
+      customer: (order.customer && order.customer.name) || 'Pelanggan',
+      note: 'Order Online (Pickup) — tanpa ongkir',
+    };
+
+    this.previewStruk(payload);
+    if (this.currentOrder) {
+      this.currentOrder.isOnlineOrder = true;
+      this.currentOrder.pickupName = payload.customer;
+    }
+
+    // Tunggu modal struk ter-render dulu sebelum dialog cetak dibuka
+    this.$nextTick(() => {
+      setTimeout(() => {
+        try { window.print(); } catch (e) { console.warn('[RTO-PRINT] window.print gagal:', e); }
+      }, 300);
+    });
+    return true;
+  },
+
+  /**
+   * Auto-print struk saat kasir klik Done (order online).
+   * Skip kalau printer config nonaktif (printerConfig.autoPrint === false) —
+   * kasir tetap bisa cetak manual lewat tombol "Cetak Struk".
+   */
+  autoPrintOrderOnlineStruk(order) {
+    try {
+      if (!order || !order.orderId) return false;
+      if (!this.printerConfig || this.printerConfig.autoPrint === false) {
+        console.log('[RTO-PRINT] auto-print dilewati — printer config nonaktif');
+        return false;
+      }
+      return this.printOnlineOrderStruk(order);
+    } catch (e) {
+      console.warn('[RTO-PRINT] auto-print error:', e);
+      return false;
+    }
+  },
+
   /**
    * VOID / REFUND order online — butuh PIN supervisor + alasan wajib.
    * Aturan: done = blocked; pending_payment = cancel tanpa refund;
