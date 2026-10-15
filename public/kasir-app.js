@@ -778,9 +778,15 @@ try {
           this.loadRiwayatShift();
         } else if (val === 'inventory') {
           this.loadInventory();
+        } else if (val === 'orderonline') {
+          // ==== RTO (BLOK BARU): refresh queue order online ====
+          this.loadOrderOnline();
         }
       });
     }
+
+    // ==== RTO (BLOK BARU): poll queue order online (badge + notif audio) ====
+    this.startOrderOnlineWatcher();
 
     // ✅ Splash minimum display 1800ms
     if (typeof window.__splashStart === 'undefined') window.__splashStart = Date.now();
@@ -788,6 +794,223 @@ try {
     const _remaining = Math.max(0, 1800 - _elapsed);
     setTimeout(() => { this.appReady = true; }, _remaining);
   },
+
+  // =========================================================================
+  // ==== RTO (ORDER ONLINE) — STATE & METHODS (BLOK BARU) ====
+  // =========================================================================
+  orderOnlineList: [],
+  orderOnlineView: [],
+  orderOnlineStats: { pending_payment: 0, pending: 0, paid: 0, done: 0, totalOrdersToday: 0, revenueToday: 0, queue: 0 },
+  orderOnlineFilter: 'waiting',
+  orderOnlineSearch: '',
+  orderOnlineLoading: false,
+  orderOnlineBusy: false,
+  orderOnlineError: '',
+  orderOnlineDetail: null,
+  orderOnlineTimer: null,
+  orderOnlineLastQueue: 0,
+  orderOnlineInitialized: false,
+
+  get orderOnlineQueueCount() {
+    return Number((this.orderOnlineStats && this.orderOnlineStats.queue) || 0);
+  },
+
+  rtoStatusLabel(status) {
+    const map = {
+      pending_payment: 'Menunggu Bayar',
+      pending: 'Perlu Konfirmasi',
+      paid: 'Siap Diserahkan',
+      done: 'Selesai',
+      expired: 'Kedaluwarsa',
+    };
+    return map[String(status || '').toLowerCase()] || (status || '-');
+  },
+
+  rtoStatusClass(status) {
+    const map = {
+      pending_payment: 'bg-stone-200 text-stone-700',
+      pending: 'bg-amber-100 text-amber-800',
+      paid: 'bg-emerald-100 text-emerald-800',
+      done: 'bg-blue-100 text-blue-800',
+      expired: 'bg-red-100 text-red-700',
+    };
+    return map[String(status || '').toLowerCase()] || 'bg-stone-100 text-stone-600';
+  },
+
+  rtoTime(iso) {
+    if (!iso) return '-';
+    try {
+      return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return String(iso);
+    }
+  },
+
+  rtoItemsSummary(order) {
+    const items = (order && Array.isArray(order.items)) ? order.items : [];
+    if (items.length === 0) return '-';
+    const txt = items.map(i => `${i.qty || 1}x ${i.name || i.id}`).join(', ');
+    return txt.length > 90 ? txt.slice(0, 90) + '…' : txt;
+  },
+
+  orderOnlineWaNumber(order) {
+    let p = String((order && order.customer && order.customer.phone) || '').replace(/[^0-9]/g, '');
+    if (p.startsWith('0')) p = '62' + p.slice(1);
+    return p;
+  },
+
+  /**
+   * Polling queue order online (badge + notifikasi audio saat order baru masuk)
+   */
+  startOrderOnlineWatcher() {
+    if (this.orderOnlineTimer) return;
+    this.loadOrderOnline(true);
+    this.orderOnlineTimer = setInterval(() => { this.loadOrderOnline(true); }, 15000);
+  },
+
+  async loadOrderOnline(silent = false) {
+    if (this.orderOnlineLoading) return;
+    this.orderOnlineLoading = true;
+    try {
+      let url = '/online-orders/list?status=all,expired&limit=200';
+      if (this.orderOnlineSearch) url += '&q=' + encodeURIComponent(this.orderOnlineSearch);
+      const res = await fetch(url);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.success) {
+        throw new Error((data && data.error) || ('HTTP ' + res.status));
+      }
+
+      const stats = data.stats || {};
+      const queue = Number(stats.queue || 0);
+
+      // Notifikasi audio + toast kalau ada order paid baru (bukan load pertama)
+      if (this.orderOnlineInitialized && queue > this.orderOnlineLastQueue) {
+        this.playSound('notify');
+        this.showToast('🔔 ' + queue + ' order online siap diserahkan ke customer', 'notify');
+      }
+      this.orderOnlineInitialized = true;
+      this.orderOnlineLastQueue = queue;
+
+      this.orderOnlineList = Array.isArray(data.orders) ? data.orders : [];
+      this.orderOnlineStats = Object.assign(
+        { pending_payment: 0, pending: 0, paid: 0, done: 0, totalOrdersToday: 0, revenueToday: 0, queue: 0 },
+        stats
+      );
+      this.applyOrderOnlineFilter();
+      this.orderOnlineError = '';
+    } catch (e) {
+      this.orderOnlineError = 'Gagal memuat order online: ' + (e && e.message ? e.message : e);
+      if (!silent) this.showToast(this.orderOnlineError, 'error');
+    } finally {
+      this.orderOnlineLoading = false;
+    }
+  },
+
+  applyOrderOnlineFilter() {
+    const filter = this.orderOnlineFilter;
+    const q = String(this.orderOnlineSearch || '').toLowerCase().trim();
+    let list = Array.isArray(this.orderOnlineList) ? this.orderOnlineList.slice() : [];
+
+    if (filter === 'waiting') {
+      list = list.filter(o => o.status === 'pending_payment' || o.status === 'pending');
+    } else if (filter && filter !== 'all') {
+      list = list.filter(o => o.status === filter);
+    }
+
+    if (q) {
+      list = list.filter(o =>
+        String(o.orderId || '').toLowerCase().includes(q) ||
+        String((o.customer && o.customer.name) || '').toLowerCase().includes(q) ||
+        String((o.customer && o.customer.phone) || '').includes(q)
+      );
+    }
+    this.orderOnlineView = list;
+  },
+
+  openOrderOnlineDetail(order) {
+    this.orderOnlineDetail = order || null;
+  },
+
+  closeOrderOnlineDetail() {
+    this.orderOnlineDetail = null;
+  },
+
+  /**
+   * Kasir verifikasi pembayaran QRIS statis → status paid (semua efek kasir auto)
+   */
+  async konfirmasiOrderOnline(order) {
+    if (!order || !order.orderId || this.orderOnlineBusy) return;
+    this.orderOnlineBusy = true;
+    try {
+      const res = await fetch('/online-orders/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.orderId,
+          kasir: (this.kasirInfo && this.kasirInfo.username) || 'kasir',
+          shiftId: (this.kasirInfo && this.kasirInfo.shiftId) || ''
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.success) {
+        throw new Error((data && data.error) || ('HTTP ' + res.status));
+      }
+
+      const steps = (data.result && data.result.steps) || {};
+      this.playSound('success');
+      let msg = 'Pembayaran ' + order.orderId + ' terkonfirmasi — transaksi masuk POS.';
+      if (String(steps.journal || '').indexOf('failed') === 0) msg += ' (jurnal akuntansi perlu dicek manual)';
+      this.showToast(msg, 'success');
+
+      await this.loadOrderOnline(true);
+      if (typeof this.loadLaporanHariIni === 'function') { try { await this.loadLaporanHariIni(); } catch (e) {} }
+      if (this.orderOnlineDetail && this.orderOnlineDetail.orderId === order.orderId) {
+        const fresh = (this.orderOnlineList || []).find(o => o.orderId === order.orderId);
+        if (fresh) this.orderOnlineDetail = fresh;
+      }
+    } catch (e) {
+      this.playSound('error');
+      this.showToast('Gagal konfirmasi pembayaran: ' + (e && e.message ? e.message : e), 'error');
+    } finally {
+      this.orderOnlineBusy = false;
+    }
+  },
+
+  /**
+   * Kasir serahkan pesanan → Done (shift dicatat dari kasir yang klik Done)
+   */
+  async selesaikanOrderOnline(order) {
+    if (!order || !order.orderId || this.orderOnlineBusy) return;
+    if (!confirm('Tandai order ' + order.orderId + ' sebagai DONE (pesanan sudah diserahkan ke customer)?')) return;
+
+    this.orderOnlineBusy = true;
+    try {
+      const res = await fetch('/online-orders/' + encodeURIComponent(order.orderId), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'done',
+          kasir: (this.kasirInfo && this.kasirInfo.username) || 'kasir',
+          shiftId: (this.kasirInfo && this.kasirInfo.shiftId) || ''
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.success) {
+        throw new Error((data && data.error) || ('HTTP ' + res.status));
+      }
+      this.playSound('success');
+      this.showToast('Order ' + order.orderId + ' selesai & tercatat di shift Anda.', 'success');
+      this.closeOrderOnlineDetail();
+      await this.loadOrderOnline(true);
+      if (typeof this.loadLaporanHariIni === 'function') { try { await this.loadLaporanHariIni(); } catch (e) {} }
+    } catch (e) {
+      this.playSound('error');
+      this.showToast('Gagal menandai Done: ' + (e && e.message ? e.message : e), 'error');
+    } finally {
+      this.orderOnlineBusy = false;
+    }
+  },
+  // ==== /RTO (ORDER ONLINE) ====
 
   /**
    * Update display jam realtime HH:mm:ss WIB

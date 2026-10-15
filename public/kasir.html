@@ -413,6 +413,20 @@
         <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="activeTab === 'rekonsiliasi' ? 'bg-white text-emerald-700' : 'bg-amber-100 text-amber-800'" x-text="pendingReconcile || 0"></span>
       </button>
 
+      <!-- ==== RTO: MENU ORDER ONLINE (BLOK BARU) ==== -->
+      <button 
+        type="button"
+        @click="activeTab = 'orderonline'; loadOrderOnline(); mobileMenuOpen = false"
+        :class="activeTab === 'orderonline' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-700 hover:bg-stone-100'"
+        class="w-full min-h-[48px] px-3.5 rounded-xl flex items-center justify-between text-sm transition text-left cursor-pointer">
+        <div class="flex items-center gap-3">
+          <i class="fa-solid fa-bag-shopping w-5 text-center"></i>
+          <span>Order Online</span>
+        </div>
+        <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="activeTab === 'orderonline' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'" x-text="orderOnlineQueueCount"></span>
+      </button>
+      <!-- ==== /RTO ==== -->
+
       <button 
         type="button"
         @click="activeTab = 'shift'; mobileMenuOpen = false"
@@ -539,6 +553,26 @@
             x-text="pendingReconcile || 0">
           </span>
         </button>
+
+        <!-- ==== RTO: Menu Order Online (BLOK BARU) ==== -->
+        <button 
+          type="button"
+          @click="activeTab = 'orderonline'; loadOrderOnline()"
+          :class="activeTab === 'orderonline' ? 'bg-emerald-600 text-white font-bold shadow-sm shadow-emerald-600/30' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900 font-semibold'"
+          class="w-full min-h-[48px] px-3.5 rounded-2xl flex items-center justify-between text-sm transition-all duration-150 text-left cursor-pointer group">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center transition-colors" :class="activeTab === 'orderonline' ? 'bg-emerald-700 text-white' : 'bg-stone-100 text-stone-500 group-hover:bg-stone-200'">
+              <i class="fa-solid fa-bag-shopping text-sm"></i>
+            </div>
+            <span class="truncate">Order Online</span>
+          </div>
+          <span 
+            class="px-2 py-0.5 rounded-full text-xs font-extrabold flex-shrink-0"
+            :class="activeTab === 'orderonline' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'"
+            x-text="orderOnlineQueueCount">
+          </span>
+        </button>
+        <!-- ==== /RTO ==== -->
 
         <!-- Menu: Shift Management -->
         <button 
@@ -2654,6 +2688,185 @@
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- TAB 5: LAPORAN                                                      -->
       <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- ==== RTO: TAB ORDER ONLINE (BLOK BARU) ==== -->
+      <section x-show="activeTab === 'orderonline'" x-cloak class="space-y-6">
+        <!-- Ringkasan & statistik -->
+        <div class="bg-white rounded-3xl border border-stone-200 p-5 sm:p-6 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 class="text-lg sm:text-xl font-extrabold text-stone-900 flex items-center gap-2">
+                <i class="fa-solid fa-bag-shopping text-emerald-600"></i><span>Order Online (Pickup)</span>
+              </h2>
+              <p class="text-xs text-stone-500 mt-0.5">Pesanan dari landing page: konfirmasi pembayaran QRIS → serahkan pesanan → Done.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span x-show="orderOnlineLoading" class="text-[11px] text-stone-500 font-bold"><i class="fa-solid fa-spinner fa-spin"></i> Memuat...</span>
+              <button type="button" @click="loadOrderOnline()" class="h-9 px-3.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+                <i class="fa-solid fa-rotate"></i><span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3">
+              <p class="text-[10px] font-extrabold uppercase text-amber-700">Perlu Konfirmasi</p>
+              <p class="text-xl font-black text-amber-800" x-text="orderOnlineStats.pending + orderOnlineStats.pending_payment"></p>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
+              <p class="text-[10px] font-extrabold uppercase text-emerald-700">Siap Diserahkan</p>
+              <p class="text-xl font-black text-emerald-800" x-text="orderOnlineStats.paid"></p>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-2xl p-3">
+              <p class="text-[10px] font-extrabold uppercase text-blue-700">Selesai Hari Ini</p>
+              <p class="text-xl font-black text-blue-800" x-text="orderOnlineStats.done"></p>
+            </div>
+            <div class="bg-stone-50 border border-stone-200 rounded-2xl p-3">
+              <p class="text-[10px] font-extrabold uppercase text-stone-600">Omset Online Hari Ini</p>
+              <p class="text-base font-black text-stone-900" x-text="formatRupiah(orderOnlineStats.revenueToday)"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & pencarian -->
+        <div class="bg-white rounded-3xl border border-stone-200 p-4 sm:p-5 shadow-sm space-y-3">
+          <div class="flex flex-wrap gap-2">
+            <button type="button" @click="orderOnlineFilter = 'all'; applyOrderOnlineFilter()"
+              :class="orderOnlineFilter === 'all' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'"
+              class="h-9 px-3.5 rounded-xl text-xs font-bold transition cursor-pointer">Semua</button>
+            <button type="button" @click="orderOnlineFilter = 'waiting'; applyOrderOnlineFilter()"
+              :class="orderOnlineFilter === 'waiting' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'"
+              class="h-9 px-3.5 rounded-xl text-xs font-bold transition cursor-pointer">Menunggu Bayar / Konfirmasi</button>
+            <button type="button" @click="orderOnlineFilter = 'paid'; applyOrderOnlineFilter()"
+              :class="orderOnlineFilter === 'paid' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'"
+              class="h-9 px-3.5 rounded-xl text-xs font-bold transition cursor-pointer">Siap Diserahkan</button>
+            <button type="button" @click="orderOnlineFilter = 'done'; applyOrderOnlineFilter()"
+              :class="orderOnlineFilter === 'done' ? 'bg-blue-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'"
+              class="h-9 px-3.5 rounded-xl text-xs font-bold transition cursor-pointer">Selesai</button>
+            <button type="button" @click="orderOnlineFilter = 'expired'; applyOrderOnlineFilter()"
+              :class="orderOnlineFilter === 'expired' ? 'bg-stone-700 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'"
+              class="h-9 px-3.5 rounded-xl text-xs font-bold transition cursor-pointer">Kedaluwarsa</button>
+          </div>
+          <input type="text" x-model="orderOnlineSearch" @input.debounce.300ms="applyOrderOnlineFilter()"
+            placeholder="Cari nomor order atau nama customer..."
+            class="w-full h-10 px-3.5 rounded-xl border border-stone-300 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+          <p x-show="orderOnlineError" class="text-[11px] font-bold text-red-600" x-text="orderOnlineError"></p>
+        </div>
+
+        <!-- Daftar order -->
+        <div class="bg-white rounded-3xl border border-stone-200 p-4 sm:p-5 shadow-sm">
+          <div x-show="orderOnlineView.length === 0" class="text-center py-12 text-stone-400">
+            <i class="fa-solid fa-bag-shopping text-4xl mb-2 text-stone-300"></i>
+            <p class="text-xs font-bold">Tidak ada order online pada filter ini</p>
+          </div>
+
+          <div class="space-y-3">
+            <template x-for="o in orderOnlineView" :key="o.orderId">
+              <div class="border border-stone-200 rounded-2xl p-3.5 hover:shadow-sm transition">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase" :class="rtoStatusClass(o.status)" x-text="rtoStatusLabel(o.status)"></span>
+                      <span class="font-mono text-xs font-extrabold text-stone-900" x-text="o.orderId"></span>
+                      <span class="text-[10px] text-stone-400" x-text="rtoTime(o.created_at)"></span>
+                    </div>
+                    <p class="text-xs font-bold text-stone-800 mt-1.5" x-text="(o.customer && o.customer.name) || 'Pelanggan'"></p>
+                    <p class="text-[11px] text-stone-500" x-text="(o.customer && o.customer.phone) || '-'"></p>
+                    <p class="text-[11px] text-stone-600 mt-1" x-text="rtoItemsSummary(o)"></p>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <p class="text-base font-black text-stone-900" x-text="formatRupiah(o.total)"></p>
+                    <p class="text-[10px] text-stone-400" x-text="(o.payment && o.payment.method === 'qris_dynamic' ? 'QRIS Dinamis' : 'QRIS') + ' • ' + ((o.payment && o.payment.gateway) || 'admin')"></p>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3">
+                  <button type="button" @click="openOrderOnlineDetail(o)" class="h-9 px-3.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition cursor-pointer">
+                    <i class="fa-solid fa-circle-info"></i> Detail
+                  </button>
+                  <button type="button" x-show="o.status === 'pending_payment' || o.status === 'pending'" @click="konfirmasiOrderOnline(o)" :disabled="orderOnlineBusy"
+                    class="h-9 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-extrabold transition cursor-pointer">
+                    <i class="fa-solid fa-hand-holding-dollar"></i> Konfirmasi Pembayaran
+                  </button>
+                  <button type="button" x-show="o.status === 'paid'" @click="selesaikanOrderOnline(o)" :disabled="orderOnlineBusy"
+                    class="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-extrabold transition cursor-pointer">
+                    <i class="fa-solid fa-check"></i> Done (Pesanan Diserahkan)
+                  </button>
+                  <a :href="'https://wa.me/' + orderOnlineWaNumber(o)" target="_blank" x-show="o.customer && o.customer.phone"
+                    class="h-9 px-3.5 rounded-xl bg-[#25D366] hover:bg-green-600 text-white text-xs font-bold flex items-center gap-1.5 transition">
+                    <i class="fa-brands fa-whatsapp"></i> Chat
+                  </a>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Modal detail order -->
+        <div x-cloak x-show="orderOnlineDetail" class="fixed inset-0 overflow-y-auto bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center" style="z-index:99980">
+          <div class="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <div class="px-5 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-[10px] font-bold uppercase tracking-widest opacity-90">Detail Order Online</p>
+                <h3 class="font-extrabold text-sm truncate" x-text="orderOnlineDetail ? orderOnlineDetail.orderId : ''"></h3>
+              </div>
+              <button type="button" @click="closeOrderOnlineDetail()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center flex-shrink-0 cursor-pointer">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase" :class="orderOnlineDetail ? rtoStatusClass(orderOnlineDetail.status) : ''" x-text="orderOnlineDetail ? rtoStatusLabel(orderOnlineDetail.status) : ''"></span>
+                <span class="text-lg font-black text-stone-900" x-text="orderOnlineDetail ? formatRupiah(orderOnlineDetail.total) : ''"></span>
+              </div>
+
+              <div class="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs space-y-1.5">
+                <p class="font-extrabold text-stone-800 flex items-center gap-1.5"><i class="fa-solid fa-user"></i> Data Pemesan</p>
+                <p>Nama: <span class="font-bold" x-text="orderOnlineDetail ? (orderOnlineDetail.customer && orderOnlineDetail.customer.name) || '-' : ''"></span></p>
+                <p>WhatsApp: <span class="font-bold" x-text="orderOnlineDetail ? (orderOnlineDetail.customer && orderOnlineDetail.customer.phone) || '-' : ''"></span></p>
+                <p>Waktu order: <span class="font-bold" x-text="orderOnlineDetail ? rtoTime(orderOnlineDetail.created_at) : ''"></span></p>
+                <p>Tipe: <span class="font-bold">Pickup — ambil di outlet</span></p>
+                <p>Pembayaran: <span class="font-bold" x-text="orderOnlineDetail ? ((orderOnlineDetail.payment && orderOnlineDetail.payment.method) === 'qris_dynamic' ? 'QRIS Dinamis' : 'QRIS Statis') + ' • ' + ((orderOnlineDetail.payment && orderOnlineDetail.payment.gateway) || 'admin') : ''"></span></p>
+                <p x-show="orderOnlineDetail && orderOnlineDetail.payment && orderOnlineDetail.payment.transaction_id">Trx ID: <span class="font-mono font-bold" x-text="orderOnlineDetail ? (orderOnlineDetail.payment && orderOnlineDetail.payment.transaction_id) : ''"></span></p>
+                <p x-show="orderOnlineDetail && orderOnlineDetail.done_by">Diserahkan oleh: <span class="font-bold" x-text="orderOnlineDetail ? orderOnlineDetail.done_by : ''"></span></p>
+              </div>
+
+              <div class="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs">
+                <p class="font-extrabold text-stone-800 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-utensils"></i> Rincian Pesanan</p>
+                <div class="space-y-1">
+                  <template x-for="it in ((orderOnlineDetail && orderOnlineDetail.items) || [])" :key="it.id + '-' + it.qty">
+                    <div class="flex items-center justify-between">
+                      <span class="text-stone-700"><span class="font-bold" x-text="it.qty + 'x '"></span><span x-text="it.name"></span></span>
+                      <span class="font-bold text-stone-900" x-text="formatRupiah(Number(it.price) * Number(it.qty))"></span>
+                    </div>
+                  </template>
+                </div>
+                <div class="border-t border-stone-200 mt-2 pt-2 flex items-center justify-between font-extrabold">
+                  <span>Total (Pickup, tanpa ongkir)</span>
+                  <span x-text="orderOnlineDetail ? formatRupiah(orderOnlineDetail.total) : ''"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="px-5 pb-5 flex flex-wrap gap-2 justify-end">
+              <a :href="'https://wa.me/' + orderOnlineWaNumber(orderOnlineDetail)" target="_blank" x-show="orderOnlineDetail && orderOnlineDetail.customer && orderOnlineDetail.customer.phone"
+                class="h-10 px-4 rounded-xl bg-[#25D366] hover:bg-green-600 text-white text-xs font-bold flex items-center gap-1.5 transition">
+                <i class="fa-brands fa-whatsapp"></i> Hubungi Customer
+              </a>
+              <button type="button" x-show="orderOnlineDetail && (orderOnlineDetail.status === 'pending_payment' || orderOnlineDetail.status === 'pending')" @click="konfirmasiOrderOnline(orderOnlineDetail)" :disabled="orderOnlineBusy"
+                class="h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-extrabold transition cursor-pointer">
+                <i class="fa-solid fa-hand-holding-dollar"></i> Konfirmasi Pembayaran
+              </button>
+              <button type="button" x-show="orderOnlineDetail && orderOnlineDetail.status === 'paid'" @click="selesaikanOrderOnline(orderOnlineDetail)" :disabled="orderOnlineBusy"
+                class="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-extrabold transition cursor-pointer">
+                <i class="fa-solid fa-check"></i> Done (Pesanan Diserahkan)
+              </button>
+              <button type="button" @click="closeOrderOnlineDetail()" class="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition cursor-pointer">Tutup</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- ==== /RTO ==== -->
+
       <section x-show="activeTab === 'laporan'" x-cloak class="space-y-6">
                 <!-- 📊 Period Selector Bar -->
         <div class="bg-white rounded-3xl p-4 border border-stone-200 shadow-xs">
@@ -7558,6 +7771,22 @@
         x-text="pendingReconcile">
       </span>
     </button>
+
+    <!-- ==== RTO: NAV MOBILE ORDER ONLINE (BLOK BARU) ==== -->
+    <button 
+      type="button" 
+      @click="activeTab = 'orderonline'; loadOrderOnline()"
+      :class="activeTab === 'orderonline' ? 'text-emerald-600 font-bold' : 'text-stone-500'"
+      class="flex flex-col items-center justify-center py-1 px-2 text-[10px] min-w-[56px] relative cursor-pointer">
+      <i class="fa-solid fa-bag-shopping text-base mb-0.5"></i>
+      <span>Online</span>
+      <span 
+        x-show="orderOnlineQueueCount > 0"
+        class="absolute top-0 right-2 w-4 h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center" 
+        x-text="orderOnlineQueueCount">
+      </span>
+    </button>
+    <!-- ==== /RTO ==== -->
 
     <button 
       type="button" 
