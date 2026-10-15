@@ -812,7 +812,9 @@
                 <div class="flex items-center gap-1.5">
                   <button 
                     @click="addToCart(item)" 
-                    class="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+                    :class="isMenuSoldOut(item) ? 'bg-stone-300 text-stone-500 cursor-not-allowed opacity-50' : 'bg-brand-600 hover:bg-brand-700 active:scale-95 text-white'"
+                    :aria-disabled="isMenuSoldOut(item)"
+                    class="font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
                     <i class="fa-solid fa-plus"></i>
                     <span>Tambah</span>
                   </button>
@@ -889,7 +891,9 @@
 
                 <button 
                   @click="addToCart(item)" 
-                  class="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-[11px] sm:text-xs px-2 sm:px-2.5 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1 flex-shrink-0">
+                  :class="isMenuSoldOut(item) ? 'bg-stone-300 text-stone-500 cursor-not-allowed opacity-50' : 'bg-brand-600 hover:bg-brand-700 active:scale-95 text-white'"
+                  :aria-disabled="isMenuSoldOut(item)"
+                  class="font-bold text-[11px] sm:text-xs px-2 sm:px-2.5 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1 flex-shrink-0">
                   <i class="fa-solid fa-plus text-[10px]"></i>
                   <span class="hidden sm:inline">Tambah</span>
                 </button>
@@ -970,7 +974,9 @@
 
               <button 
                 @click="addToCart(item)" 
-                class="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5">
+                :class="isMenuSoldOut(item) ? 'bg-stone-300 text-stone-500 cursor-not-allowed opacity-50' : 'bg-brand-600 hover:bg-brand-700 active:scale-95 text-white'"
+                :aria-disabled="isMenuSoldOut(item)"
+                class="font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5">
                 <i class="fa-solid fa-plus text-xs"></i>
                 <span class="hidden sm:inline">Tambah</span>
               </button>
@@ -7165,7 +7171,25 @@ git push -u origin main</pre>
           return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number || 0);
         },
 
+        /**
+         * FASE 5: menu habis (stok display 0 atau stok bahan 0) → badge Sold Out + tombol Tambah nonaktif
+         * (tombol tetap klik-able supaya notifikasi penjelasan bisa muncul; add to cart diblokir).
+         */
+        isMenuSoldOut(item) {
+          if (!item) return false;
+          const disp = this.getMenuDisplayStock(item);
+          if (disp !== null && disp !== undefined && Number(disp) === 0) return true;
+          const inv = this.getInventoryStockForMenu(item);
+          if (inv && Number(inv.stock) === 0) return true;
+          return false;
+        },
+
         addToCart(item) {
+          // FASE 5: stok habis → jangan add to cart, beri tahu customer
+          if (this.isMenuSoldOut(item)) {
+            this.showToast('Stok ' + ((item && item.name) || 'menu') + ' habis, silakan pilih menu lainnya.');
+            return;
+          }
           const found = this.cart.find(c => c.id === item.id);
           if (found) {
             found.quantity += 1;
