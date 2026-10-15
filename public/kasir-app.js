@@ -810,6 +810,12 @@ try {
   orderOnlineTimer: null,
   orderOnlineLastQueue: 0,
   orderOnlineInitialized: false,
+  rtoVoidModal: false,
+  rtoVoidTarget: null,
+  rtoVoidReason: '',
+  rtoVoidBusy: false,
+  rtoVoidPinOk: false,
+  rtoVoidResult: null,
 
   get orderOnlineQueueCount() {
     return Number((this.orderOnlineStats && this.orderOnlineStats.queue) || 0);
@@ -822,6 +828,7 @@ try {
       paid: 'Siap Diserahkan',
       done: 'Selesai',
       expired: 'Kedaluwarsa',
+      cancelled: 'Dibatalkan',
     };
     return map[String(status || '').toLowerCase()] || (status || '-');
   },
@@ -833,6 +840,7 @@ try {
       paid: 'bg-emerald-100 text-emerald-800',
       done: 'bg-blue-100 text-blue-800',
       expired: 'bg-red-100 text-red-700',
+      cancelled: 'bg-stone-300 text-stone-700',
     };
     return map[String(status || '').toLowerCase()] || 'bg-stone-100 text-stone-600';
   },
@@ -1008,6 +1016,151 @@ try {
       this.showToast('Gagal menandai Done: ' + (e && e.message ? e.message : e), 'error');
     } finally {
       this.orderOnlineBusy = false;
+    }
+  },
+  /**
+   * VOID / REFUND order online — butuh PIN supervisor + alasan wajib.
+   * Aturan: done = blocked; pending_payment = cancel tanpa refund;
+   * pending = refund (gateway/manual) + lepas reserved; paid = refund + reverse stok/jurnal/POS.
+   */
+  rtoCanVoid(order) {
+    const s = String((order && order.status) || '');
+    return s === 'pending_payment' || s === 'pending' || s === 'paid';
+  },
+
+  rtoVoidRefundPlan(order) {
+    if (!order) return { amount: 0, mode: 'none', text: '-' };
+    const s = String(order.status || '');
+    const total = Number(order.total) || 0;
+    const gw = String((order.payment && order.payment.gateway) || '');
+    const hasGateway = !!gw && gw !== 'admin';
+    if (s === 'pending_payment') {
+      return { amount: 0, mode: 'none', text: 'Belum ada pembayaran — tidak ada refund. Reserved stok dilepas.' };
+    }
+    if (s === 'pending') {
+      return {
+        amount: total,
+        mode: hasGateway ? 'gateway' : 'manual',
+        text: hasGateway
+          ? 'Refund Rp ' + this.formatNumber(total) + ' via gateway + reserved stok dilepas.'
+          : 'QRIS statis — kasir refund MANUAL Rp ' + this.formatNumber(total) + ' ke customer + reserved stok dilepas.',
+      };
+    }
+    // paid
+    return {
+      amount: total,
+      mode: hasGateway ? 'gateway' : 'manual',
+      text: 'Refund Rp ' + this.formatNumber(total) + (hasGateway ? ' via gateway' : ' (manual ke customer)')
+        + ' + stok dikembalikan + jurnal dibalik + transaksi POS di-void.',
+    };
+  },
+
+  /** Klik tombol VOID: minta PIN supervisor dulu, lalu buka modal konfirmasi + alasan. */
+  async openVoidOrderOnline(order) {
+    if (!order || !order.orderId || this.rtoVoidBusy || this.orderOnlineBusy) return;
+    if (String(order.status) === 'done') {
+      this.showToast('Order sudah Done (pesanan diserahkan) — tidak bisa di-void', 'notify');
+      return;
+    }
+    if (!this.rtoCanVoid(order)) {
+      this.showToast('Status order ini tidak bisa di-void', 'notify');
+      return;
+    }
+
+    this._lastVerifiedSupervisorPin = '';
+    const pinOk = await this.requestSupervisorPin(
+      'VOID ORDER ONLINE',
+      `#${order.orderId} — Rp ${this.formatNumber(order.total)}`,
+      { capturePin: true }
+    );
+    if (!pinOk) {
+      this.showToast('Void order dibatalkan', 'notify');
+      return;
+    }
+
+    this.rtoVoidTarget = order;
+    this.rtoVoidReason = '';
+    this.rtoVoidResult = null;
+    this.rtoVoidPinOk = true;
+    this.rtoVoidModal = true;
+    this.playSound('notify');
+  },
+
+  closeVoidOrderOnline() {
+    if (this.rtoVoidBusy) return;
+    this.rtoVoidModal = false;
+    this.rtoVoidTarget = null;
+    this.rtoVoidReason = '';
+    this.rtoVoidResult = null;
+    this.rtoVoidPinOk = false;
+    this._lastVerifiedSupervisorPin = '';
+  },
+
+  /** Kirim void ke endpoint /online-orders/{id} (action: void) */
+  async confirmVoidOrderOnline() {
+    const order = this.rtoVoidTarget;
+    if (!order || !order.orderId || this.rtoVoidBusy) return;
+
+    const reason = String(this.rtoVoidReason || '').trim();
+    if (reason.length < 5) {
+      this.showToast('Alasan void wajib diisi (min 5 karakter)', 'error');
+      this.playSound('error');
+      return;
+    }
+
+    this.rtoVoidBusy = true;
+    try {
+      const res = await fetch('/online-orders/' + encodeURIComponent(order.orderId), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'void',
+          kasir: (this.kasirInfo && this.kasirInfo.username) || 'kasir',
+          kasirName: (this.kasirInfo && this.kasirInfo.name) || '',
+          shiftId: (this.kasirInfo && this.kasirInfo.shiftId) || '',
+          reason,
+          supervisorPin: this._lastVerifiedSupervisorPin || '',
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.success) {
+        throw new Error((data && data.error) || ('HTTP ' + res.status));
+      }
+
+      const result = data.result || {};
+      const refund = result.refund || {};
+      const steps = result.steps || {};
+      this.rtoVoidResult = result;
+      this.playSound('success');
+
+      let msg = '✅ Order ' + order.orderId + ' di-void (cancelled).';
+      if (Number(result.refundAmount) > 0) {
+        msg += ' Refund Rp ' + this.formatNumber(result.refundAmount)
+          + (refund.mode === 'gateway' ? ' via gateway.' : ' — REFUND MANUAL ke customer.');
+      } else {
+        msg += ' Tanpa refund. Stok dikembalikan.';
+      }
+      if (String(steps.journal || '').indexOf('failed') === 0) msg += ' (jurnal perlu dicek manual)';
+      if (String(steps.posVoid || '').indexOf('failed') === 0) msg += ' (void transaksi POS perlu dicek)';
+      this.showToast(msg, 'success');
+
+      await this.logAudit('VOID ORDER ONLINE', order.orderId, 'executed', reason);
+
+      this.rtoVoidModal = false;
+      this.rtoVoidTarget = null;
+      this.rtoVoidReason = '';
+      this.rtoVoidPinOk = false;
+      this._lastVerifiedSupervisorPin = '';
+      this.closeOrderOnlineDetail();
+
+      await this.loadOrderOnline(true);
+      if (typeof this.loadLaporanHariIni === 'function') { try { await this.loadLaporanHariIni(); } catch (e) {} }
+    } catch (e) {
+      this.playSound('error');
+      await this.logAudit('VOID ORDER ONLINE', order.orderId, 'failed', (e && e.message) || 'error');
+      this.showToast('Gagal void order: ' + (e && e.message ? e.message : e), 'error');
+    } finally {
+      this.rtoVoidBusy = false;
     }
   },
   // ==== /RTO (ORDER ONLINE) ====
@@ -7911,6 +8064,8 @@ try {
       this.pinContext = null;
 
       this.logAudit(ctx?.actionLabel || 'UNKNOWN', ctx?.targetLabel || '-', 'granted');
+      // Simpan PIN yang baru diverifikasi (dipakai aksi yang butuh verifikasi server, mis. VOID order online)
+      if (ctx && ctx.opts && ctx.opts.capturePin) this._lastVerifiedSupervisorPin = pin;
       this.playSound('success');
 
       if (ctx && typeof ctx.resolve === 'function') {

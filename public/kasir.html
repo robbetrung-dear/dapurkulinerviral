@@ -2774,7 +2774,7 @@
                     <p class="text-[11px] text-stone-600 mt-1" x-text="rtoItemsSummary(o)"></p>
                   </div>
                   <div class="text-right flex-shrink-0">
-                    <p class="text-base font-black text-stone-900" x-text="formatRupiah(o.total)"></p>
+                    <p class="text-base font-black text-stone-900" :class="o.status === 'cancelled' ? 'line-through text-stone-400' : ''" x-text="formatRupiah(o.total)"></p>
                     <p class="text-[10px] text-stone-400" x-text="(o.payment && o.payment.method === 'qris_dynamic' ? 'QRIS Dinamis' : 'QRIS') + ' • ' + ((o.payment && o.payment.gateway) || 'admin')"></p>
                   </div>
                 </div>
@@ -2830,6 +2830,17 @@
                 <p x-show="orderOnlineDetail && orderOnlineDetail.done_by">Diserahkan oleh: <span class="font-bold" x-text="orderOnlineDetail ? orderOnlineDetail.done_by : ''"></span></p>
               </div>
 
+              <!-- ==== RTO FASE 4: info void/refund (BLOK BARU) ==== -->
+              <div x-show="orderOnlineDetail && (orderOnlineDetail.status === 'cancelled' || orderOnlineDetail.voided)"
+                class="bg-stone-100 border border-stone-300 rounded-2xl p-3.5 text-xs space-y-1">
+                <p class="font-extrabold text-stone-800 flex items-center gap-1.5"><i class="fa-solid fa-ban"></i> Order Dibatalkan / Void</p>
+                <p>Waktu void: <span class="font-bold" x-text="orderOnlineDetail ? rtoTime(orderOnlineDetail.cancelled_at) : ''"></span></p>
+                <p>Oleh: <span class="font-bold" x-text="orderOnlineDetail ? (orderOnlineDetail.cancelled_by || '-') : ''"></span></p>
+                <p>Alasan: <span class="font-bold" x-text="orderOnlineDetail ? (orderOnlineDetail.cancel_reason || '-') : ''"></span></p>
+                <p>Refund: <span class="font-bold" x-text="orderOnlineDetail && orderOnlineDetail.void_info ? (Number(orderOnlineDetail.void_info.refund_amount) > 0 ? formatRupiah(orderOnlineDetail.void_info.refund_amount) + ' (' + orderOnlineDetail.void_info.refund_mode + ')' : 'Tidak ada refund') : 'Tidak ada refund'"></span></p>
+              </div>
+              <!-- ==== /RTO FASE 4 ==== -->
+
               <div class="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs">
                 <p class="font-extrabold text-stone-800 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-utensils"></i> Rincian Pesanan</p>
                 <div class="space-y-1">
@@ -2860,13 +2871,80 @@
                 class="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-extrabold transition cursor-pointer">
                 <i class="fa-solid fa-check"></i> Done (Pesanan Diserahkan)
               </button>
+              <!-- ==== RTO FASE 4: tombol VOID (BLOK BARU) ==== -->
+              <button type="button" x-show="orderOnlineDetail && rtoCanVoid(orderOnlineDetail)" @click="openVoidOrderOnline(orderOnlineDetail)" :disabled="orderOnlineBusy || rtoVoidBusy"
+                class="h-10 px-4 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-extrabold transition cursor-pointer">
+                <i class="fa-solid fa-ban"></i> VOID / Refund
+              </button>
+              <!-- ==== /RTO FASE 4 ==== -->
               <button type="button" @click="closeOrderOnlineDetail()" class="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition cursor-pointer">Tutup</button>
             </div>
           </div>
         </div>
+
+        <!-- ==== RTO FASE 4: MODAL KONFIRMASI VOID / REFUND (BLOK BARU) ==== -->
+        <div x-cloak x-show="rtoVoidModal" class="fixed inset-0 overflow-y-auto bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center" style="z-index:99985">
+          <div class="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-red-200">
+            <div class="px-5 py-4 bg-gradient-to-r from-red-700 to-red-600 text-white flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-[10px] font-bold uppercase tracking-widest opacity-90">Konfirmasi Void / Refund</p>
+                <h3 class="font-extrabold text-sm truncate" x-text="rtoVoidTarget ? rtoVoidTarget.orderId : ''"></h3>
+              </div>
+              <button type="button" @click="closeVoidOrderOnline()" :disabled="rtoVoidBusy" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center flex-shrink-0 cursor-pointer disabled:opacity-50">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase" :class="rtoVoidTarget ? rtoStatusClass(rtoVoidTarget.status) : ''" x-text="rtoVoidTarget ? rtoStatusLabel(rtoVoidTarget.status) : ''"></span>
+                <span class="text-lg font-black text-stone-900" x-text="rtoVoidTarget ? formatRupiah(rtoVoidTarget.total) : ''"></span>
+              </div>
+
+              <div class="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 text-xs space-y-1.5">
+                <p>Customer: <span class="font-bold" x-text="rtoVoidTarget ? ((rtoVoidTarget.customer && rtoVoidTarget.customer.name) || '-') : '-'"></span></p>
+                <p>WhatsApp: <span class="font-bold" x-text="rtoVoidTarget ? ((rtoVoidTarget.customer && rtoVoidTarget.customer.phone) || '-') : '-'"></span></p>
+                <p>Total order: <span class="font-bold" x-text="rtoVoidTarget ? formatRupiah(rtoVoidTarget.total) : ''"></span></p>
+                <p class="pt-1 border-t border-stone-200">Total refund: <span class="font-black text-red-700" x-text="formatRupiah(rtoVoidRefundPlan(rtoVoidTarget).amount)"></span></p>
+                <p class="text-[11px] text-stone-600" x-text="rtoVoidRefundPlan(rtoVoidTarget).text"></p>
+              </div>
+
+              <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11px] text-amber-800 font-bold flex items-start gap-2">
+                <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+                <span>Aksi ini tidak bisa dibatalkan. Stok, jurnal, dan transaksi POS ikut disesuaikan, dan kejadian ini tercatat di audit log.</span>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-stone-700 uppercase mb-1.5">Alasan void (wajib, min 5 karakter)</label>
+                <textarea x-model="rtoVoidReason" rows="3" :disabled="rtoVoidBusy"
+                  placeholder="Contoh: customer salah pesan / batal ambil pesanan"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs bg-white focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-stone-100"></textarea>
+                <p class="text-[10px] text-stone-400 mt-1">PIN supervisor sudah diverifikasi pada langkah sebelumnya.</p>
+              </div>
+
+              <div class="text-[11px] font-bold text-emerald-700 flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>PIN supervisor terverifikasi</span>
+              </div>
+            </div>
+
+            <div class="px-5 pb-5 flex flex-wrap gap-2 justify-end">
+              <button type="button" @click="closeVoidOrderOnline()" :disabled="rtoVoidBusy"
+                class="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-700 text-xs font-bold transition cursor-pointer">
+                Batal
+              </button>
+              <button type="button" @click="confirmVoidOrderOnline()" :disabled="rtoVoidBusy || String(rtoVoidReason || '').trim().length < 5"
+                :class="(rtoVoidBusy || String(rtoVoidReason || '').trim().length < 5) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-700 cursor-pointer'"
+                class="h-10 px-4 rounded-xl bg-red-600 text-white text-xs font-extrabold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-ban"></i>
+                <span x-text="rtoVoidBusy ? 'Memproses...' : 'KONFIRMASI VOID'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <!-- ==== /RTO FASE 4 ==== -->
       </section>
       <!-- ==== /RTO ==== -->
-
       <section x-show="activeTab === 'laporan'" x-cloak class="space-y-6">
                 <!-- 📊 Period Selector Bar -->
         <div class="bg-white rounded-3xl p-4 border border-stone-200 shadow-xs">

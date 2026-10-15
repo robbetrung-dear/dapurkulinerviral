@@ -7,7 +7,8 @@
  *   GET    /online-orders/{orderId}                → detail 1 order
  *   POST   /online-orders/verify                   → kasir verifikasi pembayaran (QRIS statis)
  *   POST   /online-orders/expire                   → expire 1 order ({orderId}) atau sweep semua
- *   PATCH  /online-orders/{orderId}                → action: customer_paid | done | expire | cancel
+ *   PATCH  /online-orders/{orderId}                → action: customer_paid | done | expire | cancel | void
+ *                                                    (void = void/refund + PIN supervisor)
  *
  * Query /online-orders/list:
  *   ?status=paid,done    (default: semua kecuali expired)
@@ -19,6 +20,7 @@
 import {
   json, preflight, methodNotAllowed, dbCtx, toNum, fbGet, fbPatch, casWrite,
   finalizePaid, expireOrder, expireStaleOrders, dateKey,
+  voidOrder, writeVoidAuditLog,
 } from "../../lib/rto-core.js";
 
 const ACTIVE_STATUSES = ["pending_payment", "pending", "paid", "done"];
@@ -47,6 +49,11 @@ function orderSummary(o) {
       expires_at: (o.payment && o.payment.expires_at) || "",
     },
     pos_date: o.pos_date || "",
+    cancelled_at: o.cancelled_at || "",
+    cancelled_by: o.cancelled_by || "",
+    cancel_reason: o.cancel_reason || "",
+    voided: !!(o.void && o.void.voided),
+    void_info: o.void || null,
   };
 }
 
@@ -102,6 +109,7 @@ export async function onRequest(context) {
         pending: 0,
         paid: 0,
         done: 0,
+        cancelled: 0,
         totalOrdersToday: 0,
         revenueToday: 0,
       };
@@ -239,12 +247,68 @@ export async function onRequest(context) {
         return json({ success: true, orderId, status: "done", done_at: doneAt, done_by: kasir, pos: posResult });
       }
 
+      // Kasir void/refund order (WAJIB PIN supervisor + alasan)
+      if (action === "void") {
+        const reason = String(body.reason || "").trim();
+        const supervisorPin = String(body.supervisorPin || "").trim();
+
+        if (reason.length < 5) {
+          return json({ success: false, error: "Alasan void wajib diisi (min 5 karakter)" }, 400);
+        }
+        if (order.status === "done") {
+          return json({
+            success: false,
+            error: "Order sudah DONE (pesanan sudah diambil customer) — tidak bisa di-void",
+            orderId, status: order.status,
+          }, 409);
+        }
+
+        // Verifikasi PIN supervisor di server (site_config.supervisorPin)
+        let cfgPin = "";
+        try {
+          cfgPin = String((await fbGet(ctx, "site_config/supervisorPin")) || "").trim();
+        } catch (e) {
+          cfgPin = "";
+        }
+        if (cfgPin && supervisorPin !== cfgPin) {
+          await writeVoidAuditLog(ctx, {
+            orderId, action: "void", kasir, shiftId, reason,
+            refundAmount: 0, refundMode: "", supervisorVerified: false, status: "denied_wrong_pin",
+          }).catch(() => {});
+          return json({ success: false, error: "PIN supervisor salah" }, 403);
+        }
+
+        const result = await voidOrder(ctx, env, order, {
+          kasir, kasirName: String(body.kasirName || "").trim(), shiftId, reason, origin: url.origin,
+        });
+
+        if (!result.ok) {
+          return json({ success: false, error: result.error, orderId, status: order.status }, 409);
+        }
+
+        // Audit log: 1 entri void + 1 entri refund (kalau ada refund)
+        await writeVoidAuditLog(ctx, {
+          orderId, action: "void", kasir, kasirName: String(body.kasirName || "").trim(), shiftId, reason,
+          refundAmount: result.refundAmount, refundMode: (result.refund && result.refund.mode) || "",
+          supervisorVerified: true, status: "executed",
+        }).catch(() => {});
+        if (toNum(result.refundAmount) > 0) {
+          await writeVoidAuditLog(ctx, {
+            orderId, action: "refund", kasir, kasirName: String(body.kasirName || "").trim(), shiftId, reason,
+            refundAmount: result.refundAmount, refundMode: (result.refund && result.refund.mode) || "",
+            supervisorVerified: true, status: (result.refund && result.refund.ok) ? "executed" : "pending_manual",
+          }).catch(() => {});
+        }
+
+        return json({ success: true, orderId, status: "cancelled", result });
+      }
+
       if (action === "expire" || action === "cancel") {
         const result = await expireOrder(ctx, order, action);
         return json({ success: result.ok, orderId, result });
       }
 
-      return json({ success: false, error: "action tidak dikenal (customer_paid|done|expire|cancel)" }, 400);
+      return json({ success: false, error: "action tidak dikenal (customer_paid|done|expire|cancel|void)" }, 400);
     }
 
     return json({ success: false, error: `Route /online-orders/${parts.join("/")} tidak ditemukan` }, 404);
