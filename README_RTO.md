@@ -13,6 +13,12 @@ tanpa rekonsiliasi manual.
 | 4 | Fase 4 item 1 — void/refund order online (PIN supervisor, reverse stok/jurnal/POS, audit log) | ✅ selesai, 43/43 + 21/21 uji LIVE PASS |
 | 4 | Fase 4 item 2 — auto-print struk saat Done (+ toggle printer & tombol cetak manual) | ✅ selesai, uji UI browser PASS |
 | 4 | Fase 4 item 3 — WA notif customer (paid / done / cancelled) via `/api/send-wa` | ✅ selesai, 23/23 + 11/11 uji LIVE PASS |
+| 5 | Item 1 — modal keranjang/checkout landing conditional (RTO restricted: pickup + QRIS saja, WA wajib 62xxx, info tanya-admin hanya non-RTO, riwayat filter `done`) | ✅ selesai, uji UI browser PASS |
+| 5 | Item 2 — sold out behavior landing (badge Sold Out, tombol Tambah abu-abu/nonaktif, klik diblokir + toast) | ✅ selesai, uji UI browser PASS |
+| 5 | Item 3 — WA notif otomatis via **Fonnte** (done + cancelled), paid **tanpa** WA, idempotency `/notifications_log/{orderId}_wa_{status}` | ✅ selesai, 30/30 lokal + 13/13 uji LIVE PASS |
+| 5 | Item 4 — modal Kirim WA kasir auto-populate nomor customer (order online readonly 62xxx, walk-in tetap manual) | ✅ selesai, uji UI browser PASS |
+| 5 | Item 5 — struk fix: footer standar `brandName`, tinggi halaman dinamis, print tidak terpotong (`Kembali` + footer ikut tercetak) | ✅ selesai, uji JS/PDF + CSS `@media print` PASS |
+| 5 | Item 6 — filter **Online** di riwayat transaksi kasir (kolom terpisah dari QRIS + badge Online) | ✅ selesai, uji UI browser PASS (5 kasus filter) |
 
 ## Lifecycle status
 
@@ -87,6 +93,7 @@ Idempotency: `/rto_processed/{orderId}/{reserve|paid|expired}`.
 | `IFORTEPAY_CALLBACK_URL` | URL callback yang didaftarkan ke iFortePay |
 | `IFORTEPAY_WEBHOOK_SECRET` | Kalau diisi, `/payment/webhook` wajib cocok signature/`x-callback-token` |
 | `IFORTEPAY_REFUND_URL` | URL refund iFortePay (opsional). Kalau tidak diisi, void order `paid`/`pending` memakai **refund manual** (kasir kembalikan tunai/transfer) |
+| `WA_FONNTE_TOKEN` | Token Fonnte untuk notifikasi WA otomatis (done/cancelled). Alias `FONNTE_TOKEN`, fallback `site_config.fonnteToken`. **Sudah terpasang di production R&D.** Kalau kosong, WA hanya dicatat (`ready_for_web`) |
 
 QRIS dinamis Midtrans ikut didukung (kalau `siteConfig.paymentConfig.enableMidtrans`
 true dan `MIDTRANS_SERVER_KEY` diset) dengan masa berlaku 5 menit — opsional.
@@ -123,12 +130,79 @@ manual **Cetak Struk** di detail order tetap mencetak.
 **WA notif customer** — dikirim lewat HTTP self-call ke `/api/send-wa` (template `rto_paid`,
 `rto_done`, `rto_cancelled`), isi memakai `siteConfig` (brand, alamat, jam operasional, telepon):
 
-- `paid` → orderId, status, total, rincian item, instruksi pickup, alamat + jam operasional outlet
+- `paid` → **dihentikan di Fase 5** (paid tidak lagi kirim WA; customer cukup melihat notif di
+  landing page). Guard-nya ada di `sendOrderWa()` → `skipped: paid_tidak_kirim_wa`
 - `done` → ucapan terima kasih + struk text (item, total, kasir, waktu WIB)
 - `cancelled` → pembatalan, alasan, info refund (gateway atau manual tunai/transfer)
 
-Idempotency per status: marker `/online_orders/{orderId}/wa_notifications/{status}`; kegagalan
-kirim tidak pernah menggagalkan alur order (tercatat di `steps.wa`).
+Idempotency per status: marker `/online_orders/{orderId}/wa_notifications/{status}` + log
+`/notifications_log/{orderId}_wa_{status}` (lihat Fase 5); kegagalan kirim tidak pernah
+menggagalkan alur order (tercatat di `steps.wa`).
+
+## Fase 5 — mode conditional, sold out, WA Fonnte, struk, filter Online
+
+**Item 1 — modal keranjang/checkout landing conditional.** Semua pembatasan HANYA aktif saat
+`siteConfig.showMenuStockOnMain === true` (getter `isRtoRestricted` di `index.html`):
+
+| Aspek | RTO aktif (`true`) | Non-RTO (`false`) |
+| :--- | :--- | :--- |
+| Pengiriman | pickup saja — tombol "Dikirim Kurir" disembunyikan, `rtoPickup` dipaksa `true` | bebas (kurir + pickup) |
+| Pembayaran | QRIS saja (opsi e-wallet & transfer bank hilang) | bebas sesuai `paymentConfig` |
+| Nomor WA | wajib `/^62\d{9,13}$/` (auto-normalisasi `08xx` → `62xx`), error inline di bawah input | bebas (min 9 digit) |
+| Info "tanya stok ke admin" | disembunyikan (diganti info pickup + QRIS) | tampil seperti semula |
+| Riwayat (`localStorage.dapur_recent_orders`) | hanya status `done` (`getRecentOrders()` filter), tombol re-download struk PDF | semua status |
+
+Submit form memakai `(rtoPickup || isRtoRestricted) ? startRtoCheckout() : proceedToPayment()`
+sehingga localStorage basi tidak bisa menjatuhkan customer ke alur delivery lama.
+
+**Item 2 — sold out.** `isMenuSoldOut(item)` = `getMenuDisplayStock(item) === 0` **atau**
+`getInventoryStockForMenu(item).stock === 0`. Badge "Sold Out" tampil (sudah ada), tombol
+"+Tambah" abu-abu/`cursor-not-allowed`/opacity 50 di ketiga mode tampilan menu, dan klik tetap
+masuk ke `addToCart()` yang langsung berhenti + toast
+"Stok {nama} habis, silakan pilih menu lainnya." (tombol tidak di-`disabled` HTML supaya toast-nya
+bisa muncul; add to cart tetap diblokir).
+
+**Item 3 — trigger WA (final).**
+
+| Status | WA | Isi |
+| :--- | :--- | :--- |
+| `paid` | **tidak dikirim** (`sendOrderWa` langsung `skipped: paid_tidak_kirim_wa`) | customer lihat notif di landing: "Pembayaran diterima. Pesanan siap diambil di outlet." |
+| `done` | dikirim otomatis saat kasir klik Done | ucapan terima kasih + orderId + items ringkas + total + struk text |
+| `cancelled` | dikirim otomatis saat void/refund | info pembatalan + orderId + alasan + info refund |
+
+Provider produksi: **Fonnte** — `POST https://api.fonnte.com/send` (form-urlencoded `target`,
+`message`, `countryCode=62`, header `Authorization: <token>`). Token dibaca dari env
+`WA_FONNTE_TOKEN` (alias `FONNTE_TOKEN`, fallback `site_config.fonnteToken`); kalau tidak ada,
+handler jatuh ke gateway `waGatewayUrl` lama, dan kalau tidak ada juga baru `ready_for_web`.
+**Penting:** Fonnte membalas HTTP 200 walau gagal (`{"status":false,"reason":"..."}`), jadi sukses
+ditentukan dari body — status `sent` / `failed_gateway` / `failed_http` / `fonnte_error`.
+
+Idempotency dua lapis: marker `/online_orders/{orderId}/wa_notifications/{status}` **dan** log
+deterministik `/notifications_log/{orderId}_wa_{status}` (dicek sebelum kirim, ditulis sebagai
+`status: 'sending'` sebelum request dan di-update setelahnya; request `logId` yang sama akan
+mengembalikan `skipped: true, duplicate: true`).
+
+**Item 4 — kirim WA kasir.** Modal struk POS menerima `customerPhone`/`customer.phone`; kalau ada,
+input nomor WA terisi otomatis **readonly** dengan format `62xxx` (label "(dari order online)"),
+tombol Kirim WA membuka `wa.me/{phone}?text=...`. Order walk-in tetap manual (field kosong &
+editable). Transaksi online yang di-recall dari riwayat transaksi mengambil nomor dari
+`/online-orders/{online_order_id}`.
+
+**Item 5 — struk.** Footer semua struk (kasir PDF/print maupun landing PDF):
+`Terima kasih sudah berbelanja di {siteConfig.brandName} & selamat menikmati.`
+Tinggi halaman jsPDF dihitung dari isi (`estimateStrukHeightPdf` / `estimateStrukHeightPrint` /
+formula landing) sehingga item + baris diskon/service/PPN/tunai + footer tidak pernah terpotong.
+Akar bug "struk terpotong berhenti di `Kembali: Rp 0`": `#receiptPrintArea` berada di dalam modal
+`overflow-y-auto`, jadi `window.print()` memotong isi sesuai tinggi kotak scroll. Blok
+`@media print` sekarang membuka semua kliping (`html, body, .overflow-y-auto, #receiptPrintArea *`
+→ `overflow: visible; max-height: none; height: auto`) + `@page { margin: 6mm }`, dan preview struk
+kasir memuat baris footer yang sebelumnya tidak ada.
+
+**Item 6 — filter Online.** Modal riwayat transaksi kasir punya filter ke-5 **Online** (tombol
+indigo, kolom terpisah dari QRIS). Transaksi dianggap online bila `source === 'landing-page'` atau
+`online_order_id` terisi; badge **Online** tampil di kartu transaksi. Aturan filter:
+`Semua` = kasir + online, `Tunai`/`QRIS`/`Transfer` = transaksi kasir saja (online tidak
+digabung), `Online` = order landing page saja. Void tetap disembunyikan di semua filter.
 
 ## Uji E2E
 
@@ -148,10 +222,23 @@ Fase 4 diuji dengan harness terpisah terhadap handler asli + DB R&D (semua snaps
 | `e2e-void-live.mjs` | hal yang sama lewat origin terdeploy (self-call jurnal + WA) | 21/21 PASS |
 | `e2e-wa.mjs` | isi pesan 3 status, marker `wa_notifications`, anti dobel, order tanpa nomor WA | 23/23 PASS |
 | `e2e-wa-live.mjs` | WA paid/done/cancelled lewat origin terdeploy + probe `/api/send-wa` | 11/11 PASS |
+| `e2e-wa-fase5.mjs` | isi pesan WA done/cancelled, paid tanpa WA (tanpa log), log deterministik `notifications_log/{orderId}_wa_{status}`, 3 lapis skip (marker / log / duplicate di `/api/send-wa`), jalur Fonnte (token invalid → `failed_gateway`), cleanup | 30/30 PASS |
+| `e2e-f5-wa-live.mjs` | LIVE: Done dari origin terdeploy → log `_wa_done` (provider fonnte) + marker order, tidak ada log `_wa_paid`, Done ulang di-skip log, node uji dihapus | 13/13 PASS |
+| browser E2E fase 5 | mode conditional (restricted vs non-RTO) di modal keranjang + checkout, validasi WA inline, riwayat filter `done`, sold out (badge + tombol + toast), struk kasir (PDF berisi footer + tinggi 139mm, `@media print` tanpa kliping), struk landing (170mm + footer), auto-populate WA kasir + `wa.me/62...`, filter Online | PASS |
 | browser E2E | Done → auto-print (1× `window.print()`), skip saat `autoPrint=false`, tombol Cetak Struk tetap jalan, alur PIN → konfirmasi VOID → badge `DIBATALKAN` + strikethrough | PASS |
 
 Fixture uji (`inv_rto_t_gram`, `inv_rto_t_kg`, `rto_t_menu`) dan seluruh order uji
 dihapus otomatis; snapshot `/accounting/*` dikembalikan persis seperti sebelum uji.
+
+## Catatan operasional
+
+- Notifikasi WA otomatis jalan penuh hanya kalau perangkat Fonnte **connected**. Saat diuji
+  16 Okt 2026 device-nya `disconnected`, jadi Fonnte membalas
+  `{"status":false,"reason":"request invalid on disconnected device"}` → log tercatat
+  `failed_gateway` (bukan `sent`). Sambungkan ulang device di dashboard Fonnte sebelum mengandalkan
+  notif WA.
+- `npm run lint` (`tsc --noEmit`) masih gagal pada error type lama di `server.ts` (field inventory
+  seperti `sku`/`supplierId`) — bukan berasal dari perubahan HTML/JS Fase 5.
 
 ## Catatan keamanan (penting)
 
