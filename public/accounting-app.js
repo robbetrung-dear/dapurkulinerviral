@@ -326,6 +326,8 @@ window.accountingApp = function() {
     // FITUR: Laporan Transaksi Detail (POS + Online-rekonsiliasi + Void) — 1 request/periode
     txDetail: {
       periode: '',
+      periodeFile: '',
+      rangeMode: 'month',   // 'month' (bulan terpilih) | 'week' (7 hari terakhir)
       rows: [],
       groups: [],
       voidRows: [],
@@ -2188,17 +2190,40 @@ this.jurnalList.forEach(j => {
      * Muat + kelompokkan transaksi 1 periode bulan (YYYY-MM).
      * Hasil: this.txDetail { rows, groups, voidRows, totals }
      */
-    async loadTransaksiDetail(bulan) {
-      const periode = String(bulan || this.exportForm.period || this.bulanAktif || '').slice(0, 7);
-      if (!/^\d{4}-\d{2}$/.test(periode)) {
-        this.txDetail.error = 'Periode tidak valid (format YYYY-MM)';
-        return this.txDetail;
+    async loadTransaksiDetail(bulan, mode) {
+      const rangeMode = (mode === 'week' || mode === 'month') ? mode : (this.txDetail.rangeMode || 'month');
+      this.txDetail.rangeMode = rangeMode;
+      const pad = (n) => String(n).padStart(2, '0');
+      const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+      let url = '';
+      let periode = '';
+      let periodeFile = '';
+      if (rangeMode === 'week') {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 6);
+        const s = fmtDate(start);
+        const e = fmtDate(end);
+        url = `/pos/transactions?start=${s}&end=${e}`;
+        periode = `Mingguan (7 hari) ${s} s/d ${e}`;
+        periodeFile = `${s}_${e}`;
+      } else {
+        const p = String(bulan || this.exportForm.period || this.bulanAktif || '').slice(0, 7);
+        if (!/^\d{4}-\d{2}$/.test(p)) {
+          this.txDetail.error = 'Periode tidak valid (format YYYY-MM)';
+          return this.txDetail;
+        }
+        url = `/pos/transactions?month=${p}`;
+        periode = p;
+        periodeFile = p;
       }
+
       this.txDetail.loading = true;
       this.txDetail.error = '';
       try {
         await this.loadMenuNameMap();
-        const res = await fetch(`/pos/transactions?month=${periode}`);
+        const res = await fetch(url);
         const ct = res.headers.get('content-type') || '';
         if (!res.ok || !ct.includes('application/json')) {
           throw new Error('endpoint /pos/transactions tidak mengembalikan JSON (HTTP ' + res.status + ')');
@@ -2242,6 +2267,7 @@ this.jurnalList.forEach(j => {
         }).filter(g => g.count > 0);
 
         this.txDetail.periode = periode;
+        this.txDetail.periodeFile = periodeFile;
         this.txDetail.rows = rows;
         this.txDetail.groups = groups;
         this.txDetail.voidRows = voidRows;
@@ -2329,7 +2355,8 @@ this.jurnalList.forEach(j => {
         const { jsPDF } = window.jspdf || {};
         if (!jsPDF) { this.showToast('Pustaka jsPDF belum dimuat', 'error'); return; }
 
-        const data = (this.txDetail && this.txDetail.rows && this.txDetail.rows.length > 0)
+        const data = (this.txDetail && this.txDetail.rows && this.txDetail.rows.length > 0
+          && this.txDetail.periodeFile === String(bulan || '').slice(0, 7))
           ? this.txDetail
           : await this.loadTransaksiDetail(bulan);
         const periodeStr = data.periode || bulan || this.bulanAktif;
@@ -2347,7 +2374,9 @@ this.jurnalList.forEach(j => {
         doc.text('LAPORAN TRANSAKSI DETAIL', 148, 21, { align: 'center' });
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
-        doc.text(`Periode: ${periodeStr}  |  Dicetak: ${new Date().toLocaleString('id-ID')}  |  ${data.totals.count} transaksi normal, ${data.totals.voidCount} void`, 148, 26, { align: 'center' });
+        doc.text(`Periode: ${periodeStr}  |  Dicetak: ${new Date().toLocaleString('id-ID')}`, 148, 25, { align: 'center' });
+        doc.setFontSize(8);
+        doc.text(`Sumber: /pos/transactions  |  ${data.totals.count} transaksi normal, ${data.totals.voidCount} void`, 148, 29, { align: 'center' });
 
         const X = { tglJam: 10, order: 34, metode: 70, items: 102, sub: 190, disc: 206, tax: 222, tot: 240, status: 258 };
         let y = 32;
@@ -2447,7 +2476,8 @@ this.jurnalList.forEach(j => {
         doc.text('( Bagian Keuangan )', 30, y + 18);
         doc.text('( Owner / Direksi )', 200, y + 18);
 
-        const filename = `Laporan_Transaksi_Detail_${periodeStr}.pdf`;
+        const fileTag = data.periodeFile || periodeStr;
+        const filename = `Laporan_Transaksi_Detail_${fileTag}.pdf`;
         doc.save(filename);
         this.addExportHistory('Laporan Transaksi Detail', periodeStr, 'PDF');
         this.showToast(`Laporan ${filename} berhasil diunduh!`, 'success');
@@ -2480,7 +2510,7 @@ this.jurnalList.forEach(j => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.setAttribute('href', url);
-        link.setAttribute('download', `Laporan_Transaksi_Detail_${periodeStr}.csv`);
+        link.setAttribute('download', `Laporan_Transaksi_Detail_${data.periodeFile || periodeStr}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -2515,7 +2545,8 @@ this.jurnalList.forEach(j => {
         // Header Dokumen
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(16);
-        doc.text('DAPUR KULINER VIRAL', 105, 18, { align: 'center' });
+        // ✅ Konsisten dengan site_config.brandName (dulu hardcoded 'DAPUR KULINER VIRAL')
+        doc.text(String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase(), 105, 18, { align: 'center' });
         
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');

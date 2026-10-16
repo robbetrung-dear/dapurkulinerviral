@@ -1824,14 +1824,29 @@
               </h3>
               <p class="text-xs text-stone-500 mt-1">
                 Riwayat order <strong>tunai, QRIS, transfer/e-wallet, online (rekonsiliasi)</strong> dan
-                <strong>void</strong> — 1 request per periode. Sumber: <code class="text-[10px]">/pos/transactions?month=...</code>
+                <strong>void</strong> — 1 request per periode (bulanan <code class="text-[10px]">?month=</code> /
+                mingguan <code class="text-[10px]">?start=&amp;end=</code>).
+              </p>
+              <p class="text-[11px] font-bold text-stone-600 mt-0.5" x-show="txDetail.periode">
+                Periode aktif: <span x-text="txDetail.periode"></span>
               </p>
             </div>
-            <button type="button" @click="loadTransaksiDetail(exportForm.period)"
-              class="h-10 px-4 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs flex items-center gap-2 transition cursor-pointer">
-              <i class="fa-solid fa-rotate text-[11px]" :class="txDetail.loading ? 'animate-spin' : ''"></i>
-              <span>Muat Ulang</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <!-- periode: bulanan (bulan terpilih) atau mingguan (7 hari terakhir) -->
+              <div class="grid grid-cols-2 gap-1 p-1 bg-stone-100 rounded-xl">
+                <button type="button" @click="loadTransaksiDetail(exportForm.period, 'month')"
+                  :class="txDetail.rangeMode === 'month' ? 'bg-white text-brand-700 shadow-sm font-bold' : 'text-stone-500 font-semibold'"
+                  class="px-3 h-8 rounded-lg text-[11px] transition cursor-pointer">Bulanan</button>
+                <button type="button" @click="loadTransaksiDetail(exportForm.period, 'week')"
+                  :class="txDetail.rangeMode === 'week' ? 'bg-white text-brand-700 shadow-sm font-bold' : 'text-stone-500 font-semibold'"
+                  class="px-3 h-8 rounded-lg text-[11px] transition cursor-pointer">Mingguan</button>
+              </div>
+              <button type="button" @click="loadTransaksiDetail(exportForm.period, txDetail.rangeMode)"
+                class="h-10 px-4 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs flex items-center gap-2 transition cursor-pointer">
+                <i class="fa-solid fa-rotate text-[11px]" :class="txDetail.loading ? 'animate-spin' : ''"></i>
+                <span>Muat Ulang</span>
+              </button>
+            </div>
           </div>
 
           <!-- Loading -->
