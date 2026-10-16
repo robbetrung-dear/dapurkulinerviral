@@ -6488,11 +6488,21 @@ git push -u origin main</pre>
           return words.every(w => baseLower.includes(w)) ? base : name;
         },
 
-        /** BUG #3: buang riwayat pesanan yang lebih tua dari `days` hari (auto-expired). */
-        pruneRecentOrders(list, days = 7) {
+        /** Ambil masa berlaku riwayat dari siteConfig (Firebase /site_config → riwayatExpiryDays). */
+        getRiwayatExpiryDays() {
+          const v = Number(this.siteConfig && this.siteConfig.riwayatExpiryDays);
+          if (!Number.isFinite(v)) return 7;               // default 7 hari
+          if (v === 0 || v === -1) return 0;               // 0 / -1 = nonaktifkan auto-expired
+          return v;
+        },
+
+        /** BUG #3: buang riwayat pesanan yang lebih tua dari N hari (auto-expired). N = 0 nonaktifkan. */
+        pruneRecentOrders(list) {
           const arr = Array.isArray(list) ? list : [];
+          const expiryDays = this.getRiwayatExpiryDays();
+          if (expiryDays === 0) return arr;                // auto-expired dinonaktifkan via siteConfig
           const dayMs = 24 * 60 * 60 * 1000;
-          const cutoff = Date.now() - (Math.max(1, Number(days) || 7) * dayMs);
+          const cutoff = Date.now() - (expiryDays * dayMs);
           const tsOf = (o) => {
             const raw = o && (o.createdAt || o.created_at || o.updatedAt || o.updated_at);
             if (!raw) return 0;
@@ -6524,8 +6534,8 @@ git push -u origin main</pre>
             customer: order.customer || { name: order.customerName, phone: order.customerPhone, address: order.customerAddress },
             paymentMethod: order.paymentMethod || 'qris'
           });
-          // BUG #3: auto-expired 7 hari + simpan maksimal 5 entri terakhir
-          this.recentOrders = this.pruneRecentOrders(this.recentOrders, 7).slice(0, 5);
+          // Auto-expired sesuai siteConfig.riwayatExpiryDays (default 7) + simpan maksimal 5 entri terakhir
+          this.recentOrders = this.pruneRecentOrders(this.recentOrders).slice(0, 5);
           try {
             localStorage.setItem("dapur_recent_orders", JSON.stringify(this.recentOrders));
           } catch (e) {}
@@ -6936,8 +6946,8 @@ git push -u origin main</pre>
             if (savedRecent) {
               const parsed = JSON.parse(savedRecent);
               if (Array.isArray(parsed)) {
-                // BUG #3: auto-expired — riwayat lebih tua dari 7 hari dibuang dari localStorage
-                const pruned = this.pruneRecentOrders(parsed, 7).slice(0, 5);
+                // Auto-expired sesuai siteConfig.riwayatExpiryDays (default 7)
+                const pruned = this.pruneRecentOrders(parsed).slice(0, 5);
                 this.recentOrders = pruned;
                 if (pruned.length !== parsed.length) {
                   console.log('[RIWAYAT] auto-expired >7 hari:', parsed.length, '→', pruned.length, 'entri');
@@ -7828,8 +7838,8 @@ git push -u origin main</pre>
           const idx = list.findIndex(o => o && o.orderId === entry.orderId);
           if (idx >= 0) list[idx] = { ...list[idx], ...entry };
           else list.unshift(entry);
-          // BUG #3: auto-expired 7 hari
-          this.recentOrders = this.pruneRecentOrders(list, 7).slice(0, 5);
+          // Auto-expired sesuai siteConfig.riwayatExpiryDays (default 7)
+          this.recentOrders = this.pruneRecentOrders(list).slice(0, 5);
           try { localStorage.setItem('dapur_recent_orders', JSON.stringify(this.recentOrders)); } catch (e) {}
         },
         // ==== /RTO (REALTIME ORDER) ====
