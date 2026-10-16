@@ -437,8 +437,15 @@
         @click="activeTab = 'orderonline'; loadOrderOnline(); mobileMenuOpen = false"
         :class="activeTab === 'orderonline' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-700 hover:bg-stone-100'"
         class="w-full min-h-[48px] px-3.5 rounded-xl flex items-center justify-between text-sm transition text-left cursor-pointer">
-        <div class="flex items-center gap-3">
-          <i class="fa-solid fa-bag-shopping w-5 text-center"></i>
+          <div class="flex items-center gap-3">
+          <span class="relative inline-flex">
+            <i class="fa-solid fa-bag-shopping w-5 text-center"></i>
+            <span
+              x-show="pendingPaymentCount > 0"
+              x-cloak
+              class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"
+              title="Ada order pending"></span>
+          </span>
           <span>Order Online</span>
         </div>
         <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="activeTab === 'orderonline' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'" x-text="orderOnlineQueueCount"></span>
@@ -572,15 +579,20 @@
           </span>
         </button>
 
-        <!-- ==== RTO: Menu Order Online (BLOK BARU) ==== -->
+                <!-- ==== RTO: Menu Order Online (BLOK BARU) ==== -->
         <button 
           type="button"
           @click="activeTab = 'orderonline'; loadOrderOnline()"
           :class="activeTab === 'orderonline' ? 'bg-emerald-600 text-white font-bold shadow-sm shadow-emerald-600/30' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900 font-semibold'"
           class="w-full min-h-[48px] px-3.5 rounded-2xl flex items-center justify-between text-sm transition-all duration-150 text-left cursor-pointer group">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="w-8 h-8 rounded-xl flex items-center justify-center transition-colors" :class="activeTab === 'orderonline' ? 'bg-emerald-700 text-white' : 'bg-stone-100 text-stone-500 group-hover:bg-stone-200'">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center transition-colors relative" :class="activeTab === 'orderonline' ? 'bg-emerald-700 text-white' : 'bg-stone-100 text-stone-500 group-hover:bg-stone-200'">
               <i class="fa-solid fa-bag-shopping text-sm"></i>
+              <span
+                x-show="pendingPaymentCount > 0"
+                x-cloak
+                class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"
+                title="Ada order pending"></span>
             </div>
             <span class="truncate">Order Online</span>
           </div>
@@ -7907,12 +7919,19 @@
     </button>
 
     <!-- ==== RTO: NAV MOBILE ORDER ONLINE (BLOK BARU) ==== -->
-    <button 
+        <button 
       type="button" 
       @click="activeTab = 'orderonline'; loadOrderOnline()"
       :class="activeTab === 'orderonline' ? 'text-emerald-600 font-bold' : 'text-stone-500'"
       class="flex flex-col items-center justify-center py-1 px-2 text-[10px] min-w-[56px] relative cursor-pointer">
-      <i class="fa-solid fa-bag-shopping text-base mb-0.5"></i>
+      <span class="relative inline-flex mb-0.5">
+        <i class="fa-solid fa-bag-shopping text-base"></i>
+        <span
+          x-show="pendingPaymentCount > 0"
+          x-cloak
+          class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"
+          title="Ada order pending"></span>
+      </span>
       <span>Online</span>
       <span 
         x-show="orderOnlineQueueCount > 0"
