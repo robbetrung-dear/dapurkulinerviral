@@ -964,6 +964,7 @@ try {
   async konfirmasiOrderOnline(order) {
     if (!order || !order.orderId || this.orderOnlineBusy) return;
     this.orderOnlineBusy = true;
+    let sukses = false;
     try {
       const res = await fetch('/online-orders/verify', {
         method: 'POST',
@@ -985,19 +986,21 @@ try {
       if (String(steps.journal || '').indexOf('failed') === 0) msg += ' (jurnal akuntansi perlu dicek manual)';
       if (String(steps.wa || '').indexOf('sent') === 0) msg += ' WA notif terkirim ke customer.';
       this.showToast(msg, 'success');
+      sukses = true;
 
-      await this.loadOrderOnline(true);
-      if (typeof this.loadLaporanHariIni === 'function') { try { await this.loadLaporanHariIni(); } catch (e) {} }
-      if (this.orderOnlineDetail && this.orderOnlineDetail.orderId === order.orderId) {
-        const fresh = (this.orderOnlineList || []).find(o => o.orderId === order.orderId);
-        if (fresh) this.orderOnlineDetail = fresh;
-      }
+      // BUG #1: status lokal langsung jadi 'paid' → tombol Done aktif seketika (tanpa refresh halaman)
+      this.setOrderOnlineStatusLocal(order.orderId, 'paid');
     } catch (e) {
       this.playSound('error');
       this.showToast('Gagal konfirmasi pembayaran: ' + (e && e.message ? e.message : e), 'error');
     } finally {
+      // BUG #1: busy flag dilepas SEGERA setelah verify selesai.
+      // Jangan pernah menunggu loadOrderOnline/loadLaporanHariIni di dalam try —
+      // endpoint laporan bisa lambat dan menahan tombol Done tetap disabled.
       this.orderOnlineBusy = false;
     }
+    // Refresh data SETELAH busy dilepas (fire-and-forget, tidak menahan UI)
+    if (sukses) this.refreshOrderOnlineData(order.orderId);
   },
 
   /**
@@ -1008,6 +1011,7 @@ try {
     if (!confirm('Tandai order ' + order.orderId + ' sebagai DONE (pesanan sudah diserahkan ke customer)?')) return;
 
     this.orderOnlineBusy = true;
+    let sukses = false;
     try {
       const res = await fetch('/online-orders/' + encodeURIComponent(order.orderId), {
         method: 'PATCH',
@@ -1026,18 +1030,59 @@ try {
       let msgDone = 'Order ' + order.orderId + ' selesai & tercatat di shift Anda.';
       if (data.wa && data.wa.ok && !data.wa.skipped) msgDone += ' WA notif + struk terkirim ke customer.';
       this.showToast(msgDone, 'success');
+      sukses = true;
+
+      // BUG #1: status lokal langsung 'done' supaya tidak bisa diklik dobel saat refresh jalan
+      this.setOrderOnlineStatusLocal(order.orderId, 'done');
       this.closeOrderOnlineDetail();
-      await this.loadOrderOnline(true);
-      if (typeof this.loadLaporanHariIni === 'function') { try { await this.loadLaporanHariIni(); } catch (e) {} }
-      // FASE 4 item 2: auto-print struk setelah Done (skip kalau printer config nonaktif)
-      this.autoPrintOrderOnlineStruk(order);
     } catch (e) {
       this.playSound('error');
       this.showToast('Gagal menandai Done: ' + (e && e.message ? e.message : e), 'error');
     } finally {
+      // BUG #1: busy flag dilepas SEGERA setelah PATCH done selesai
       this.orderOnlineBusy = false;
     }
+    if (!sukses) return;
+
+    // FASE 4 item 2: auto-print struk setelah Done (skip kalau printer config nonaktif)
+    this.autoPrintOrderOnlineStruk(order);
+    // Refresh daftar order + laporan (fire-and-forget, tidak menahan tombol)
+    this.refreshOrderOnlineData(order.orderId);
   },
+
+  /**
+   * BUG #1: update status order di state lokal (optimistic) tanpa menunggu API.
+   * Dipakai verify (→ paid) & Done (→ done) supaya tombol di kartu/detail langsung benar.
+   */
+  setOrderOnlineStatusLocal(orderId, status) {
+    if (!orderId || !status) return;
+    const flip = (o) => (o && o.orderId === orderId) ? Object.assign({}, o, { status }) : o;
+    this.orderOnlineList = (this.orderOnlineList || []).map(flip);
+    this.orderOnlineView = (this.orderOnlineView || []).map(flip);
+    if (this.orderOnlineDetail && this.orderOnlineDetail.orderId === orderId) {
+      this.orderOnlineDetail = Object.assign({}, this.orderOnlineDetail, { status });
+    }
+  },
+
+  /**
+   * BUG #1: refresh daftar order + laporan SETELAH busy flag dilepas (fire-and-forget).
+   * Tidak boleh di-await di dalam try/finally aksi order online:
+   * loadLaporanHariIni() bisa lambat (fetchTransactionsInRange loop harian) dan
+   * selama menggantung, finally yang melepas orderOnlineBusy tidak pernah jalan.
+   */
+  refreshOrderOnlineData(orderId) {
+    Promise.resolve()
+      .then(() => this.loadOrderOnline(true))
+      .then(() => (typeof this.loadLaporanHariIni === 'function') ? this.loadLaporanHariIni() : null)
+      .then(() => {
+        if (orderId && this.orderOnlineDetail && this.orderOnlineDetail.orderId === orderId) {
+          const fresh = (this.orderOnlineList || []).find(o => o.orderId === orderId);
+          if (fresh) this.orderOnlineDetail = fresh;
+        }
+      })
+      .catch((e) => console.warn('[RTO] refresh order online gagal (non-fatal):', e && e.message ? e.message : e));
+  },
+
   /**
    * Cetak struk order online — reuse pipeline struk POS existing:
    * previewStruk() mengisi #receiptPrintArea (satu-satunya target `@media print`),
