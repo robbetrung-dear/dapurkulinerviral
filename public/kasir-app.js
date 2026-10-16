@@ -818,8 +818,18 @@ try {
   rtoVoidPinOk: false,
   rtoVoidResult: null,
 
-  get orderOnlineQueueCount() {
+    get orderOnlineQueueCount() {
     return Number((this.orderOnlineStats && this.orderOnlineStats.queue) || 0);
+  },
+
+  // Fix 1: titik merah sidebar — hitung pending_payment yang BELUM expired
+  get pendingPaymentCount() {
+    const list = Array.isArray(this.orderOnlineList) ? this.orderOnlineList : [];
+    const now = Date.now();
+    return list.filter(o =>
+      o && o.status === 'pending_payment' &&
+      Number(o.expires_at || 0) > now
+    ).length;
   },
 
   rtoStatusLabel(status) {
