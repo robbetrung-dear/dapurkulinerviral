@@ -2760,6 +2760,9 @@ this.jurnalList.forEach(j => {
       // Keterangan WAJIB wrap dengan splitTextToSize, lebar dibatasi hingga batas
       // kolom Akun (x112) minus margin, tepat agar tidak timpa Akun sebelahnya.
       const DESC_W = X.acc - X.desc - 2; // 46mm (x64→110), kolom AKUN dimulai x112
+      // Akun WAJIB wrap dengan splitTextToSize, lebar dibatasi hingga batas
+      // kolom Debit (x168) minus margin, agar nama akun panjang tidak timpa Debit/Kredit.
+      const ACC_W = X.deb - X.acc - 2; // 54mm (x112→166), kolom DEBIT dimulai x168
       const drawHeader = () => {
         doc.setFillColor(240, 240, 240);
         doc.rect(15, y - 4.5, 180, 6.5, 'F');
@@ -2785,27 +2788,40 @@ this.jurnalList.forEach(j => {
           const dName = accName(j.debitCode, j.debitName);
           const cName = accName(j.creditCode, j.creditName);
           const descLines = doc.splitTextToSize(String(j.desc || '-'), DESC_W);
-          const need = LINE_H * (Math.max(descLines.length, 1) + 1); // baris keterangan + baris kredit
+          const dLines = doc.splitTextToSize(dName, ACC_W);   // Akun Debit wrap dalam lebar kolom
+          const cLines = doc.splitTextToSize(cName, ACC_W);   // Akun Kredit wrap dalam lebar kolom
+          const numBody = Math.max(descLines.length, dLines.length, 1);
+          const numCredit = Math.max(cLines.length, 1);
+          const need = LINE_H * (numBody + numCredit + 1); // body + kredit + spasi antar baris
           y = this.reportPageBreak(doc, y, need);
           if (y === 20) drawHeader();
           doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
           doc.text(String(j.date || '-').slice(0, 10), X.tgl, y);
           // No Ref dipaksa wrap ke baris pertama dalam lebar kolom (REF_W) agar
-          // ref panjang (>10 char) tidak melebarkan ke kolom Keterangan.
+          // ref panjang (>10 char) tidak melebar ke kolom Keterangan.
           const refLines = doc.splitTextToSize(String(j.noEntry || j.ref || '-').slice(0, 18), REF_W);
           doc.text(refLines[0] || '-', X.ref, y);
-          doc.text(descLines[0] || '-', X.desc, y);
-          doc.text(String(dName).slice(0, 44), X.acc, y);
-          doc.text(formatRupiah(j.debitAmount), X.deb, y, { align: 'right' });
-          let cy = y;
-          for (let i = 1; i < descLines.length; i++) {
-            cy += LINE_H;
-            doc.text(descLines[i], X.desc, cy);
+          // Baris body: Keterangan + Akun Debit (wrap), nominal Debit pada baris pertama.
+          for (let k = 0; k < numBody; k++) {
+            const ky = y + k * LINE_H;
+            if (k === 0) {
+              doc.text(descLines[0] || '-', X.desc, ky);
+              doc.text(dLines[0] || '-', X.acc, ky);
+            } else {
+              if (descLines[k]) doc.text(descLines[k], X.desc, ky);
+              if (dLines[k]) doc.text(dLines[k], X.acc, ky);
+            }
           }
-          cy += LINE_H; // baris kredit (akun + nominal kredit)
-          doc.text(String(cName).slice(0, 44), X.acc, cy);
-          doc.text(formatRupiah(j.creditAmount), X.kre, cy, { align: 'right' });
-          y = cy + LINE_H;
+          doc.text(formatRupiah(j.debitAmount), X.deb, y, { align: 'right' });
+          // Baris kredit: Akun Kredit (wrap) + nominal Kredit, posisi X beku.
+          const creditY = y + numBody * LINE_H;
+          for (let k = 0; k < numCredit; k++) {
+            const cy = creditY + k * LINE_H;
+            if (k === 0) doc.text(cLines[0] || '-', X.acc, cy);
+            else if (cLines[k]) doc.text(cLines[k], X.acc, cy);
+          }
+          doc.text(formatRupiah(j.creditAmount), X.kre, creditY, { align: 'right' });
+          y = creditY + numCredit * LINE_H + LINE_H;
         });
         const totalDebit = list.reduce((s, j) => s + (Number(j.debitAmount) || 0), 0);
         const totalCredit = list.reduce((s, j) => s + (Number(j.creditAmount) || 0), 0);
