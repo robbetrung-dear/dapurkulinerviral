@@ -1282,7 +1282,9 @@ export async function onRequest(context) {
       const now = new Date();
       const currentBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const accCode = parts[1];
-      const bulan = parts[2] || currentBulan;
+      // Bulan diambil dari query string (?bulan=YYYY-MM) terlebih dahulu,
+      // lalu fallback ke path segment, lalu bulan sekarang.
+      const bulan = url.searchParams.get('bulan') || parts[2] || currentBulan;
 
       if (method === 'GET') {
         if (accCode) {
