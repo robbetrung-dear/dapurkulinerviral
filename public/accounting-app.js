@@ -2364,6 +2364,10 @@ this.jurnalList.forEach(j => {
           this.showToast('Tidak ada transaksi pada periode ' + periodeStr, 'info');
         }
 
+        // pastikan nama outlet terbaru (site_config.brandName) — kalau fetch saat init sempat gagal
+        if (!this.siteName || this.siteName === 'Dapur Kuliner Viral') {
+          try { await this.loadSiteName(); } catch (e) {}
+        }
         const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
         const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
 
@@ -2538,6 +2542,10 @@ this.jurnalList.forEach(j => {
           return;
         }
 
+        // pastikan nama outlet terbaru (site_config.brandName)
+        if (!this.siteName || this.siteName === 'Dapur Kuliner Viral') {
+          try { await this.loadSiteName(); } catch (e) {}
+        }
         const doc = new jsPDF({ unit: 'mm', format: 'a4' });
         const periodeStr = bulan || this.bulanAktif;
         const generatedDate = new Date().toLocaleString('id-ID');
