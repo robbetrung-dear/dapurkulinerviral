@@ -2401,11 +2401,9 @@ this.jurnalList.forEach(j => {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
         doc.text(`Periode: ${periodeStr}  |  Dicetak: ${new Date().toLocaleString('id-ID')}`, 148, 25, { align: 'center' });
-        doc.setFontSize(8);
-        doc.text(`Sumber: /pos/transactions  |  ${data.totals.count} transaksi normal, ${data.totals.voidCount} void`, 148, 29, { align: 'center' });
 
         const X = { tglJam: 10, order: 34, metode: 70, items: 102, sub: 190, disc: 206, tax: 222, tot: 240, status: 258 };
-        let y = 32;
+        let y = 36;
 
         // Header kolom
         const headerKolom = () => {
