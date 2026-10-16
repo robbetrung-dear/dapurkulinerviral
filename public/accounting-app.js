@@ -93,6 +93,21 @@ function formatRupiahSigned(num) {
 }
 
 /**
+ * Bersihkan teks agar aman di-render dengan font standar Helvetica (jsPDF).
+ * Karakter di luar rentang cetak ASCII (emoji, tanda kutip spesial, simbol non-latin)
+ * diganti agar tidak muncul karakter aneh pada hasil PDF.
+ */
+function sanitizeText(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u00A0]/g, ' ')
+    .replace(/[^\x20-\x7E]/g, '?');
+}
+
+/**
  * Format tanggal dari timestamp atau string ke format lokal (YYYY-MM-DD)
  */
 function formatDate(ts) {
@@ -2554,7 +2569,7 @@ this.jurnalList.forEach(j => {
     // ------------------------ HELPERS LAYOUT LAPORAN PDF ----------------------
     /** Header dokumen standar (brand + judul + periode). Return y awal konten. */
     reportHeader(doc, title, periodeStr, generatedDate) {
-      const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+      const brand = sanitizeText(String(this.siteName || 'DAPUR KULINER VIRAL')).toUpperCase();
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.text(brand, 105, 18, { align: 'center' });
@@ -2563,10 +2578,10 @@ this.jurnalList.forEach(j => {
       doc.text('Sistem Akuntansi & Laporan Keuangan', 105, 24, { align: 'center' });
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
-      doc.text(title, 105, 33, { align: 'center' });
+      doc.text(sanitizeText(title), 105, 33, { align: 'center' });
       doc.setFontSize(9);
       doc.setFont('helvetica', 'italic');
-      doc.text(`Periode: ${periodeStr} | Dicetak: ${generatedDate}`, 105, 38, { align: 'center' });
+      doc.text(`Periode: ${sanitizeText(periodeStr)} | Dicetak: ${sanitizeText(generatedDate)}`, 105, 38, { align: 'center' });
       doc.line(15, 42, 195, 42);
       return 50;
     },
@@ -2785,43 +2800,37 @@ this.jurnalList.forEach(j => {
       } else {
         const LINE_H = 4.5;
         list.forEach(j => {
-          const dName = accName(j.debitCode, j.debitName);
-          const cName = accName(j.creditCode, j.creditName);
-          const descLines = doc.splitTextToSize(String(j.desc || '-'), DESC_W);
-          const dLines = doc.splitTextToSize(dName, ACC_W);   // Akun Debit wrap dalam lebar kolom
-          const cLines = doc.splitTextToSize(cName, ACC_W);   // Akun Kredit wrap dalam lebar kolom
+          const dName = sanitizeText(accName(j.debitCode, j.debitName));
+          const cName = sanitizeText(accName(j.creditCode, j.creditName));
+          const descLines = doc.splitTextToSize(sanitizeText(String(j.desc || '-')), DESC_W);
+          const dLines = doc.splitTextToSize(dName, ACC_W);
+          const cLines = doc.splitTextToSize(cName, ACC_W);
           const numBody = Math.max(descLines.length, dLines.length, 1);
-          const numCredit = Math.max(cLines.length, 1);
-          const need = LINE_H * (numBody + numCredit + 1); // body + kredit + spasi antar baris
+          const need = LINE_H * (numBody + 2); // body + 1 baris kredit + spasi antar entri
           y = this.reportPageBreak(doc, y, need);
           if (y === 20) drawHeader();
           doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
           doc.text(String(j.date || '-').slice(0, 10), X.tgl, y);
-          // No Ref dipaksa wrap ke baris pertama dalam lebar kolom (REF_W) agar
-          // ref panjang (>10 char) tidak melebar ke kolom Keterangan.
-          const refLines = doc.splitTextToSize(String(j.noEntry || j.ref || '-').slice(0, 18), REF_W);
+          const refLines = doc.splitTextToSize(sanitizeText(String(j.noEntry || j.ref || '-')).slice(0, 18), REF_W);
           doc.text(refLines[0] || '-', X.ref, y);
-          // Baris body: Keterangan + Akun Debit (wrap), nominal Debit pada baris pertama.
-          for (let k = 0; k < numBody; k++) {
-            const ky = y + k * LINE_H;
-            if (k === 0) {
-              doc.text(descLines[0] || '-', X.desc, ky);
-              doc.text(dLines[0] || '-', X.acc, ky);
-            } else {
-              if (descLines[k]) doc.text(descLines[k], X.desc, ky);
-              if (dLines[k]) doc.text(dLines[k], X.acc, ky);
-            }
-          }
+          // Baris pertama entri: keterangan + akun debit + nominal debet (satu grup per entri)
+          doc.text(descLines[0] || '-', X.desc, y);
+          doc.text(dLines[0] || '-', X.acc, y);
           doc.text(formatRupiah(j.debitAmount), X.deb, y, { align: 'right' });
-          // Baris kredit: Akun Kredit (wrap) + nominal Kredit, posisi X beku.
-          const creditY = y + numBody * LINE_H;
-          for (let k = 0; k < numCredit; k++) {
-            const cy = creditY + k * LINE_H;
-            if (k === 0) doc.text(cLines[0] || '-', X.acc, cy);
-            else if (cLines[k]) doc.text(cLines[k], X.acc, cy);
+          // Sisa baris keterangan / akun debit yang wrap ke bawah
+          for (let k = 1; k < numBody; k++) {
+            const ky = y + k * LINE_H;
+            if (descLines[k]) doc.text(descLines[k], X.desc, ky);
+            if (dLines[k]) doc.text(dLines[k], X.acc, ky);
           }
+          // Baris kredit: akun kredit + nominal kredit, selalu di baris tersendiri di bawah debet
+          const creditY = y + numBody * LINE_H;
+          doc.text(cLines[0] || '-', X.acc, creditY);
           doc.text(formatRupiah(j.creditAmount), X.kre, creditY, { align: 'right' });
-          y = creditY + numCredit * LINE_H + LINE_H;
+          for (let k = 1; k < cLines.length; k++) {
+            doc.text(cLines[k], X.acc, creditY + k * LINE_H);
+          }
+          y = creditY + cLines.length * LINE_H + LINE_H;
         });
         const totalDebit = list.reduce((s, j) => s + (Number(j.debitAmount) || 0), 0);
         const totalCredit = list.reduce((s, j) => s + (Number(j.creditAmount) || 0), 0);
@@ -2845,7 +2854,7 @@ this.jurnalList.forEach(j => {
         doc.setFillColor(245, 245, 245);
         doc.rect(15, y - 5, 180, 7, 'F');
         doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
-        doc.text(`${acc.code} — ${acc.name || (ld.account && ld.account.name) || ''} (${acc.type || ''})`, 17, y);
+        doc.text(`${acc.code} — ${sanitizeText(acc.name || (ld.account && ld.account.name) || '')} (${acc.type || ''})`, 17, y);
         y += 6;
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
         doc.text('Saldo Awal:', 17, y);
@@ -2876,7 +2885,7 @@ this.jurnalList.forEach(j => {
             y = this.reportPageBreak(doc, y, 8);
             doc.setFontSize(7.5);
             doc.text(String(n.tanggal).slice(0, 10), X.tgl, y);
-            doc.text(String(n.keterangan).slice(0, 48), X.desc, y);
+            doc.text(String(sanitizeText(n.keterangan)).slice(0, 48), X.desc, y);
             doc.text(n.debit ? formatRupiah(n.debit) : '-', X.deb, y, { align: 'right' });
             doc.text(n.credit ? formatRupiah(n.credit) : '-', X.kre, y, { align: 'right' });
             doc.text(formatRupiah(n.saldo), X.saldo, y, { align: 'right' });
@@ -2905,7 +2914,7 @@ this.jurnalList.forEach(j => {
 
     /** Paket lengkap: cover + semua laporan multi-halaman. */
     async exportAllReportsPDF(doc, periodeStr, generatedDate) {
-      const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+      const brand = sanitizeText(String(this.siteName || 'DAPUR KULINER VIRAL')).toUpperCase();
       const sectionTitles = [
         'LAPORAN LABA RUGI (PROFIT & LOSS)',
         'LAPORAN ARUS KAS (CASH FLOW STATEMENT)',
@@ -2995,7 +3004,7 @@ this.jurnalList.forEach(j => {
       y += 6;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
       (data.groups || []).forEach(g => {
-        doc.text(`${g.metode}: ${g.count} transaksi`, 12, y);
+        doc.text(`${sanitizeText(g.metode)}: ${g.count} transaksi`, 12, y);
         doc.text(formatRupiah(g.subtotal), 120, y, { align: 'right' });
         y += 5;
       });
@@ -3033,10 +3042,10 @@ this.jurnalList.forEach(j => {
         if (y + 7 > 195) { doc.addPage('a4', 'landscape'); y = 20; drawHeader(); }
         doc.setFontSize(7.5);
         if (r.isVoid) doc.setTextColor(150, 30, 30);
-        doc.text(`${r.tanggal || '-'} ${r.jam || ''}`.trim(), X.tgl, y);
-        doc.text(String(r.orderId || '-').slice(0, 28), X.order, y);
-        doc.text(String(r.metode || '-').slice(0, 20), X.metode, y);
-        doc.text(String(r.itemsText || '-').slice(0, 80), X.items, y);
+        doc.text(`${sanitizeText(r.tanggal || '-')} ${sanitizeText(r.jam || '')}`.trim(), X.tgl, y);
+        doc.text(sanitizeText(String(r.orderId || '-').slice(0, 28)), X.order, y);
+        doc.text(sanitizeText(String(r.metode || '-').slice(0, 20)), X.metode, y);
+        doc.text(sanitizeText(String(r.itemsText || '-').slice(0, 80)), X.items, y);
         doc.text(r.isVoid ? '(VOID) ' + formatRupiah(r.total) : formatRupiah(r.total), X.tot, y, { align: 'right' });
         doc.text(r.isVoid ? 'VOID' : 'Normal', X.status, y);
         doc.setTextColor(0, 0, 0);
