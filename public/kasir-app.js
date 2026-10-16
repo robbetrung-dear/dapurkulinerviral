@@ -823,13 +823,17 @@ try {
   },
 
   // Fix 1: titik merah sidebar — hitung pending_payment yang BELUM expired
+    // Fix 1: titik merah sidebar — pending_payment yang belum expired
+  // Robust: handle expires_at / expiresAt / missing field
   get pendingPaymentCount() {
     const list = Array.isArray(this.orderOnlineList) ? this.orderOnlineList : [];
     const now = Date.now();
-    return list.filter(o =>
-      o && o.status === 'pending_payment' &&
-      Number(o.expires_at || 0) > now
-    ).length;
+    return list.filter(o => {
+      if (!o || o.status !== 'pending_payment') return false;
+      const exp = Number(o.expires_at || o.expiresAt || 0);
+      if (!exp) return true;              // field kosong → anggap aktif
+      return exp > now;
+    }).length;
   },
 
   rtoStatusLabel(status) {
