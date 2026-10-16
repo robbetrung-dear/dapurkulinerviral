@@ -84,6 +84,9 @@
   <!-- jsPDF CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+  <!-- SheetJS (XLSX) CDN — export .xlsx -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
   <!-- Alpine.js Cloak & Custom Print Styles -->
   <style>
     [x-cloak] { display: none !important; }
@@ -1751,11 +1754,11 @@
                 </button>
                 <button 
                   type="button" 
-                  @click="exportForm.format = 'excel'"
-                  :class="exportForm.format === 'excel' ? 'bg-green-50 border-green-400 text-green-700 font-bold' : 'border-stone-200 text-stone-600'"
+                  @click="exportForm.format = 'xlsx'"
+                  :class="exportForm.format === 'xlsx' ? 'bg-green-50 border-green-400 text-green-700 font-bold' : 'border-stone-200 text-stone-600'"
                   class="h-10 rounded-xl border flex items-center justify-center gap-1.5 text-xs transition cursor-pointer">
                   <i class="fa-solid fa-file-excel text-green-600"></i>
-                  <span>Excel</span>
+                  <span>XLSX</span>
                 </button>
               </div>
             </div>

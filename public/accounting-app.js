@@ -3103,10 +3103,270 @@ this.jurnalList.forEach(j => {
     },
 
     /**
-     * Ekspor Format Excel (.csv kompatibel Excel)
+     * Ekspor format .xlsx (SheetJS). Fallback ke CSV kalau CDN belum termuat.
      */
-    async exportExcel(type, bulan) {
-      await this.exportCSV(type, bulan);
+    async exportXLSX(type, bulan) {
+      try {
+        if (!window.XLSX) {
+          this.showToast('Pustaka SheetJS belum dimuat — fallback ke CSV', 'error');
+          if (type === 'txDetail') await this.exportTxDetailCSV(bulan);
+          else await this.exportCSV(type, bulan);
+          return;
+        }
+        const periodeStr = bulan || this.bulanAktif;
+
+        if (type === 'txDetail') {
+          await this.exportTxDetailXLSX(bulan);
+          return;
+        }
+
+        // Muat data segar untuk periode terpilih
+        await this.ensureReportData(periodeStr);
+
+        const wb = XLSX.utils.book_new();
+        const sheets = [];
+        if (type === 'all') {
+          sheets.push({ name: 'Laba Rugi', data: this._plRows() });
+          sheets.push({ name: 'Arus Kas', data: this._cashFlowRows() });
+          sheets.push({ name: 'Neraca', data: this._balanceSheetRows() });
+          sheets.push({ name: 'Jurnal Umum', data: this._journalRows() });
+          sheets.push({ name: 'Buku Besar', data: await this._ledgerRows(periodeStr) });
+          const tx = await this.loadTransaksiDetail(periodeStr);
+          sheets.push({ name: 'Transaksi Detail', data: this._txDetailRows(tx) });
+        } else if (type === 'pl') {
+          sheets.push({ name: 'Laba Rugi', data: this._plRows() });
+        } else if (type === 'cashFlow') {
+          sheets.push({ name: 'Arus Kas', data: this._cashFlowRows() });
+        } else if (type === 'balanceSheet') {
+          sheets.push({ name: 'Neraca', data: this._balanceSheetRows() });
+        } else if (type === 'journal') {
+          sheets.push({ name: 'Jurnal Umum', data: this._journalRows() });
+        } else if (type === 'ledger') {
+          sheets.push({ name: 'Buku Besar', data: await this._ledgerRows(periodeStr) });
+        } else {
+          sheets.push({ name: 'Laba Rugi', data: this._plRows() });
+        }
+
+        sheets.forEach(s => {
+          const ws = this._xlsxSheet(s.data.headers, s.data.rows, s.data.currencyCols);
+          XLSX.utils.book_append_sheet(wb, ws, s.name);
+        });
+
+        this._downloadXlsx(wb, `Laporan_${type.toUpperCase()}_${periodeStr}.xlsx`);
+        this.addExportHistory(`Laporan ${type.toUpperCase()}`, periodeStr, 'XLSX');
+        this.showToast(`Laporan XLSX berhasil diunduh!`, 'success');
+      } catch (err) {
+        console.error('[ACCT-APP] Export XLSX error:', err);
+        this.showToast('Gagal membuat file XLSX', 'error');
+      }
+    },
+
+    async exportTxDetailXLSX(bulan) {
+      try {
+        if (!window.XLSX) {
+          this.showToast('Pustaka SheetJS belum dimuat — fallback ke CSV', 'error');
+          await this.exportTxDetailCSV(bulan);
+          return;
+        }
+        const data = (this.txDetail && this.txDetail.rows && this.txDetail.rows.length > 0
+          && this.txDetail.periodeFile === String(bulan || '').slice(0, 7))
+          ? this.txDetail
+          : await this.loadTransaksiDetail(bulan);
+        const periodeStr = data.periode || bulan || this.bulanAktif;
+
+        const d = this._txDetailRows(data);
+        const ws = this._xlsxSheet(d.headers, d.rows, d.currencyCols);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Transaksi Detail');
+
+        this._downloadXlsx(wb, `Laporan_Transaksi_Detail_${data.periodeFile || periodeStr}.xlsx`);
+        this.addExportHistory('Laporan Transaksi Detail', periodeStr, 'XLSX');
+        this.showToast('File XLSX transaksi detail berhasil diunduh', 'success');
+      } catch (e) {
+        console.error('[TX-DETAIL] export XLSX error:', e);
+        this.showToast('Gagal export XLSX transaksi detail', 'error');
+      }
+    },
+
+    /** Bangun worksheet dari header + rows; header bold, auto width, angka = number + format Rp. */
+    _xlsxSheet(headers, rows, currencyCols = []) {
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      // Auto column width
+      const cols = headers.map((h, i) => {
+        let max = String(h).length;
+        rows.forEach(r => {
+          const v = r[i];
+          let len = 0;
+          if (v === null || v === undefined) len = 0;
+          else if (typeof v === 'number') len = String(Math.round(v)).length + 5;
+          else len = String(v).length;
+          if (len > max) max = len;
+        });
+        return { wch: Math.max(8, Math.min(max + 2, 60)) };
+      });
+      ws['!cols'] = cols;
+
+      // Header bold + latar abu
+      headers.forEach((h, ci) => {
+        const ref = XLSX.utils.encode_cell({ r: 0, c: ci });
+        if (!ws[ref]) ws[ref] = { t: 's', v: String(h) };
+        ws[ref].s = { font: { bold: true }, fill: { fgColor: { rgb: 'E7E5E4' } } };
+      });
+
+      // Format mata uang Rp untuk kolom angka
+      (currencyCols || []).forEach(ci => {
+        rows.forEach((r, ri) => {
+          const ref = XLSX.utils.encode_cell({ r: ri + 1, c: ci });
+          const cell = ws[ref];
+          if (cell && typeof cell.v === 'number') cell.z = '"Rp" #,##0';
+        });
+      });
+      return ws;
+    },
+
+    _downloadXlsx(wb, filename) {
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+
+    _plRows() {
+      const pl = this.laporanData.pl || {};
+      const n = (v) => Number(v) || 0;
+      return {
+        headers: ['Komponen', 'Nominal (Rp)'],
+        currencyCols: [1],
+        rows: [
+          ['Pendapatan Penjualan POS Kasir', n(pl.pendapatanPOS)],
+          ['Pendapatan Pesanan Catering', n(pl.pendapatanCatering)],
+          ['TOTAL PENDAPATAN', n(pl.totalPendapatan)],
+          ['Harga Pokok Penjualan (HPP)', -n(pl.hpp)],
+          ['LABA KOTOR', n(pl.labaKotor)],
+          ['Beban Gaji Karyawan', -n(pl.bebanGaji)],
+          ['Beban Sewa Tempat & Outlet', -n(pl.bebanSewa)],
+          ['Beban Listrik, Air & Gas', -n(pl.bebanListrik)],
+          ['Beban Marketing & Iklan', -n(pl.bebanMarketing)],
+          ['Beban Operasional & Kurir', -n(pl.bebanOperasional)],
+          ['TOTAL BEBAN OPERASIONAL', -n(pl.totalBeban)],
+          ['LABA BERSIH (NET PROFIT)', n(pl.labaBersih)]
+        ]
+      };
+    },
+
+    _cashFlowRows() {
+      const cf = this.laporanData.cashFlow || {};
+      const n = (v) => Number(v) || 0;
+      return {
+        headers: ['Komponen', 'Nominal (Rp)'],
+        currencyCols: [1],
+        rows: [
+          ['Penerimaan dari Pelanggan', n(cf.penerimaanPelanggan)],
+          ['Pembayaran ke Supplier / Bahan Baku', -n(cf.pembayaranSupplier)],
+          ['Pembayaran Gaji Karyawan', -n(cf.pembayaranGaji)],
+          ['Pembayaran Beban Operasional', -n(cf.pembayaranOperasional)],
+          ['Kas Bersih dari Aktivitas Operasi', n(cf.kasBersihOperasi)],
+          ['Pembelian Peralatan & Mesin', -n(cf.pembelianPeralatan)],
+          ['Kas Bersih dari Aktivitas Investasi', n(cf.kasBersihInvestasi)],
+          ['Setoran Modal Pemilik', n(cf.setoranModal)],
+          ['Penarikan Prive', -n(cf.prive)],
+          ['Kas Bersih dari Aktivitas Pendanaan', n(cf.kasBersihPendanaan)],
+          ['KENAIKAN (PENURUNAN) BERSIH KAS', n(cf.kenaikanKas)],
+          ['Saldo Kas Awal Periode', n(cf.kasAwal)],
+          ['SALDO KAS AKHIR PERIODE', n(cf.kasAkhir)]
+        ]
+      };
+    },
+
+    _balanceSheetRows() {
+      const bs = this.laporanData.balanceSheet || {};
+      const n = (v) => Number(v) || 0;
+      return {
+        headers: ['Komponen', 'Nominal (Rp)'],
+        currencyCols: [1],
+        rows: [
+          ['ASET', null],
+          ['  Kas di Tangan', n(bs.kas)],
+          ['  Kas di Bank', n(bs.bank)],
+          ['  Piutang Usaha', n(bs.piutang)],
+          ['  Persediaan Bahan Baku', n(bs.persediaan)],
+          ['  Total Aset Lancar', n(bs.totalAsetLancar)],
+          ['  Peralatan & Mesin Dapur', n(bs.peralatan)],
+          ['  Total Aset Tetap', n(bs.totalAsetTetap)],
+          ['TOTAL ASET', n(bs.totalAset)],
+          ['KEWAJIBAN & EKUITAS', null],
+          ['  Hutang Dagang / Supplier', n(bs.hutangSupplier)],
+          ['  Hutang Beban & Operasional', n(bs.hutangBeban)],
+          ['  Total Kewajiban', n(bs.totalKewajiban)],
+          ['  Modal Pemilik', n(bs.modalPemilik)],
+          ['  Laba Ditahan', n(bs.labaDitahan)],
+          ['  Laba (Rugi) Berjalan', n(bs.labaBerjalan)],
+          ['  Prive Pemilik', -n(bs.prive)],
+          ['  Total Ekuitas', n(bs.totalEkuitas)],
+          ['TOTAL KEWAJIBAN & EKUITAS', n(bs.totalKewajibanEkuitas)],
+          [bs.isBalance ? 'Status: SEIMBANG' : ('Status: TIDAK SEIMBANG, selisih ' + formatRupiah(bs.selisih)), null]
+        ]
+      };
+    },
+
+    _journalRows() {
+      const accName = (code, name) => {
+        if (name) return String(name);
+        const m = { '1001':'Kas di Tangan','1002':'Kas di Bank','1003':'Piutang Usaha','1004':'Persediaan Bahan Baku','1005':'Peralatan & Mesin Dapur','2001':'Hutang Dagang / Supplier','2002':'Hutang Beban & Operasional','3001':'Modal Pemilik','3002':'Laba Ditahan','3003':'Prive Pemilik','4001':'Pendapatan Penjualan POS','4002':'Pendapatan Pesanan Catering','5001':'Harga Pokok Penjualan (HPP)','6001':'Beban Gaji Karyawan','6002':'Beban Sewa Tempat','6003':'Beban Listrik, Air & Gas','6004':'Beban Marketing & Iklan','6005':'Beban Operasional & Kurir','6006':'Beban Penyusutan' };
+        return m[String(code)] || ('Akun ' + code);
+      };
+      const list = (this.jurnalList || [])
+        .filter(j => j && (j.status === 'approved' || !j.status))
+        .slice()
+        .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+      const rows = [];
+      list.forEach(j => {
+        rows.push([String(j.date || '').slice(0, 10), String(j.noEntry || j.ref || '-'), String(j.desc || '-'), accName(j.debitCode, j.debitName), Number(j.debitAmount) || 0, null]);
+        rows.push(['', '', '', accName(j.creditCode, j.creditName), null, Number(j.creditAmount) || 0]);
+      });
+      return {
+        headers: ['Tanggal', 'No Ref', 'Keterangan', 'Akun', 'Debit (Rp)', 'Kredit (Rp)'],
+        currencyCols: [4, 5],
+        rows
+      };
+    },
+
+    async _ledgerRows(bulan) {
+      const accounts = (this.coaList || []).slice().sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
+      const rows = [];
+      for (const acc of accounts) {
+        const ld = await this.loadLedger(acc.code, bulan);
+        rows.push([String(acc.code), String(acc.name || ''), '-', 'SALDO AWAL', null, null, Number(ld.openingBalance) || 0]);
+        (ld.transactions || []).forEach(t => {
+          rows.push([String(acc.code), String(acc.name || ''), String(t.date || '').slice(0, 10), String(t.desc || '-'), Number(t.debit) || 0, Number(t.credit) || 0, Number(t.runningBalance) || 0]);
+        });
+        rows.push([String(acc.code), String(acc.name || ''), '-', 'SALDO AKHIR', Number(ld.totalDebit) || 0, Number(ld.totalCredit) || 0, Number(ld.closingBalance) || 0]);
+      }
+      return {
+        headers: ['Kode Akun', 'Nama Akun', 'Tanggal', 'Keterangan', 'Debit (Rp)', 'Kredit (Rp)', 'Saldo Berjalan (Rp)'],
+        currencyCols: [4, 5, 6],
+        rows
+      };
+    },
+
+    _txDetailRows(tx) {
+      const rows = (tx.rows || []).map(r => [
+        String(r.tanggal || ''), String(r.jam || ''), String(r.orderId || ''), String(r.metode || ''),
+        String(r.itemsText || ''), Number(r.subtotal) || 0, Number(r.diskon) || 0, Number(r.pajak) || 0,
+        Number(r.total) || 0, String(r.status || ''), String(r.kasir || ''), String(r.shift || ''),
+        String(r.sumber || ''), String(r.voidReason || '')
+      ]);
+      return {
+        headers: ['Tanggal', 'Jam', 'Order ID', 'Metode', 'Items', 'Subtotal (Rp)', 'Diskon (Rp)', 'Pajak (Rp)', 'Total (Rp)', 'Status', 'Kasir', 'Shift', 'Sumber', 'Alasan Void'],
+        currencyCols: [5, 6, 7, 8],
+        rows
+      };
     },
 
     /**
@@ -3124,9 +3384,9 @@ this.jurnalList.forEach(j => {
         if (format === 'pdf') {
           if (type === 'txDetail') await this.exportTxDetailPDF(bulan);
           else await this.exportPDF(type, bulan);
-        } else if (format === 'excel') {
-          if (type === 'txDetail') await this.exportTxDetailCSV(bulan);
-          else await this.exportExcel(type, bulan);
+        } else if (format === 'xlsx') {
+          if (type === 'txDetail') await this.exportTxDetailXLSX(bulan);
+          else await this.exportXLSX(type, bulan);
         } else {
           if (type === 'txDetail') await this.exportTxDetailCSV(bulan);
           else await this.exportCSV(type, bulan);
