@@ -83,6 +83,16 @@ function formatRupiah(num) {
 }
 
 /**
+ * Format Rupiah dengan tanda kurung untuk nilai negatif (dipakai di laporan).
+ */
+function formatRupiahSigned(num) {
+  if (isNaN(num) || num === null || num === undefined) return 'Rp 0';
+  const val = Math.round(Number(num));
+  if (val < 0) return '(' + 'Rp ' + Math.abs(val).toLocaleString('id-ID') + ')';
+  return 'Rp ' + val.toLocaleString('id-ID');
+}
+
+/**
  * Format tanggal dari timestamp atau string ke format lokal (YYYY-MM-DD)
  */
 function formatDate(ts) {
@@ -2543,6 +2553,314 @@ this.jurnalList.forEach(j => {
     // 8. EXPORT DATA (PDF & CSV GENERATOR)
     // ------------------------------------------------------------------------
 
+    // ------------------------ HELPERS LAYOUT LAPORAN PDF ----------------------
+    /** Header dokumen standar (brand + judul + periode). Return y awal konten. */
+    reportHeader(doc, title, periodeStr, generatedDate) {
+      const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(brand, 105, 18, { align: 'center' });
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Sistem Akuntansi & Laporan Keuangan', 105, 24, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text(title, 105, 33, { align: 'center' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Periode: ${periodeStr} | Dicetak: ${generatedDate}`, 105, 38, { align: 'center' });
+      doc.line(15, 42, 195, 42);
+      return 50;
+    },
+
+    /** Blok tanda tangan di akhir laporan. */
+    reportSignature(doc, y) {
+      if (y > 245) { doc.addPage('a4', 'portrait'); y = 30; }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('Disiapkan oleh:', 30, y + 10);
+      doc.text('Disetujui oleh:', 140, y + 10);
+      doc.text('( Bagian Keuangan )', 30, y + 30);
+      doc.text('( Owner / Direksi )', 140, y + 30);
+    },
+
+    /** Page break portrait sederhana. */
+    reportPageBreak(doc, y, need = 20) {
+      if (y + need <= 275) return y;
+      doc.addPage('a4', 'portrait');
+      return 20;
+    },
+
+    /** Baris nilai laporan (label + nominal rata kanan). */
+    reportLine(doc, y, label, val, opts = {}) {
+      const { bold = false, indent = 0, signed = false, size = 9.5 } = opts;
+      y = this.reportPageBreak(doc, y, 7);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(bold ? 10 : size);
+      const text = signed ? formatRupiahSigned(val) : formatRupiah(val);
+      doc.text(label, 15 + indent, y);
+      doc.text(text, 195, y, { align: 'right' });
+      return y + (bold ? 7 : 5.5);
+    },
+
+    /** Muat ulang data akuntansi untuk periode terpilih (biar laporan selalu segar). */
+    async ensureReportData(bulan) {
+      const target = bulan || this.bulanAktif;
+      try {
+        if (target !== this.bulanAktif) this.bulanAktif = target;
+        await this.loadSummary(target);
+        await this.loadLedgerMap(target);
+        await this.loadCOA();
+        await this.loadJournal(target);
+        await this.loadLabaRugi(target);
+        await this.loadArusKas(target);
+        await this.loadNeraca(target);
+      } catch (e) {
+        console.warn('[ACCT-APP] ensureReportData error:', e);
+      }
+    },
+
+    // ------------------------ SECTION LAPORAN PDF -----------------------------
+    plSection(doc, y) {
+      const pl = this.laporanData.pl;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('I. PENDAPATAN OPERASIONAL', 15, y); y += 6;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.text('Pendapatan Penjualan POS Kasir', 20, y);
+      doc.text(formatRupiah(pl.pendapatanPOS), 195, y, { align: 'right' }); y += 5;
+
+      doc.text('Pendapatan Pesanan Catering', 20, y);
+      doc.text(formatRupiah(pl.pendapatanCatering), 195, y, { align: 'right' }); y += 5;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('TOTAL PENDAPATAN', 20, y);
+      doc.text(formatRupiah(pl.totalPendapatan), 195, y, { align: 'right' }); y += 8;
+
+      doc.text('II. HARGA POKOK PENJUALAN (HPP)', 15, y); y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Harga Pokok Penjualan Bahan Baku', 20, y);
+      doc.text('(' + formatRupiah(pl.hpp) + ')', 195, y, { align: 'right' }); y += 6;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('LABA KOTOR', 15, y);
+      doc.text(formatRupiah(pl.labaKotor), 195, y, { align: 'right' }); y += 8;
+
+      doc.text('III. BEBAN OPERASIONAL', 15, y); y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Beban Gaji Karyawan', 20, y); doc.text(formatRupiah(pl.bebanGaji), 195, y, { align: 'right' }); y += 5;
+      doc.text('Beban Sewa Tempat & Outlet', 20, y); doc.text(formatRupiah(pl.bebanSewa), 195, y, { align: 'right' }); y += 5;
+      doc.text('Beban Listrik, Air & Gas', 20, y); doc.text(formatRupiah(pl.bebanListrik), 195, y, { align: 'right' }); y += 5;
+      doc.text('Beban Marketing & Iklan', 20, y); doc.text(formatRupiah(pl.bebanMarketing), 195, y, { align: 'right' }); y += 5;
+      doc.text('Beban Operasional & Kurir', 20, y); doc.text(formatRupiah(pl.bebanOperasional), 195, y, { align: 'right' }); y += 6;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('TOTAL BEBAN OPERASIONAL', 20, y);
+      doc.text('(' + formatRupiah(pl.totalBeban) + ')', 195, y, { align: 'right' }); y += 8;
+
+      doc.setFillColor(240, 253, 244);
+      doc.rect(15, y - 4, 180, 8, 'F');
+      doc.setTextColor(5, 150, 105);
+      doc.text('LABA BERSIH (NET PROFIT)', 20, y + 1.5);
+      doc.text(formatRupiah(pl.labaBersih), 190, y + 1.5, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      y += 18;
+      return y;
+    },
+
+    cashFlowSection(doc, y) {
+      const cf = this.laporanData.cashFlow || {};
+      const line = (label, val, bold, signed) => this.reportLine(doc, y, label, val, { bold, signed });
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('A. AKTIVITAS OPERASI', 15, y); y += 7;
+      y = line('Penerimaan dari Pelanggan', cf.penerimaanPelanggan);
+      y = line('Pembayaran ke Supplier / Bahan Baku', cf.pembayaranSupplier, false, true);
+      y = line('Pembayaran Gaji Karyawan', cf.pembayaranGaji, false, true);
+      y = line('Pembayaran Beban Operasional', cf.pembayaranOperasional, false, true);
+      y = line('Kas Bersih dari Aktivitas Operasi', cf.kasBersihOperasi, true, true);
+      y += 4;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('B. AKTIVITAS INVESTASI', 15, y); y += 7;
+      y = line('Pembelian Peralatan & Mesin', cf.pembelianPeralatan, false, true);
+      y = line('Kas Bersih dari Aktivitas Investasi', cf.kasBersihInvestasi, true, true);
+      y += 4;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('C. AKTIVITAS PENDANAAN', 15, y); y += 7;
+      y = line('Setoran Modal Pemilik', cf.setoranModal);
+      y = line('Penarikan Prive', cf.prive, false, true);
+      y = line('Kas Bersih dari Aktivitas Pendanaan', cf.kasBersihPendanaan, true, true);
+      y += 4;
+      y = line('KENAIKAN (PENURUNAN) BERSIH KAS', cf.kenaikanKas, true, true);
+      y = line('Saldo Kas Awal Periode', cf.kasAwal);
+      y = line('SALDO KAS AKHIR PERIODE', cf.kasAkhir, true);
+      return y;
+    },
+
+    balanceSheetSection(doc, y) {
+      const bs = this.laporanData.balanceSheet || {};
+      const line = (label, val, opts = {}) => this.reportLine(doc, y, label, val, opts);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('ASET', 15, y); y += 7;
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'bold');
+      doc.text('Aset Lancar', 20, y); y += 6;
+      y = line('Kas di Tangan', bs.kas, { indent: 6 });
+      y = line('Kas di Bank', bs.bank, { indent: 6 });
+      y = line('Piutang Usaha', bs.piutang, { indent: 6 });
+      y = line('Persediaan Bahan Baku', bs.persediaan, { indent: 6 });
+      y = line('Total Aset Lancar', bs.totalAsetLancar, { indent: 6, bold: true });
+      y += 3;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Aset Tetap', 20, y); y += 6;
+      y = line('Peralatan & Mesin Dapur', bs.peralatan, { indent: 6 });
+      y = line('Total Aset Tetap', bs.totalAsetTetap, { indent: 6, bold: true });
+      y += 3;
+      y = line('TOTAL ASET', bs.totalAset, { bold: true });
+      y += 6;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('KEWAJIBAN & EKUITAS', 15, y); y += 7;
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'bold');
+      doc.text('Kewajiban', 20, y); y += 6;
+      y = line('Hutang Dagang / Supplier', bs.hutangSupplier, { indent: 6 });
+      y = line('Hutang Beban & Operasional', bs.hutangBeban, { indent: 6 });
+      y = line('Total Kewajiban', bs.totalKewajiban, { indent: 6, bold: true });
+      y += 3;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Ekuitas', 20, y); y += 6;
+      y = line('Modal Pemilik', bs.modalPemilik, { indent: 6 });
+      y = line('Laba Ditahan', bs.labaDitahan, { indent: 6 });
+      y = line('Laba (Rugi) Berjalan', bs.labaBerjalan, { indent: 6, signed: true });
+      y = line('Prive Pemilik', bs.prive, { indent: 6, signed: true });
+      y = line('Total Ekuitas', bs.totalEkuitas, { indent: 6, bold: true });
+      y += 3;
+      y = line('TOTAL KEWAJIBAN & EKUITAS', bs.totalKewajibanEkuitas, { bold: true });
+      y += 4;
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
+      doc.setTextColor(bs.isBalance ? 5 : 180, bs.isBalance ? 150 : 30, bs.isBalance ? 105 : 30);
+      doc.text(bs.isBalance ? 'Neraca seimbang (Aset = Kewajiban + Ekuitas)' : ('Neraca TIDAK seimbang — selisih ' + formatRupiah(bs.selisih)), 15, y);
+      doc.setTextColor(0, 0, 0);
+      y += 8;
+      return y;
+    },
+
+    journalSection(doc, y) {
+      const accName = (code, name) => {
+        if (name) return String(name);
+        const m = { '1001':'Kas di Tangan','1002':'Kas di Bank','1003':'Piutang Usaha','1004':'Persediaan Bahan Baku','1005':'Peralatan & Mesin Dapur','2001':'Hutang Dagang / Supplier','2002':'Hutang Beban & Operasional','3001':'Modal Pemilik','3002':'Laba Ditahan','3003':'Prive Pemilik','4001':'Pendapatan Penjualan POS','4002':'Pendapatan Pesanan Catering','5001':'Harga Pokok Penjualan (HPP)','6001':'Beban Gaji Karyawan','6002':'Beban Sewa Tempat','6003':'Beban Listrik, Air & Gas','6004':'Beban Marketing & Iklan','6005':'Beban Operasional & Kurir','6006':'Beban Penyusutan' };
+        return m[String(code)] || ('Akun ' + code);
+      };
+      const list = (this.jurnalList || [])
+        .filter(j => j && (j.status === 'approved' || !j.status))
+        .slice()
+        .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+      const X = { tgl: 15, ref: 36, desc: 58, acc: 112, deb: 168, kre: 195 };
+      const drawHeader = () => {
+        doc.setFillColor(240, 240, 240);
+        doc.rect(15, y - 4.5, 180, 6.5, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+        doc.text('TANGGAL', X.tgl, y);
+        doc.text('NO REF', X.ref, y);
+        doc.text('KETERANGAN', X.desc, y);
+        doc.text('AKUN', X.acc, y);
+        doc.text('DEBIT', X.deb, y, { align: 'right' });
+        doc.text('KREDIT', X.kre, y, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+      };
+      drawHeader();
+      if (list.length === 0) {
+        doc.setFontSize(9); doc.setTextColor(120, 120, 120);
+        doc.text('Tidak ada jurnal pada periode ini.', 15, y + 4);
+        doc.setTextColor(0, 0, 0);
+        y += 12;
+      } else {
+        list.forEach(j => {
+          y = this.reportPageBreak(doc, y, 12);
+          if (y === 20) drawHeader();
+          const dName = accName(j.debitCode, j.debitName);
+          const cName = accName(j.creditCode, j.creditName);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+          doc.text(String(j.date || '-').slice(0, 10), X.tgl, y);
+          doc.text(String(j.noEntry || j.ref || '-').slice(0, 18), X.ref, y);
+          doc.text(String(j.desc || '-').slice(0, 52), X.desc, y);
+          doc.text(String(dName).slice(0, 52), X.acc, y);
+          doc.text(formatRupiah(j.debitAmount), X.deb, y, { align: 'right' });
+          y += 4.5;
+          doc.text(String(cName).slice(0, 52), X.acc, y);
+          doc.text(formatRupiah(j.creditAmount), X.kre, y, { align: 'right' });
+          y += 5.5;
+        });
+        const totalDebit = list.reduce((s, j) => s + (Number(j.debitAmount) || 0), 0);
+        const totalCredit = list.reduce((s, j) => s + (Number(j.creditAmount) || 0), 0);
+        y = this.reportPageBreak(doc, y, 10);
+        if (y === 20) drawHeader();
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+        doc.text('TOTAL', X.desc, y);
+        doc.text(formatRupiah(totalDebit), X.deb, y, { align: 'right' });
+        doc.text(formatRupiah(totalCredit), X.kre, y, { align: 'right' });
+        y += 7;
+      }
+      return y;
+    },
+
+    async ledgerSection(doc, y, bulan) {
+      const accounts = (this.coaList || []).slice().sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
+      const X = { tgl: 15, desc: 33, deb: 130, kre: 155, saldo: 195 };
+      for (const acc of accounts) {
+        const ld = await this.loadLedger(acc.code, bulan);
+        y = this.reportPageBreak(doc, y, 30);
+        doc.setFillColor(245, 245, 245);
+        doc.rect(15, y - 5, 180, 7, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+        doc.text(`${acc.code} — ${acc.name || (ld.account && ld.account.name) || ''} (${acc.type || ''})`, 17, y);
+        y += 6;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+        doc.text('Saldo Awal:', 17, y);
+        doc.text(formatRupiah(ld.openingBalance), X.saldo, y, { align: 'right' });
+        y += 5.5;
+        if ((ld.transactions || []).length > 0) {
+          doc.setFillColor(240, 240, 240);
+          doc.rect(15, y - 4, 180, 6, 'F');
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+          doc.text('TANGGAL', X.tgl, y);
+          doc.text('KETERANGAN', X.desc, y);
+          doc.text('DEBIT', X.deb, y, { align: 'right' });
+          doc.text('KREDIT', X.kre, y, { align: 'right' });
+          doc.text('SALDO', X.saldo, y, { align: 'right' });
+          doc.setFont('helvetica', 'normal');
+          y += 4.5;
+          (ld.transactions || []).forEach(t => {
+            y = this.reportPageBreak(doc, y, 8);
+            doc.setFontSize(7.5);
+            doc.text(String(t.date || '-').slice(0, 10), X.tgl, y);
+            doc.text(String(t.desc || '-').slice(0, 48), X.desc, y);
+            doc.text(t.debit ? formatRupiah(t.debit) : '-', X.deb, y, { align: 'right' });
+            doc.text(t.credit ? formatRupiah(t.credit) : '-', X.kre, y, { align: 'right' });
+            doc.text(formatRupiah(t.runningBalance), X.saldo, y, { align: 'right' });
+            y += 4;
+          });
+        }
+        y = this.reportPageBreak(doc, y, 12);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+        doc.text('TOTAL MUTASI', X.desc, y);
+        doc.text(formatRupiah(ld.totalDebit), X.deb, y, { align: 'right' });
+        doc.text(formatRupiah(ld.totalCredit), X.kre, y, { align: 'right' });
+        y += 5.5;
+        doc.text('SALDO AKHIR', X.desc, y);
+        doc.text(formatRupiah(ld.closingBalance), X.saldo, y, { align: 'right' });
+        y += 8;
+      }
+      if (accounts.length === 0) {
+        y = this.reportPageBreak(doc, y, 10);
+        doc.setFontSize(9); doc.setTextColor(120, 120, 120);
+        doc.text('Tidak ada akun pada Chart of Accounts.', 15, y);
+        doc.setTextColor(0, 0, 0);
+        y += 8;
+      }
+      return y;
+    },
+
     /**
      * Ekspor Laporan Keuangan ke format PDF (jsPDF)
      */
@@ -2554,102 +2872,46 @@ this.jurnalList.forEach(j => {
           return;
         }
 
-        // pastikan nama outlet terbaru (site_config.brandName)
+        // pastikan nama outlet terbaru (site_config.brandName) — ada localStorage fallback
         if (!this.siteName || this.siteName === 'Dapur Kuliner Viral') {
           try { await this.loadSiteName(); } catch (e) {}
         }
-        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
         const periodeStr = bulan || this.bulanAktif;
         const generatedDate = new Date().toLocaleString('id-ID');
 
-        // Header Dokumen
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        // ✅ Konsisten dengan site_config.brandName (dulu hardcoded 'DAPUR KULINER VIRAL')
-        doc.text(String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase(), 105, 18, { align: 'center' });
-        
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Sistem Akuntansi & Laporan Keuangan', 105, 24, { align: 'center' });
+        // Muat ulang data periode terpilih (summary/ledger/coa/journal + hitung laporan)
+        await this.ensureReportData(periodeStr);
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(13);
-        const titleMap = {
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        const TITLE = {
           pl: 'LAPORAN LABA RUGI (PROFIT & LOSS)',
           cashFlow: 'LAPORAN ARUS KAS (CASH FLOW STATEMENT)',
           balanceSheet: 'LAPORAN NERACA KEUANGAN (BALANCE SHEET)',
+          journal: 'JURNAL UMUM',
+          ledger: 'BUKU BESAR (GENERAL LEDGER)',
           all: 'LAPORAN KEUANGAN LENGKAP'
         };
-        doc.text(titleMap[type] || 'LAPORAN KEUANGAN', 105, 33, { align: 'center' });
+        const title = TITLE[type] || 'LAPORAN KEUANGAN';
 
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'italic');
-        doc.text(`Periode: ${periodeStr} | Dicetak: ${generatedDate}`, 105, 38, { align: 'center' });
-        doc.line(15, 42, 195, 42);
-
-        let y = 50;
-
-        if (type === 'pl' || type === 'all') {
-          const pl = this.laporanData.pl;
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(11);
-          doc.text('I. PENDAPATAN OPERASIONAL', 15, y); y += 6;
-
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9.5);
-          doc.text('Pendapatan Penjualan POS Kasir', 20, y);
-          doc.text(formatRupiah(pl.pendapatanPOS), 195, y, { align: 'right' }); y += 5;
-
-          doc.text('Pendapatan Pesanan Catering', 20, y);
-          doc.text(formatRupiah(pl.pendapatanCatering), 195, y, { align: 'right' }); y += 5;
-
-          doc.setFont('helvetica', 'bold');
-          doc.text('TOTAL PENDAPATAN', 20, y);
-          doc.text(formatRupiah(pl.totalPendapatan), 195, y, { align: 'right' }); y += 8;
-
-          doc.text('II. HARGA POKOK PENJUALAN (HPP)', 15, y); y += 6;
-          doc.setFont('helvetica', 'normal');
-          doc.text('Harga Pokok Penjualan Bahan Baku', 20, y);
-          doc.text('(' + formatRupiah(pl.hpp) + ')', 195, y, { align: 'right' }); y += 6;
-
-          doc.setFont('helvetica', 'bold');
-          doc.text('LABA KOTOR', 15, y);
-          doc.text(formatRupiah(pl.labaKotor), 195, y, { align: 'right' }); y += 8;
-
-          doc.text('III. BEBAN OPERASIONAL', 15, y); y += 6;
-          doc.setFont('helvetica', 'normal');
-          doc.text('Beban Gaji Karyawan', 20, y); doc.text(formatRupiah(pl.bebanGaji), 195, y, { align: 'right' }); y += 5;
-          doc.text('Beban Sewa Tempat & Outlet', 20, y); doc.text(formatRupiah(pl.bebanSewa), 195, y, { align: 'right' }); y += 5;
-          doc.text('Beban Listrik, Air & Gas', 20, y); doc.text(formatRupiah(pl.bebanListrik), 195, y, { align: 'right' }); y += 5;
-          doc.text('Beban Marketing & Iklan', 20, y); doc.text(formatRupiah(pl.bebanMarketing), 195, y, { align: 'right' }); y += 5;
-          doc.text('Beban Operasional & Kurir', 20, y); doc.text(formatRupiah(pl.bebanOperasional), 195, y, { align: 'right' }); y += 6;
-
-          doc.setFont('helvetica', 'bold');
-          doc.text('TOTAL BEBAN OPERASIONAL', 20, y);
-          doc.text('(' + formatRupiah(pl.totalBeban) + ')', 195, y, { align: 'right' }); y += 8;
-
-          doc.setFillColor(240, 253, 244);
-          doc.rect(15, y - 4, 180, 8, 'F');
-          doc.setTextColor(5, 150, 105);
-          doc.text('LABA BERSIH (NET PROFIT)', 20, y + 1.5);
-          doc.text(formatRupiah(pl.labaBersih), 190, y + 1.5, { align: 'right' });
-          doc.setTextColor(0, 0, 0);
-          y += 18;
+        let y = this.reportHeader(doc, title, periodeStr, generatedDate);
+        if (type === 'cashFlow') {
+          y = this.cashFlowSection(doc, y);
+        } else if (type === 'balanceSheet') {
+          y = this.balanceSheetSection(doc, y);
+        } else if (type === 'journal') {
+          y = this.journalSection(doc, y);
+        } else if (type === 'ledger') {
+          y = await this.ledgerSection(doc, y, periodeStr);
+        } else {
+          // 'pl' dan 'all' (paket lengkap digabung di TASK 2)
+          y = this.plSection(doc, y);
         }
+        this.reportSignature(doc, y);
 
-        // Tanda Tangan
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text('Disiapkan oleh:', 30, y + 10);
-        doc.text('Disetujui oleh:', 140, y + 10);
-        doc.text('( Bagian Keuangan )', 30, y + 30);
-        doc.text('( Owner / Direksi )', 140, y + 30);
-
-        // Download
         const filename = `Laporan_${type.toUpperCase()}_${periodeStr}.pdf`;
         doc.save(filename);
 
-        this.addExportHistory(titleMap[type] || 'Laporan', periodeStr, 'PDF');
+        this.addExportHistory(title, periodeStr, 'PDF');
         this.showToast(`Laporan ${filename} berhasil diunduh!`, 'success');
       } catch (err) {
         console.error('[ACCT-APP] Export PDF error:', err);
