@@ -2839,14 +2839,24 @@ this.jurnalList.forEach(j => {
           doc.text('SALDO', X.saldo, y, { align: 'right' });
           doc.setFont('helvetica', 'normal');
           y += 4.5;
-          (ld.transactions || []).forEach(t => {
+          const txs = Array.isArray(ld.transactions) ? ld.transactions : [];
+          txs.forEach(t => {
+            // Normalisasi: handle format data bervariasi per akun (date/tgl, desc/keterangan,
+            // debit/credit vs dr/cr/debitAmount/creditAmount, runningBalance vs saldo/balance)
+            const n = {
+              tanggal: t.date || t.tanggal || t.tgl || '-',
+              keterangan: t.desc || t.keterangan || '-',
+              debit: Number(t.debit ?? t.dr ?? t.debitAmount ?? 0) || 0,
+              credit: Number(t.credit ?? t.cr ?? t.creditAmount ?? 0) || 0,
+              saldo: Number(t.runningBalance ?? t.saldo ?? t.balance ?? 0) || 0
+            };
             y = this.reportPageBreak(doc, y, 8);
             doc.setFontSize(7.5);
-            doc.text(String(t.date || '-').slice(0, 10), X.tgl, y);
-            doc.text(String(t.desc || '-').slice(0, 48), X.desc, y);
-            doc.text(t.debit ? formatRupiah(t.debit) : '-', X.deb, y, { align: 'right' });
-            doc.text(t.credit ? formatRupiah(t.credit) : '-', X.kre, y, { align: 'right' });
-            doc.text(formatRupiah(t.runningBalance), X.saldo, y, { align: 'right' });
+            doc.text(String(n.tanggal).slice(0, 10), X.tgl, y);
+            doc.text(String(n.keterangan).slice(0, 48), X.desc, y);
+            doc.text(n.debit ? formatRupiah(n.debit) : '-', X.deb, y, { align: 'right' });
+            doc.text(n.credit ? formatRupiah(n.credit) : '-', X.kre, y, { align: 'right' });
+            doc.text(formatRupiah(n.saldo), X.saldo, y, { align: 'right' });
             y += 4;
           });
         }
