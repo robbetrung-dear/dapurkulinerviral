@@ -549,6 +549,17 @@ window.accountingApp = function() {
      */
       async loadSiteName() {
       try {
+        // ✅ Fallback cepat: pakai nama outlet yang pernah di-cache di localStorage
+        // (kalau fetch /site_config/brandName gagal atau lambat, header PDF tetap benar)
+        try {
+          const cached = localStorage.getItem('dapur_site_name');
+          if (cached && cached.trim()) {
+            this.siteName = cached.trim();
+            this.splashAkunTitle = 'AKUNTANSI';
+            this.splashAkunSubtitle = this.siteName || 'Digital Culinary';
+          }
+        } catch (e) {}
+
         if (!this._fbConfig || !this._fbConfig.databaseURL) {
           await this.initFirebaseConfig();
         }
@@ -570,6 +581,7 @@ window.accountingApp = function() {
             this.siteName = name.trim();
             this.splashAkunTitle = 'AKUNTANSI';
             this.splashAkunSubtitle = this.siteName || 'Digital Culinary';
+            try { localStorage.setItem('dapur_site_name', this.siteName); } catch (e) {}
             console.log('[ACCT-APP] Site name loaded:', this.siteName);
           }
         }
