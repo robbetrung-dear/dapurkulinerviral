@@ -3859,10 +3859,15 @@ try {
       });
     };
 
-    // === Strategi 1: DIHAPUS — endpoint ?start=&end= tidak ada di backend ===
-    // (BACKLOG-1) Cek dulu apakah sudah di-flag gagal permanen di localStorage
+    // === Strategi 1: endpoint range (SUDAH ADA di backend) ===
+    //     GET /pos/transactions?start=YYYY-MM-DD&end=YYYY-MM-DD → 1 request untuk 1 periode.
+    // CLEANUP-1: flag "broken" TIDAK lagi permanen di localStorage — dulu sekali gagal
+    // (respons HTML/SPA fallback) endpoint ini diblokir selamanya di browser itu, sehingga
+    // laporan bulanan selalu jatuh ke loop harian (30 request). Sekarang flag hanya per-sesi
+    // dan sisa flag lama dibersihkan otomatis.
+    try { localStorage.removeItem('dapur_range_endpoint_broken'); } catch (e) {}
     const rangeEndpointBroken = (() => {
-      try { return localStorage.getItem('dapur_range_endpoint_broken') === '1'; }
+      try { return sessionStorage.getItem('dapur_range_endpoint_broken_session') === '1'; }
       catch (e) { return false; }
     })();
 
@@ -3870,21 +3875,21 @@ try {
       try {
         const url = `/pos/transactions?start=${startDate}&end=${endDate}`;
         const res = await fetch(url);
-        if (res.ok) {
-          const ct = res.headers.get('content-type') || '';
-          if (ct.includes('application/json')) {
-            const json = await res.json();
-            if (Array.isArray(json.data)) {
-              const filtered = filterByDate(json.data);
-              console.log(`[REPORT] ✅ Range endpoint: raw ${json.data.length} → filter ${filtered.length} tx`);
-              return filtered;
-            }
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const json = await res.json();
+          if (Array.isArray(json.data)) {
+            const filtered = filterByDate(json.data);
+            console.log(`[REPORT] ✅ Range endpoint (1 request): raw ${json.data.length} → filter ${filtered.length} tx`);
+            return filtered;
           }
+        } else {
+          try { sessionStorage.setItem('dapur_range_endpoint_broken_session', '1'); } catch (err) {}
+          console.log('[REPORT] Range endpoint tidak mengembalikan JSON (origin belum punya endpoint) → strategi berikutnya. Flag hanya per-sesi.');
         }
       } catch (e) {
-        // ✅ BACKLOG-1: Tandai permanen supaya tidak spam Console tiap load
-        try { localStorage.setItem('dapur_range_endpoint_broken', '1'); } catch (err) {}
-        console.log('[REPORT] Range endpoint unavailable, cached flag set. Pakai loop harian.');
+        try { sessionStorage.setItem('dapur_range_endpoint_broken_session', '1'); } catch (err) {}
+        console.log('[REPORT] Range endpoint error:', e && e.message ? e.message : e);
       }
     }
 
@@ -3894,13 +3899,16 @@ try {
     if (startM === endM) {
       try {
         const res = await fetch(`/pos/transactions?month=${startM}`);
-        if (res.ok) {
+        const ctMonth = res.headers.get('content-type') || '';
+        if (res.ok && ctMonth.includes('application/json')) {
           const json = await res.json();
           if (Array.isArray(json.data)) {
             const filtered = filterByDate(json.data);
             console.log(`[REPORT] ✅ Month endpoint: raw ${json.data.length} → filter ${filtered.length} tx`);
             return filtered;
           }
+        } else {
+          console.log('[REPORT] Month endpoint bukan JSON, coba loop harian...');
         }
       } catch (e) {
         console.log('[REPORT] Month endpoint error, coba loop harian...');
