@@ -2,7 +2,10 @@ export async function onRequest(context) {
   const { env } = context;
   const apiKey = env.FIREBASE_API_KEY || env.VITE_FIREBASE_API_KEY || "";
   let projectId = env.FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID || "";
-  const databaseURL = env.FIREBASE_DATABASE_URL || env.VITE_FIREBASE_DATABASE_URL || "";
+  // Default ke fallback yang sama dengan kasir-app.js agar endpoint tidak
+  // pernah mengembalikan databaseURL kosong di production kalau env belum di-set.
+  const DEFAULT_DATABASE_URL = "https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app";
+  const databaseURL = env.FIREBASE_DATABASE_URL || env.VITE_FIREBASE_DATABASE_URL || DEFAULT_DATABASE_URL;
 
   // Auto-infer projectId from databaseURL if missing
   if (!projectId && databaseURL) {
