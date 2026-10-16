@@ -2752,9 +2752,14 @@ this.jurnalList.forEach(j => {
         .filter(j => j && (j.status === 'approved' || !j.status))
         .slice()
         .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
-      const X = { tgl: 15, ref: 36, desc: 58, acc: 112, deb: 168, kre: 195 };
+      const X = { tgl: 15, ref: 36, desc: 64, acc: 112, deb: 168, kre: 195 };
       const LINE_H = 4.5;
-      const DESC_W = 50; // lebar Keterangan (x58→108), kolom AKUN dimulai x112
+      // Kolom No Ref (x36→64 = 28mm) cukup untuk ref maksimal 18 karakter,
+      // misal "INV-20261007-5CR" (17 char) tanpa tumpang tindih ke Keterangan.
+      const REF_W = X.desc - X.ref - 2;
+      // Keterangan WAJIB wrap dengan splitTextToSize, lebar dibatasi hingga batas
+      // kolom Akun (x112) minus margin, tepat agar tidak timpa Akun sebelahnya.
+      const DESC_W = X.acc - X.desc - 2; // 46mm (x64→110), kolom AKUN dimulai x112
       const drawHeader = () => {
         doc.setFillColor(240, 240, 240);
         doc.rect(15, y - 4.5, 180, 6.5, 'F');
@@ -2776,7 +2781,6 @@ this.jurnalList.forEach(j => {
         y += 12;
       } else {
         const LINE_H = 4.5;
-        const DESC_W = 50; // lebar Keterangan (x58→108), kolom AKUN dimulai x112
         list.forEach(j => {
           const dName = accName(j.debitCode, j.debitName);
           const cName = accName(j.creditCode, j.creditName);
@@ -2786,7 +2790,10 @@ this.jurnalList.forEach(j => {
           if (y === 20) drawHeader();
           doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
           doc.text(String(j.date || '-').slice(0, 10), X.tgl, y);
-          doc.text(String(j.noEntry || j.ref || '-').slice(0, 18), X.ref, y);
+          // No Ref dipaksa wrap ke baris pertama dalam lebar kolom (REF_W) agar
+          // ref panjang (>10 char) tidak melebarkan ke kolom Keterangan.
+          const refLines = doc.splitTextToSize(String(j.noEntry || j.ref || '-').slice(0, 18), REF_W);
+          doc.text(refLines[0] || '-', X.ref, y);
           doc.text(descLines[0] || '-', X.desc, y);
           doc.text(String(dName).slice(0, 44), X.acc, y);
           doc.text(formatRupiah(j.debitAmount), X.deb, y, { align: 'right' });
