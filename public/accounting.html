@@ -1717,8 +1717,11 @@
               <label class="block text-xs font-bold text-stone-700 uppercase mb-1.5">Jenis Laporan</label>
               <select 
                 x-model="exportForm.reportType" 
+                @change="onReportTypeChange()"
                 class="w-full h-11 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold text-stone-800 focus:ring-2 focus:ring-brand-500">
                 <option value="all">Semua Laporan (Paket Lengkap)</option>
+                <!-- FITUR: riwayat order cash/transfer/qris/online-rekonsiliasi + void, dikelompokkan per metode -->
+                <option value="txDetail">Laporan Transaksi Detail</option>
                 <option value="pl">Laporan Laba Rugi (P&L)</option>
                 <option value="cashFlow">Laporan Arus Kas (Cash Flow)</option>
                 <option value="balanceSheet">Neraca Keuangan</option>
@@ -1806,6 +1809,201 @@
             </div>
           </div>
 
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- FITUR: PREVIEW LAPORAN TRANSAKSI DETAIL (muncul saat reportType = txDetail) -->
+        <!-- ================================================================= -->
+        <div x-show="exportForm.reportType === 'txDetail'" x-cloak class="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-xs space-y-4">
+
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 class="font-extrabold text-stone-900 text-base flex items-center gap-2">
+                <i class="fa-solid fa-receipt text-brand-600"></i>
+                <span>Laporan Transaksi Detail</span>
+              </h3>
+              <p class="text-xs text-stone-500 mt-1">
+                Riwayat order <strong>tunai, QRIS, transfer/e-wallet, online (rekonsiliasi)</strong> dan
+                <strong>void</strong> — 1 request per periode. Sumber: <code class="text-[10px]">/pos/transactions?month=...</code>
+              </p>
+            </div>
+            <button type="button" @click="loadTransaksiDetail(exportForm.period)"
+              class="h-10 px-4 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs flex items-center gap-2 transition cursor-pointer">
+              <i class="fa-solid fa-rotate text-[11px]" :class="txDetail.loading ? 'animate-spin' : ''"></i>
+              <span>Muat Ulang</span>
+            </button>
+          </div>
+
+          <!-- Loading -->
+          <div x-show="txDetail.loading" class="py-10 text-center text-stone-500 space-y-2">
+            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-brand-600"></i>
+            <p class="text-xs font-bold">Memuat transaksi periode <span x-text="exportForm.period"></span>...</p>
+          </div>
+
+          <!-- Error -->
+          <div x-show="!txDetail.loading && txDetail.error" class="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold" x-text="txDetail.error"></div>
+
+          <!-- Konten -->
+          <div x-show="!txDetail.loading && !txDetail.error" class="space-y-4">
+
+            <!-- Ringkasan angka -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div class="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                <p class="text-[10px] font-bold text-stone-400 uppercase">Transaksi</p>
+                <p class="font-black text-stone-900 text-sm" x-text="txDetail.totals.count + ' normal'"></p>
+              </div>
+              <div class="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                <p class="text-[10px] font-bold text-stone-400 uppercase">Subtotal</p>
+                <p class="font-black text-stone-900 text-sm" x-text="formatRupiah(txDetail.totals.subtotal)"></p>
+              </div>
+              <div class="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                <p class="text-[10px] font-bold text-stone-400 uppercase">Diskon</p>
+                <p class="font-black text-amber-700 text-sm" x-text="'-' + formatRupiah(txDetail.totals.diskon)"></p>
+              </div>
+              <div class="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                <p class="text-[10px] font-bold text-stone-400 uppercase">Pajak</p>
+                <p class="font-black text-stone-900 text-sm" x-text="formatRupiah(txDetail.totals.pajak)"></p>
+              </div>
+              <div class="p-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                <p class="text-[10px] font-bold text-emerald-700 uppercase">Total Penjualan</p>
+                <p class="font-black text-emerald-800 text-sm" x-text="formatRupiah(txDetail.totals.total)"></p>
+              </div>
+              <div class="p-3 rounded-2xl bg-rose-50 border border-rose-200">
+                <p class="text-[10px] font-bold text-rose-600 uppercase">Void (audit)</p>
+                <p class="font-black text-rose-700 text-sm" x-text="txDetail.totals.voidCount + ' • ' + formatRupiah(txDetail.totals.voidTotal)"></p>
+              </div>
+            </div>
+
+            <!-- Kosong -->
+            <div x-show="txDetail.rows.length === 0" class="py-8 text-center text-stone-400 text-xs border border-dashed border-stone-200 rounded-2xl">
+              <i class="fa-solid fa-inbox text-2xl mb-2 text-stone-300"></i>
+              <p class="font-bold">Tidak ada transaksi pada periode <span x-text="txDetail.periode"></span></p>
+            </div>
+
+            <!-- Tabel per metode -->
+            <template x-for="g in txDetail.groups" :key="'grp-' + g.metode">
+              <div class="border border-stone-200 rounded-2xl overflow-hidden">
+                <div class="px-4 py-2.5 bg-stone-100 flex items-center justify-between">
+                  <span class="font-black text-stone-800 text-xs uppercase tracking-wide">
+                    <i class="fa-solid fa-circle-dot text-[9px] mr-1.5 text-emerald-600"></i>
+                    <span x-text="g.metode"></span>
+                  </span>
+                  <span class="text-[11px] font-bold text-stone-600">
+                    <span x-text="g.count + ' transaksi'"></span> &bull; Subtotal
+                    <span class="text-emerald-700 font-black" x-text="formatRupiah(g.subtotal)"></span>
+                  </span>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-[11px] text-stone-600 min-w-[900px]">
+                    <thead class="bg-stone-50 text-stone-500 font-extrabold uppercase border-b border-stone-200 text-[10px]">
+                      <tr>
+                        <th class="py-2 px-3">Tanggal &amp; Jam</th>
+                        <th class="py-2 px-3">Order ID</th>
+                        <th class="py-2 px-3">Items</th>
+                        <th class="py-2 px-3 text-right">Subtotal</th>
+                        <th class="py-2 px-3 text-right">Diskon</th>
+                        <th class="py-2 px-3 text-right">Pajak</th>
+                        <th class="py-2 px-3 text-right">Total</th>
+                        <th class="py-2 px-3 text-center">Status</th>
+                        <th class="py-2 px-3">Kasir &amp; Shift</th>
+                        <th class="py-2 px-3">Sumber</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-stone-100 font-medium">
+                      <template x-for="r in g.rows" :key="'row-' + r.id">
+                        <tr class="hover:bg-stone-50/70">
+                          <td class="py-2 px-3 font-mono whitespace-nowrap" x-text="r.tanggal + ' ' + r.jam"></td>
+                          <td class="py-2 px-3 font-mono font-bold text-stone-800" x-text="r.orderId"></td>
+                          <td class="py-2 px-3" x-text="r.itemsText || '-'"></td>
+                          <td class="py-2 px-3 text-right font-mono" x-text="formatRupiah(r.subtotal)"></td>
+                          <td class="py-2 px-3 text-right font-mono text-amber-700" x-text="r.diskon > 0 ? '-' + formatRupiah(r.diskon) : '-'"></td>
+                          <td class="py-2 px-3 text-right font-mono" x-text="r.pajak > 0 ? formatRupiah(r.pajak) : '-'"></td>
+                          <td class="py-2 px-3 text-right font-mono font-black text-stone-900" x-text="formatRupiah(r.total)"></td>
+                          <td class="py-2 px-3 text-center">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Normal</span>
+                          </td>
+                          <td class="py-2 px-3 whitespace-nowrap">
+                            <span class="font-bold text-stone-700" x-text="r.kasir"></span>
+                            <span class="text-stone-400 font-mono text-[10px]" x-text="' / ' + r.shift"></span>
+                          </td>
+                          <td class="py-2 px-3 whitespace-nowrap">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                              :class="r.sumber === 'Online-rekonsiliasi' ? 'bg-indigo-100 text-indigo-800' : 'bg-stone-100 text-stone-700'"
+                              x-text="r.sumber"></span>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </template>
+
+            <!-- Section VOID (audit trail — Q3) -->
+            <div x-show="txDetail.voidRows.length > 0" class="border-2 border-rose-300 rounded-2xl overflow-hidden">
+              <div class="px-4 py-2.5 bg-rose-100 flex items-center justify-between">
+                <span class="font-black text-rose-800 text-xs uppercase tracking-wide">
+                  <i class="fa-solid fa-ban text-[10px] mr-1.5"></i>
+                  <span x-text="txDetail.voidRows.length + ' Transaksi VOID / Dibatalkan (audit, tidak dihitung sebagai penjualan)'"></span>
+                </span>
+                <span class="text-[11px] font-black text-rose-700" x-text="'(VOID) ' + formatRupiah(txDetail.totals.voidTotal)"></span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-[11px] text-stone-600 min-w-[900px]">
+                  <thead class="bg-rose-50 text-rose-700 font-extrabold uppercase border-b border-rose-200 text-[10px]">
+                    <tr>
+                      <th class="py-2 px-3">Tanggal &amp; Jam</th>
+                      <th class="py-2 px-3">Order ID</th>
+                      <th class="py-2 px-3">Metode</th>
+                      <th class="py-2 px-3">Items</th>
+                      <th class="py-2 px-3 text-right">Subtotal</th>
+                      <th class="py-2 px-3 text-right">Total</th>
+                      <th class="py-2 px-3 text-center">Status</th>
+                      <th class="py-2 px-3">Kasir &amp; Shift</th>
+                      <th class="py-2 px-3">Sumber</th>
+                      <th class="py-2 px-3">Alasan Void</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-rose-100 font-medium">
+                    <template x-for="r in txDetail.voidRows" :key="'void-' + r.id">
+                      <tr class="hover:bg-rose-50/60">
+                        <td class="py-2 px-3 font-mono whitespace-nowrap" x-text="r.tanggal + ' ' + r.jam"></td>
+                        <td class="py-2 px-3 font-mono font-bold text-stone-800" x-text="r.orderId"></td>
+                        <td class="py-2 px-3" x-text="r.metode"></td>
+                        <td class="py-2 px-3" x-text="r.itemsText || '-'"></td>
+                        <td class="py-2 px-3 text-right font-mono" x-text="formatRupiah(r.subtotal)"></td>
+                        <td class="py-2 px-3 text-right font-mono font-black text-rose-700 line-through" x-text="formatRupiah(r.total)"></td>
+                        <td class="py-2 px-3 text-center">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">VOID</span>
+                        </td>
+                        <td class="py-2 px-3 whitespace-nowrap">
+                          <span class="font-bold text-stone-700" x-text="r.kasir"></span>
+                          <span class="text-stone-400 font-mono text-[10px]" x-text="' / ' + r.shift"></span>
+                        </td>
+                        <td class="py-2 px-3 whitespace-nowrap">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800" x-text="r.sumber"></span>
+                        </td>
+                        <td class="py-2 px-3 text-stone-500" x-text="r.voidReason || '-'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Grand total -->
+            <div x-show="txDetail.rows.length > 0" class="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+              <div>
+                <p class="text-[10px] font-bold text-emerald-700 uppercase">Grand Total Penjualan (tanpa void)</p>
+                <p class="text-xl font-black text-emerald-800" x-text="formatRupiah(txDetail.totals.total)"></p>
+              </div>
+              <div class="text-right text-[11px] text-emerald-800 font-medium">
+                <p>Subtotal <span class="font-black" x-text="formatRupiah(txDetail.totals.subtotal)"></span> — Diskon <span class="font-black" x-text="'-' + formatRupiah(txDetail.totals.diskon)"></span> — Pajak <span class="font-black" x-text="formatRupiah(txDetail.totals.pajak)"></span></p>
+                <p class="mt-0.5">Periode <span class="font-black" x-text="txDetail.periode"></span> &bull; <span x-text="txDetail.totals.count"></span> transaksi normal + <span x-text="txDetail.totals.voidCount"></span> void</p>
+              </div>
+            </div>
+
+          </div>
         </div>
 
       </div>

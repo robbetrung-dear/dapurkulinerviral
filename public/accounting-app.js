@@ -323,6 +323,18 @@ window.accountingApp = function() {
       format: 'pdf'
     },
 
+    // FITUR: Laporan Transaksi Detail (POS + Online-rekonsiliasi + Void) — 1 request/periode
+    txDetail: {
+      periode: '',
+      rows: [],
+      groups: [],
+      voidRows: [],
+      totals: { count: 0, subtotal: 0, diskon: 0, pajak: 0, total: 0, voidCount: 0, voidTotal: 0 },
+      loading: false,
+      error: ''
+    },
+    _menuNameMap: null,
+
     // Riwayat Export
     exportHistory: [],
 
@@ -2111,6 +2123,377 @@ this.jurnalList.forEach(j => {
     },
 
     // ------------------------------------------------------------------------
+    // 7b. LAPORAN TRANSAKSI DETAIL (POS + Online-rekonsiliasi + Void)
+    // ------------------------------------------------------------------------
+    // Sumber data TUNGGAL: GET /pos/transactions?month=YYYY-MM (1 request per periode,
+    // endpoint range/month sudah didukung backend — lihat CLEANUP-1).
+    // Order online yang tampil di sini hanya yang sudah masuk /pos/transactions (reconciled).
+
+    /** Peta id menu → nama (1 request /menu, di-cache per sesi halaman). */
+    async loadMenuNameMap() {
+      if (this._menuNameMap && Object.keys(this._menuNameMap).length > 0) return this._menuNameMap;
+      const map = {};
+      try {
+        const res = await fetch('/menu');
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const json = await res.json();
+          const list = Array.isArray(json.data) ? json.data : [];
+          list.forEach(m => { if (m && m.id) map[m.id] = m.name || m.id; });
+        }
+      } catch (e) {
+        console.warn('[TX-DETAIL] nama menu gagal dimuat, pakai id menu:', e && e.message ? e.message : e);
+      }
+      this._menuNameMap = map;
+      return map;
+    },
+
+    /** Items ringkas: handle format POS [[id, qty, price]] maupun object. */
+    txDetailItemsText(items) {
+      const list = Array.isArray(items) ? items : [];
+      const map = this._menuNameMap || {};
+      return list.map(it => {
+        if (Array.isArray(it)) {
+          const id = it[0];
+          const qty = Number(it[1]) || 1;
+          return `${map[id] || id || 'Item'} x${qty}`;
+        }
+        const qty = Number(it.qty || it.quantity) || 1;
+        return `${it.name || map[it.id] || it.id || 'Item'} x${qty}`;
+      }).join(', ');
+    },
+
+    /** Order online = sumber landing page / punya online_order_id (Q2: reconciled only). */
+    isOnlineTx(t) {
+      if (!t) return false;
+      const oid = t.online_order_id;
+      return t.source === 'landing-page' || (oid !== undefined && oid !== null && oid !== '');
+    },
+
+    txDetailMethod(t) {
+      if (this.isOnlineTx(t)) return 'Online / Rekonsiliasi';
+      const pm = String((t && (t.pm || t.paymentMethod)) || '').toLowerCase();
+      if (pm.includes('qris')) return 'QRIS';
+      if (pm.includes('transfer') || pm.includes('bank') || pm.includes('ewallet') || pm.includes('gopay') || pm.includes('ovo') || pm.includes('dana') || pm.includes('shopee')) return 'Transfer / E-Wallet';
+      return 'Tunai';
+    },
+
+    txDetailSumber(t) {
+      if (t && t.voided === true) return 'Void';
+      if (this.isOnlineTx(t)) return 'Online-rekonsiliasi';
+      return 'POS langsung';
+    },
+
+    /**
+     * Muat + kelompokkan transaksi 1 periode bulan (YYYY-MM).
+     * Hasil: this.txDetail { rows, groups, voidRows, totals }
+     */
+    async loadTransaksiDetail(bulan) {
+      const periode = String(bulan || this.exportForm.period || this.bulanAktif || '').slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(periode)) {
+        this.txDetail.error = 'Periode tidak valid (format YYYY-MM)';
+        return this.txDetail;
+      }
+      this.txDetail.loading = true;
+      this.txDetail.error = '';
+      try {
+        await this.loadMenuNameMap();
+        const res = await fetch(`/pos/transactions?month=${periode}`);
+        const ct = res.headers.get('content-type') || '';
+        if (!res.ok || !ct.includes('application/json')) {
+          throw new Error('endpoint /pos/transactions tidak mengembalikan JSON (HTTP ' + res.status + ')');
+        }
+        const json = await res.json();
+        const raw = Array.isArray(json.data) ? json.data : [];
+
+        const rows = raw.map(t => {
+          const ts = Number(t.t) || Number(t.timestamp) || 0;
+          const sub = Number(t.sub !== undefined ? t.sub : (t.subtotal || 0)) || 0;
+          const disc = Number(t.disc !== undefined ? t.disc : (t.discount || 0)) || 0;
+          const tax = Number(t.tax || t.pajak || 0) || 0;
+          const tot = Number(t.tot !== undefined ? t.tot : (t.total || 0)) || 0;
+          const isVoid = t.voided === true;
+          return {
+            id: t.id || t.orderId || '-',
+            orderId: t.online_order_id || t.orderId || t.id || '-',
+            tanggal: t.date || (ts ? new Date(ts).toISOString().slice(0, 10) : ''),
+            jam: ts ? new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : (t.time || '-'),
+            metode: this.txDetailMethod(t),
+            sumber: this.txDetailSumber(t),
+            itemsText: this.txDetailItemsText(t.items),
+            subtotal: sub,
+            diskon: disc,
+            pajak: tax,
+            total: tot,
+            status: isVoid ? 'VOID' : 'Normal',
+            isVoid,
+            kasir: t.ksr || t.kasir || t.cashier || '-',
+            shift: t.shf || t.shiftId || '-',
+            voidReason: t.voidReason || t.void_reason || ''
+          };
+        }).sort((a, b) => String(a.tanggal + a.jam).localeCompare(String(b.tanggal + b.jam)));
+
+        const normal = rows.filter(r => !r.isVoid);
+        const voidRows = rows.filter(r => r.isVoid);
+        const urutan = ['Tunai', 'QRIS', 'Transfer / E-Wallet', 'Online / Rekonsiliasi'];
+        const groups = urutan.map(m => {
+          const list = normal.filter(r => r.metode === m);
+          return { metode: m, rows: list, count: list.length, subtotal: list.reduce((s, r) => s + r.total, 0) };
+        }).filter(g => g.count > 0);
+
+        this.txDetail.periode = periode;
+        this.txDetail.rows = rows;
+        this.txDetail.groups = groups;
+        this.txDetail.voidRows = voidRows;
+        this.txDetail.totals = {
+          count: normal.length,
+          subtotal: normal.reduce((s, r) => s + r.subtotal, 0),
+          diskon: normal.reduce((s, r) => s + r.diskon, 0),
+          pajak: normal.reduce((s, r) => s + r.pajak, 0),
+          total: normal.reduce((s, r) => s + r.total, 0),
+          voidCount: voidRows.length,
+          voidTotal: voidRows.reduce((s, r) => s + r.total, 0)
+        };
+        console.log(`[TX-DETAIL] ${periode}: ${normal.length} transaksi (${groups.length} metode) + ${voidRows.length} void`);
+        return this.txDetail;
+      } catch (e) {
+        this.txDetail.error = 'Gagal memuat transaksi: ' + (e && e.message ? e.message : e);
+        this.txDetail.rows = [];
+        this.txDetail.groups = [];
+        this.txDetail.voidRows = [];
+        return this.txDetail;
+      } finally {
+        this.txDetail.loading = false;
+      }
+    },
+
+    /** Dipanggil saat dropdown "Jenis Laporan" berubah. */
+    async onReportTypeChange() {
+      if (this.exportForm.reportType === 'txDetail') {
+        await this.loadTransaksiDetail(this.exportForm.period);
+      }
+    },
+
+    /** Alias aman: handleExportData lama memanggil generatePDFReport() yang tidak pernah ada. */
+    generatePDFReport(type, bulan) {
+      if (type === 'txDetail') return this.exportTxDetailPDF(bulan);
+      return this.exportPDF(type, bulan);
+    },
+
+    // ------------------------ EXPORT: PDF TRANSAKSI DETAIL -------------------
+    txDetailLine(doc, y, r, idx) {
+      const X = { tglJam: 10, order: 34, metode: 70, items: 102, sub: 190, disc: 206, tax: 222, tot: 240, status: 258 };
+      const isVoid = r.isVoid;
+      const itemsLines = doc.splitTextToSize(String(r.itemsText || '-'), 86);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      if (isVoid) doc.setTextColor(150, 30, 30);
+      doc.text(`${r.tanggal || '-'} ${r.jam || ''}`.trim(), X.tglJam, y);
+      doc.text(String(r.orderId || '-').slice(0, 30), X.order, y);
+      doc.text(String(r.metode || '-').slice(0, 22), X.metode, y);
+      doc.text(String(itemsLines[0] || '-').slice(0, 60), X.items, y);
+      doc.text(formatRupiah(r.subtotal), X.sub, y, { align: 'right' });
+      doc.text(r.diskon > 0 ? '-' + formatRupiah(r.diskon) : '-', X.disc, y, { align: 'right' });
+      doc.text(r.pajak > 0 ? formatRupiah(r.pajak) : '-', X.tax, y, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(isVoid ? '(VOID) ' + formatRupiah(r.total) : formatRupiah(r.total), X.tot, y, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(isVoid ? 'VOID' : 'Normal', X.status, y);
+      doc.setTextColor(0, 0, 0);
+
+      // baris kedua: kasir/shift/sumber + kelanjutan nama menu
+      doc.setFontSize(7);
+      doc.setTextColor(110, 110, 110);
+      doc.text(`Kasir: ${r.kasir}  Shift: ${r.shift}  Sumber: ${r.sumber}${isVoid && r.voidReason ? '  Alasan: ' + r.voidReason : ''}`, X.order, y + 3.6);
+      doc.setTextColor(0, 0, 0);
+      y += 7;
+
+      if (itemsLines.length > 1) {
+        doc.setFontSize(7);
+        doc.setTextColor(110, 110, 110);
+        itemsLines.slice(1, 3).forEach(extra => { doc.text(String(extra).slice(0, 60), X.items, y - 3.4); y += 3.4; });
+        doc.setTextColor(0, 0, 0);
+      }
+      return y;
+    },
+
+    txDetailPageBreak(doc, y, need = 14) {
+      if (y + need <= 195) return y;
+      doc.addPage('a4', 'landscape');
+      return 20;
+    },
+
+    async exportTxDetailPDF(bulan) {
+      try {
+        const { jsPDF } = window.jspdf || {};
+        if (!jsPDF) { this.showToast('Pustaka jsPDF belum dimuat', 'error'); return; }
+
+        const data = (this.txDetail && this.txDetail.rows && this.txDetail.rows.length > 0)
+          ? this.txDetail
+          : await this.loadTransaksiDetail(bulan);
+        const periodeStr = data.periode || bulan || this.bulanAktif;
+        if (!data.rows || data.rows.length === 0) {
+          this.showToast('Tidak ada transaksi pada periode ' + periodeStr, 'info');
+        }
+
+        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+        const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.text(brand, 148, 14, { align: 'center' });
+        doc.setFontSize(12);
+        doc.text('LAPORAN TRANSAKSI DETAIL', 148, 21, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.text(`Periode: ${periodeStr}  |  Dicetak: ${new Date().toLocaleString('id-ID')}  |  ${data.totals.count} transaksi normal, ${data.totals.voidCount} void`, 148, 26, { align: 'center' });
+
+        const X = { tglJam: 10, order: 34, metode: 70, items: 102, sub: 190, disc: 206, tax: 222, tot: 240, status: 258 };
+        let y = 32;
+
+        // Header kolom
+        const headerKolom = () => {
+          doc.setFillColor(240, 240, 240);
+          doc.rect(8, y - 4.5, 281, 6.5, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7.5);
+          doc.text('TANGGAL & JAM', X.tglJam, y);
+          doc.text('ORDER ID', X.order, y);
+          doc.text('METODE', X.metode, y);
+          doc.text('ITEMS', X.items, y);
+          doc.text('SUBTOTAL', X.sub, y, { align: 'right' });
+          doc.text('DISKON', X.disc, y, { align: 'right' });
+          doc.text('PAJAK', X.tax, y, { align: 'right' });
+          doc.text('TOTAL', X.tot, y, { align: 'right' });
+          doc.text('STATUS', X.status, y);
+          y += 5;
+          doc.setFont('helvetica', 'normal');
+        };
+
+        headerKolom();
+
+        // Section per metode (+ subtotal)
+        (data.groups || []).forEach(g => {
+          y = this.txDetailPageBreak(doc, y, 20);
+          if (y === 20) headerKolom();
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(5, 120, 90);
+          doc.text(`METODE: ${String(g.metode).toUpperCase()} — ${g.count} transaksi`, 10, y);
+          doc.setTextColor(0, 0, 0);
+          y += 5;
+          g.rows.forEach(r => {
+            y = this.txDetailPageBreak(doc, y, 12);
+            if (y === 20) headerKolom();
+            y = this.txDetailLine(doc, y, r, 0);
+          });
+          y = this.txDetailPageBreak(doc, y, 12);
+          if (y === 20) headerKolom();
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.text(`Subtotal ${g.metode}:`, X.metode - 40, y);
+          doc.text(formatRupiah(g.subtotal), X.tot, y, { align: 'right' });
+          y += 8;
+        });
+
+        // Section VOID (audit trail, Q3)
+        if ((data.voidRows || []).length > 0) {
+          y = this.txDetailPageBreak(doc, y, 24);
+          if (y === 20) headerKolom();
+          doc.setFillColor(254, 226, 226);
+          doc.rect(8, y - 4.5, 281, 6.5, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(160, 20, 20);
+          doc.text(`TRANSAKSI VOID / DIBATALKAN — ${data.voidRows.length} transaksi (audit, TIDAK dihitung sebagai penjualan)`, 10, y);
+          doc.setTextColor(0, 0, 0);
+          y += 6;
+          data.voidRows.forEach(r => {
+            y = this.txDetailPageBreak(doc, y, 12);
+            if (y === 20) headerKolom();
+            y = this.txDetailLine(doc, y, r, 0);
+          });
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.text('Total VOID (tidak masuk penjualan):', X.metode - 60, y);
+          doc.text('(VOID) ' + formatRupiah(data.totals.voidTotal), X.tot, y, { align: 'right' });
+          y += 9;
+        }
+
+        // Ringkasan total
+        y = this.txDetailPageBreak(doc, y, 30);
+        if (y === 20) headerKolom();
+        doc.setFillColor(236, 253, 245);
+        doc.rect(8, y - 4.5, 281, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(5, 120, 90);
+        doc.text(`GRAND TOTAL PENJUALAN (${data.totals.count} transaksi normal)`, 10, y);
+        doc.text(formatRupiah(data.totals.total), X.tot + 18, y, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        y += 7;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(`Rincian: Subtotal ${formatRupiah(data.totals.subtotal)} — Diskon -${formatRupiah(data.totals.diskon)} — Pajak ${formatRupiah(data.totals.pajak)}`, 10, y);
+        y += 14;
+
+        // Tanda tangan
+        if (y > 170) { doc.addPage('a4', 'landscape'); y = 30; }
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text('Disiapkan oleh:', 30, y);
+        doc.text('Disetujui oleh:', 200, y);
+        doc.text('( Bagian Keuangan )', 30, y + 18);
+        doc.text('( Owner / Direksi )', 200, y + 18);
+
+        const filename = `Laporan_Transaksi_Detail_${periodeStr}.pdf`;
+        doc.save(filename);
+        this.addExportHistory('Laporan Transaksi Detail', periodeStr, 'PDF');
+        this.showToast(`Laporan ${filename} berhasil diunduh!`, 'success');
+      } catch (err) {
+        console.error('[TX-DETAIL] export PDF error:', err);
+        this.showToast('Gagal membuat PDF transaksi detail', 'error');
+      }
+    },
+
+    // ------------------------ EXPORT: CSV TRANSAKSI DETAIL -------------------
+    async exportTxDetailCSV(bulan) {
+      try {
+        const data = (this.txDetail && this.txDetail.rows && this.txDetail.rows.length > 0)
+          ? this.txDetail
+          : await this.loadTransaksiDetail(bulan);
+        const periodeStr = data.periode || bulan || this.bulanAktif;
+        const esc = (v) => `"${String(v === undefined || v === null ? '' : v).replace(/"/g, '""')}"`;
+
+        let csv = 'Tanggal,Jam,Order ID,Metode,Items,Subtotal,Diskon,Pajak,Total,Status,Kasir,Shift,Sumber,Alasan Void\n';
+        (data.rows || []).forEach(r => {
+          csv += `${esc(r.tanggal)},${esc(r.jam)},${esc(r.orderId)},${esc(r.metode)},${esc(r.itemsText)},${r.subtotal},${r.diskon},${r.pajak},${r.total},${esc(r.status)},${esc(r.kasir)},${esc(r.shift)},${esc(r.sumber)},${esc(r.voidReason)}\n`;
+        });
+
+        csv += '\nSUBTOTAL PER METODE (tanpa void)\nMetode,Jumlah Order,Subtotal\n';
+        (data.groups || []).forEach(g => { csv += `${esc(g.metode)},${g.count},${g.subtotal}\n`; });
+        csv += `\nTOTAL PENJUALAN,,${data.totals.total}\n`;
+        csv += `TOTAL VOID (audit),${data.totals.voidCount},${data.totals.voidTotal}\n`;
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `Laporan_Transaksi_Detail_${periodeStr}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        this.addExportHistory('Laporan Transaksi Detail', periodeStr, 'CSV');
+        this.showToast('File CSV transaksi detail berhasil diunduh', 'success');
+      } catch (e) {
+        console.error('[TX-DETAIL] export CSV error:', e);
+        this.showToast('Gagal export CSV transaksi detail', 'error');
+      }
+    },
+
+    // ------------------------------------------------------------------------
     // 8. EXPORT DATA (PDF & CSV GENERATOR)
     // ------------------------------------------------------------------------
 
@@ -2272,18 +2655,23 @@ this.jurnalList.forEach(j => {
      * Handler Utama Ekspor Data dari Form UI
      */
     async handleExportData(form) {
-      const type = form?.report || this.exportForm?.report || 'pl';
+      // ✅ FIX: dropdown UI memakai exportForm.reportType (bukan .report) — sebelumnya
+      // pilihan jenis laporan selalu jatuh ke default 'pl'.
+      const type = form?.reportType || form?.report || this.exportForm?.reportType || this.exportForm?.report || 'all';
       const format = form?.format || this.exportForm?.format || 'pdf';
       const bulan = form?.period || this.exportForm?.period || this.bulanAktif;
 
       this.showToast(`Memproses ekspor laporan ${type.toUpperCase()} (${format.toUpperCase()})...`, 'info');
       try {
         if (format === 'pdf') {
-          await this.generatePDFReport(type, bulan);
+          if (type === 'txDetail') await this.exportTxDetailPDF(bulan);
+          else await this.exportPDF(type, bulan);
         } else if (format === 'excel') {
-          await this.exportExcel(type, bulan);
+          if (type === 'txDetail') await this.exportTxDetailCSV(bulan);
+          else await this.exportExcel(type, bulan);
         } else {
-          await this.exportCSV(type, bulan);
+          if (type === 'txDetail') await this.exportTxDetailCSV(bulan);
+          else await this.exportCSV(type, bulan);
         }
       } catch (err) {
         console.error('[ACCT-APP] handleExportData error:', err);
