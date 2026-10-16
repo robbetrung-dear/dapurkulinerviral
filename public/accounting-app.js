@@ -2861,6 +2861,147 @@ this.jurnalList.forEach(j => {
       return y;
     },
 
+    /** Paket lengkap: cover + semua laporan multi-halaman. */
+    async exportAllReportsPDF(doc, periodeStr, generatedDate) {
+      const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+      const sectionTitles = [
+        'LAPORAN LABA RUGI (PROFIT & LOSS)',
+        'LAPORAN ARUS KAS (CASH FLOW STATEMENT)',
+        'LAPORAN NERACA KEUANGAN (BALANCE SHEET)',
+        'JURNAL UMUM',
+        'BUKU BESAR (GENERAL LEDGER)',
+        'LAPORAN TRANSAKSI DETAIL'
+      ];
+
+      // 1. Cover page
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text(brand, 105, 60, { align: 'center' });
+      doc.setFontSize(15);
+      doc.text('LAPORAN KEUANGAN LENGKAP', 105, 72, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text(`Periode: ${periodeStr}`, 105, 82, { align: 'center' });
+      doc.text(`Dicetak: ${generatedDate}`, 105, 89, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('DAFTAR ISI LAPORAN', 105, 106, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10.5);
+      const list = [
+        'Laporan Laba Rugi (P&L)',
+        'Laporan Arus Kas (Cash Flow)',
+        'Neraca Keuangan (Balance Sheet)',
+        'Jurnal Umum',
+        'Buku Besar (General Ledger)',
+        'Laporan Transaksi Detail'
+      ];
+      let cy = 116;
+      list.forEach((s, i) => { doc.text(`${i + 1}. ${s}`, 65, cy); cy += 8; });
+
+      // 2. P&L
+      doc.addPage('a4', 'portrait');
+      let y = this.reportHeader(doc, sectionTitles[0], periodeStr, generatedDate);
+      y = this.plSection(doc, y);
+      this.reportSignature(doc, y);
+
+      // 3. Cash Flow
+      doc.addPage('a4', 'portrait');
+      y = this.reportHeader(doc, sectionTitles[1], periodeStr, generatedDate);
+      y = this.cashFlowSection(doc, y);
+      this.reportSignature(doc, y);
+
+      // 4. Balance Sheet
+      doc.addPage('a4', 'portrait');
+      y = this.reportHeader(doc, sectionTitles[2], periodeStr, generatedDate);
+      y = this.balanceSheetSection(doc, y);
+      this.reportSignature(doc, y);
+
+      // 5. Jurnal Umum
+      doc.addPage('a4', 'portrait');
+      y = this.reportHeader(doc, sectionTitles[3], periodeStr, generatedDate);
+      y = this.journalSection(doc, y);
+      this.reportSignature(doc, y);
+
+      // 6. Buku Besar
+      doc.addPage('a4', 'portrait');
+      y = this.reportHeader(doc, sectionTitles[4], periodeStr, generatedDate);
+      y = await this.ledgerSection(doc, y, periodeStr);
+      this.reportSignature(doc, y);
+
+      // 7. Laporan Transaksi Detail (landscape, ringkas)
+      const tx = await this.loadTransaksiDetail(periodeStr);
+      this.txDetailCompactSection(doc, tx, periodeStr);
+    },
+
+    /** Section ringkas Laporan Transaksi Detail (dipakai di paket lengkap). */
+    txDetailCompactSection(doc, data, periodeStr) {
+      doc.addPage('a4', 'landscape');
+      const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+      doc.text(brand, 148, 12, { align: 'center' });
+      doc.setFontSize(11);
+      doc.text('LAPORAN TRANSAKSI DETAIL', 148, 18, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      doc.text(`Periode: ${periodeStr}`, 148, 23, { align: 'center' });
+      doc.line(10, 26, 287, 26);
+
+      const totals = data.totals || { count: 0, total: 0, voidCount: 0, voidTotal: 0 };
+      let y = 31;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+      doc.text(`RINGKASAN — ${totals.count} transaksi normal, ${totals.voidCount} void`, 10, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+      (data.groups || []).forEach(g => {
+        doc.text(`${g.metode}: ${g.count} transaksi`, 12, y);
+        doc.text(formatRupiah(g.subtotal), 120, y, { align: 'right' });
+        y += 5;
+      });
+      y += 2;
+      doc.setFont('helvetica', 'bold');
+      doc.text('GRAND TOTAL PENJUALAN', 12, y);
+      doc.text(formatRupiah(totals.total), 120, y, { align: 'right' });
+      y += 5;
+      if (totals.voidCount > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(160, 20, 20);
+        doc.text(`Total VOID (tidak dihitung sebagai penjualan): ${formatRupiah(totals.voidTotal)}`, 12, y);
+        doc.setTextColor(0, 0, 0);
+        y += 5;
+      }
+      y += 7;
+
+      // Tabel ringkas transaksi
+      const X = { tgl: 10, order: 32, metode: 66, items: 98, tot: 250, status: 275 };
+      const drawHeader = () => {
+        doc.setFillColor(240, 240, 240);
+        doc.rect(8, y - 4.5, 281, 6.5, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+        doc.text('TANGGAL & JAM', X.tgl, y);
+        doc.text('ORDER ID', X.order, y);
+        doc.text('METODE', X.metode, y);
+        doc.text('ITEMS', X.items, y);
+        doc.text('TOTAL', X.tot, y, { align: 'right' });
+        doc.text('STATUS', X.status, y);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+      };
+      drawHeader();
+      (data.rows || []).forEach(r => {
+        if (y + 7 > 195) { doc.addPage('a4', 'landscape'); y = 20; drawHeader(); }
+        doc.setFontSize(7.5);
+        if (r.isVoid) doc.setTextColor(150, 30, 30);
+        doc.text(`${r.tanggal || '-'} ${r.jam || ''}`.trim(), X.tgl, y);
+        doc.text(String(r.orderId || '-').slice(0, 28), X.order, y);
+        doc.text(String(r.metode || '-').slice(0, 20), X.metode, y);
+        doc.text(String(r.itemsText || '-').slice(0, 80), X.items, y);
+        doc.text(r.isVoid ? '(VOID) ' + formatRupiah(r.total) : formatRupiah(r.total), X.tot, y, { align: 'right' });
+        doc.text(r.isVoid ? 'VOID' : 'Normal', X.status, y);
+        doc.setTextColor(0, 0, 0);
+        y += 4.5;
+      });
+    },
+
     /**
      * Ekspor Laporan Keuangan ke format PDF (jsPDF)
      */
@@ -2893,20 +3034,24 @@ this.jurnalList.forEach(j => {
         };
         const title = TITLE[type] || 'LAPORAN KEUANGAN';
 
-        let y = this.reportHeader(doc, title, periodeStr, generatedDate);
-        if (type === 'cashFlow') {
-          y = this.cashFlowSection(doc, y);
-        } else if (type === 'balanceSheet') {
-          y = this.balanceSheetSection(doc, y);
-        } else if (type === 'journal') {
-          y = this.journalSection(doc, y);
-        } else if (type === 'ledger') {
-          y = await this.ledgerSection(doc, y, periodeStr);
+        if (type === 'all') {
+          // PAKET LENGKAP: cover + 6 section multi-halaman
+          await this.exportAllReportsPDF(doc, periodeStr, generatedDate);
         } else {
-          // 'pl' dan 'all' (paket lengkap digabung di TASK 2)
-          y = this.plSection(doc, y);
+          let y = this.reportHeader(doc, title, periodeStr, generatedDate);
+          if (type === 'cashFlow') {
+            y = this.cashFlowSection(doc, y);
+          } else if (type === 'balanceSheet') {
+            y = this.balanceSheetSection(doc, y);
+          } else if (type === 'journal') {
+            y = this.journalSection(doc, y);
+          } else if (type === 'ledger') {
+            y = await this.ledgerSection(doc, y, periodeStr);
+          } else {
+            y = this.plSection(doc, y);
+          }
+          this.reportSignature(doc, y);
         }
-        this.reportSignature(doc, y);
 
         const filename = `Laporan_${type.toUpperCase()}_${periodeStr}.pdf`;
         doc.save(filename);
