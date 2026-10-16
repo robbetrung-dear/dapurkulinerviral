@@ -2753,6 +2753,8 @@ this.jurnalList.forEach(j => {
         .slice()
         .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
       const X = { tgl: 15, ref: 36, desc: 58, acc: 112, deb: 168, kre: 195 };
+      const LINE_H = 4.5;
+      const DESC_W = 50; // lebar Keterangan (x58→108), kolom AKUN dimulai x112
       const drawHeader = () => {
         doc.setFillColor(240, 240, 240);
         doc.rect(15, y - 4.5, 180, 6.5, 'F');
@@ -2773,21 +2775,30 @@ this.jurnalList.forEach(j => {
         doc.setTextColor(0, 0, 0);
         y += 12;
       } else {
+        const LINE_H = 4.5;
+        const DESC_W = 50; // lebar Keterangan (x58→108), kolom AKUN dimulai x112
         list.forEach(j => {
-          y = this.reportPageBreak(doc, y, 12);
-          if (y === 20) drawHeader();
           const dName = accName(j.debitCode, j.debitName);
           const cName = accName(j.creditCode, j.creditName);
+          const descLines = doc.splitTextToSize(String(j.desc || '-'), DESC_W);
+          const need = LINE_H * (Math.max(descLines.length, 1) + 1); // baris keterangan + baris kredit
+          y = this.reportPageBreak(doc, y, need);
+          if (y === 20) drawHeader();
           doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
           doc.text(String(j.date || '-').slice(0, 10), X.tgl, y);
           doc.text(String(j.noEntry || j.ref || '-').slice(0, 18), X.ref, y);
-          doc.text(String(j.desc || '-').slice(0, 52), X.desc, y);
-          doc.text(String(dName).slice(0, 52), X.acc, y);
+          doc.text(descLines[0] || '-', X.desc, y);
+          doc.text(String(dName).slice(0, 44), X.acc, y);
           doc.text(formatRupiah(j.debitAmount), X.deb, y, { align: 'right' });
-          y += 4.5;
-          doc.text(String(cName).slice(0, 52), X.acc, y);
-          doc.text(formatRupiah(j.creditAmount), X.kre, y, { align: 'right' });
-          y += 5.5;
+          let cy = y;
+          for (let i = 1; i < descLines.length; i++) {
+            cy += LINE_H;
+            doc.text(descLines[i], X.desc, cy);
+          }
+          cy += LINE_H; // baris kredit (akun + nominal kredit)
+          doc.text(String(cName).slice(0, 44), X.acc, cy);
+          doc.text(formatRupiah(j.creditAmount), X.kre, cy, { align: 'right' });
+          y = cy + LINE_H;
         });
         const totalDebit = list.reduce((s, j) => s + (Number(j.debitAmount) || 0), 0);
         const totalCredit = list.reduce((s, j) => s + (Number(j.creditAmount) || 0), 0);
