@@ -381,7 +381,7 @@ window.accountingApp = function() {
         if (!fbUrl && typeof window !== 'undefined' && window.location) {
           const host = window.location.hostname || '';
           if (host.includes('digitalculinary')) {
-            fbUrl = 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+            fbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
           } else if (host.includes('dapurkulinerviral')) {
             fbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
           }
@@ -593,7 +593,7 @@ window.accountingApp = function() {
         if (!dbUrl && typeof window !== 'undefined' && window.location) {
           const host = window.location.hostname || '';
           if (host.includes('digitalculinary')) {
-            dbUrl = 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+            dbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
           } else if (host.includes('dapurkulinerviral')) {
             dbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
           }
@@ -796,7 +796,7 @@ window.accountingApp = function() {
 
         // Fallback: fetch langsung Firebase REST
         if (!data) {
-          const fbUrl = (this._fbConfig?.databaseURL || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app').replace(/\/$/, '');
+          const fbUrl = (this._fbConfig?.databaseURL || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app').replace(/\/$/, '');
           const rawRes = await fetch(`${fbUrl}/accounting/ledger.json`);
           if (rawRes.ok) {
             const all = await rawRes.json();
