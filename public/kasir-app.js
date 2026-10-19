@@ -1322,13 +1322,13 @@ try {
 
       if (!cfg || !cfg.apiKey) {
         cfg = {
-          apiKey: "AIzaSyB08og0350ZhwX9LYqxwyFuEppbdKEXAEg",
-          authDomain: "digitalculinary-app.firebaseapp.com",
-          databaseURL: "https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app",
-          projectId: "digitalculinary-app",
-          storageBucket: "digitalculinary-app.firebasestorage.app",
-          messagingSenderId: "650221083781",
-          appId: "1:650221083781:web:e44211db213b81ae19ddec"
+          apiKey: "AIzaSyDeoYQ0qdi7RwE3opAhYkbuBnYqqKDQA6s",
+          authDomain: "dapurkulinerviral.firebaseapp.com",
+          databaseURL: "https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app",
+          projectId: "dapurkulinerviral",
+          storageBucket: "dapurkulinerviral.firebasestorage.app",
+          messagingSenderId: "321264279924",
+          appId: "1:321264279924:web:90291c9fecb93de1aacc21"
         };
         console.log('[FB-INIT] Menggunakan fallback config hardcoded');
       }
@@ -1758,7 +1758,7 @@ try {
   async _fetchShift(shiftId) {
     try {
       const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
-        || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
       const res = await fetch(`${fbUrl.replace(/\/$/, '')}/pos/shifts/${encodeURIComponent(shiftId)}.json`);
       if (!res.ok) return null;
       return await res.json();
@@ -1769,7 +1769,7 @@ try {
   async _fetchAllShifts() {
     try {
       const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
-        || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
       const res = await fetch(`${fbUrl.replace(/\/$/, '')}/pos/shifts.json`);
       if (!res.ok) return {};
       return await res.json() || {};
@@ -1780,7 +1780,7 @@ try {
   async _patchShift(shiftId, payload) {
     try {
       const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
-        || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
       await fetch(`${fbUrl.replace(/\/$/, '')}/pos/shifts/${encodeURIComponent(shiftId)}.json`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -4160,7 +4160,7 @@ try {
     try {
       // Ambil data langsung dari Firebase
       const dbUrl = (this._fbConfig && this._fbConfig.databaseURL) 
-        || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
       const res = await fetch(`${dbUrl.replace(/\/$/, '')}/orders.json`);
       if (res.ok) {
         const data = await res.json();
@@ -6094,7 +6094,7 @@ try {
     if (!recipesData) {
       try {
         const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
-          || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+          || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
         const res = await fetch(`${fbUrl.replace(/\/$/, '')}/recipes.json`);
         if (res.ok) {
           recipesData = await res.json();
@@ -8489,7 +8489,7 @@ try {
       //    Jadi fetch .json TANPA bulan, dapat semua akun
       // ============================================================
       const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
-        || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+        || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
       const saldoMap = {};
 
       try {
@@ -10012,7 +10012,7 @@ try {
       const paidSupplierIds = new Set();
       try {
         const fbUrl = (this._fbConfig && this._fbConfig.databaseURL)
-          || 'https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app';
+          || 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
         const stlRes = await fetch(`${fbUrl.replace(/\/$/, '')}/settlements.json`);
         if (stlRes.ok) {
           const stls = await stlRes.json() || {};
