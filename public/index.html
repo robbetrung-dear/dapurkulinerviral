@@ -5072,10 +5072,12 @@ git push -u origin main</pre>
             <div class="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
           </label>
         </div>
-        <!-- FITUR BARU: Urutan Favorit -->
-<div class="mt-3 p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
-  <label class="block text-xs font-bold text-stone-700 mb-1">Urutan Favorit (1-20)</label>
-  <input type="number" x-model.number="menuForm.favoriteOrder" min="0" max="20" placeholder="Kosongkan jika bukan favorit" class="w-full h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        <!-- URUTAN FAVORIT (1-20) -->
+        <div>
+        <label class="block text-xs font-bold text-stone-700 uppercase mb-1">Urutan Favorit (1-20)</label>
+        <input type="number" x-model.number="menuForm.favoriteOrder" min="0" max="20" placeholder="0 = biasa" class="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white" />
+        <p class="text-[10px] text-stone-500 mt-0.5">Angka 1 = tampil paling atas di beranda. Kosong/0 = tidak prioritas, ditampilkan di bawah menu favorit.</p>
+        </div>
 
         <div class="pt-2 flex items-center justify-end gap-2">
           <button type="button" @click="isMenuFormOpen = false" class="px-4 py-2 text-xs font-bold text-stone-600 hover:bg-stone-100 rounded-xl">Batal</button>
@@ -6229,7 +6231,6 @@ git push -u origin main</pre>
         editingMenuItemId: null,
         menuForm: {
           id: '',
-          favoriteOrder: 0,
           name: '',
           category: 'rice_bowl',
           customCategory: '',
@@ -6241,7 +6242,8 @@ git push -u origin main</pre>
           image: '',
           description: '',
           isSpicy: false,
-          showOnMain: true
+          showOnMain: true,
+          favoriteOrder: 0
         },
 
         // Form Tambah / Edit Kategori Menu & Simbol Icon (Admin)
@@ -9061,7 +9063,7 @@ git push -u origin main</pre>
             description: '',
             isSpicy: false,
             showOnMain: true,
-            favoriteOrder: 0,
+            favoriteOrder: 0
           };
           this.isMenuFormOpen = true;
         },
@@ -9096,7 +9098,7 @@ git push -u origin main</pre>
             description: item.description || '',
             isSpicy: Boolean(item.isSpicy),
             showOnMain: item.showOnMain !== false,
-            favoriteOrder: item.favoriteOrder || 0,
+            favoriteOrder: item.favoriteOrder || 0
           };
           this.isMenuFormOpen = true;
         },
