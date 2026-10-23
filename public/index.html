@@ -9178,11 +9178,16 @@ git push -u origin main</pre>
           delete formPayload.customCategory;
 
           let targetItem = null;
+          
+          // Pastikan favoriteOrder disimpan sebagai Number (bukan string)
+          formPayload.favoriteOrder = Number(formPayload.favoriteOrder) || 0;
+
           if (this.editingMenuItemId) {
             const idx = this.menuItems.findIndex(m => m.id === this.editingMenuItemId);
             if (idx !== -1) {
-              this.menuItems[idx] = { ...this.menuItems[idx], ...formPayload };
-              targetItem = this.menuItems[idx];
+              targetItem = { ...this.menuItems[idx], ...formPayload };
+              // ✅ Pakai .map() → ganti referensi array → Alpine reactivity PASTI trigger
+              this.menuItems = this.menuItems.map((m, i) => i === idx ? targetItem : m);
             }
           } else {
             const newItem = {
@@ -9190,7 +9195,7 @@ git push -u origin main</pre>
               id: 'm-' + Date.now(),
               createdAt: Date.now()
             };
-            this.menuItems.unshift(newItem);
+            this.menuItems = [newItem, ...this.menuItems];
             targetItem = newItem;
           }
 
