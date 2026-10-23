@@ -5075,9 +5075,7 @@ git push -u origin main</pre>
         <!-- FITUR BARU: Urutan Favorit -->
 <div class="mt-3 p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
   <label class="block text-xs font-bold text-stone-700 mb-1">Urutan Favorit (1-20)</label>
-  <input type="number" x-model.number="MenuForm.favoriteOrder" min="0" max="20" placeholder="Kosongkan jika bukan favorit" class="w-full h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-  <p class="text-[10px] text-stone-500 mt-1">Menu dengan angka 1 akan tampil paling atas di beranda.</p>
-</div>
+  <input type="number" x-model.number="menuForm.favoriteOrder" min="0" max="20" placeholder="Kosongkan jika bukan favorit" class="w-full h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
 
         <div class="pt-2 flex items-center justify-end gap-2">
           <button type="button" @click="isMenuFormOpen = false" class="px-4 py-2 text-xs font-bold text-stone-600 hover:bg-stone-100 rounded-xl">Batal</button>
