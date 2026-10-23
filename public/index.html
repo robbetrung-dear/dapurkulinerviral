@@ -5685,35 +5685,46 @@ git push -u origin main</pre>
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
     // ✅ OPTIMASI: firebase-auth.js tidak di-import — tidak dipakai (auth anonim skip)
-    import { firebaseConfig, IS_DEMO_MODE } from "/firebase-config.js?v=3";
-
-    // Inisialisasi Firebase & Dynamic Custom Configuration
+        // ✅ FIX PRODUCTION: Hapus import dari file lokal yang hilang, ganti fetch ke API
     let app, db, auth;
-    let activeFirebaseConfig = { ...firebaseConfig };
+    let activeFirebaseConfig = null;
 
-    // Selalu prioritaskan setelan manual di browser local storage jika ada
+    // 1. Ambil config dari API Cloudflare (Production)
     try {
-      const storedCustom = localStorage.getItem("dapur_firebase_custom_config");
-      if (storedCustom) {
-        const parsed = JSON.parse(storedCustom);
-        if (parsed && parsed.apiKey && !parsed.apiKey.includes("YOUR_FIREBASE")) {
-          activeFirebaseConfig = parsed;
+      const res = await fetch('/api/firebase-config');
+      if (res.ok) {
+        const apiConfig = await res.json();
+        if (apiConfig && apiConfig.apiKey) {
+          activeFirebaseConfig = apiConfig;
         }
       }
     } catch (e) {
-      console.warn("Error reading stored custom firebase config:", e);
+      console.warn("[FIREBASE] Gagal load dari API...", e);
     }
 
-        function initFirebaseModule(cfg) {
+    // 2. Fallback: Cek setelan manual di browser local storage
+    if (!activeFirebaseConfig) {
+      try {
+        const storedCustom = localStorage.getItem("dapur_firebase_custom_config");
+        if (storedCustom) {
+          const parsed = JSON.parse(storedCustom);
+          if (parsed && parsed.apiKey && !parsed.apiKey.includes("YOUR_FIREBASE")) {
+            activeFirebaseConfig = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Error reading stored custom firebase config:", e);
+      }
+    }
+
+    // 3. Fungsi Inisialisasi (Sama seperti aslinya)
+    function initFirebaseModule(cfg) {
       try {
         if (cfg && cfg.apiKey && !cfg.apiKey.includes("YOUR_FIREBASE")) {
           if (!app) {
             app = initializeApp(cfg);
           }
           db = getDatabase(app);
-          // ✅ OPTIMASI: Skip signInAnonymously karena Firebase Rules `.read: true` (public read)
-          // Auth anonim hanya perlu kalau Rules butuh `auth != null`. Skip ini hemat 500-1500ms.
-          // auth = getAuth(app); (tidak dipakai lagi untuk sekarang)
           console.log("[FIREBASE] RTDB connected (auth skipped):", cfg.projectId);
           return true;
         }
@@ -5725,8 +5736,8 @@ git push -u origin main</pre>
       return false;
     }
 
+    // 4. Jalankan Inisialisasi
     initFirebaseModule(activeFirebaseConfig);
-
     // Expose helpers ke window untuk Alpine.js
     window.FirebaseBridge = {
       isDemo: () => !db,
