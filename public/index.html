@@ -5072,6 +5072,12 @@ git push -u origin main</pre>
             <div class="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
           </label>
         </div>
+        <!-- FITUR BARU: Urutan Favorit -->
+<div class="mt-3 p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
+  <label class="block text-xs font-bold text-stone-700 mb-1">Urutan Favorit (1-20)</label>
+  <input type="number" x-model.number="newMenuForm.favoriteOrder" min="0" max="20" placeholder="Kosongkan jika bukan favorit" class="w-full h-10 px-3 rounded-xl border border-stone-300 bg-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+  <p class="text-[10px] text-stone-500 mt-1">Menu dengan angka 1 akan tampil paling atas di beranda.</p>
+</div>
 
         <div class="pt-2 flex items-center justify-end gap-2">
           <button type="button" @click="isMenuFormOpen = false" class="px-4 py-2 text-xs font-bold text-stone-600 hover:bg-stone-100 rounded-xl">Batal</button>
@@ -6225,6 +6231,7 @@ git push -u origin main</pre>
         editingMenuItemId: null,
         menuForm: {
           id: '',
+          favoriteOrder: 0
           name: '',
           category: 'rice_bowl',
           customCategory: '',
@@ -7169,15 +7176,29 @@ git push -u origin main</pre>
           this.menuViewMode = modes[this._menuViewStep];
         },
 
-        get filteredMenuItems() {
-          const visible = this.menuItems.filter(item => item.showOnMain !== false);
-          if (this.selectedCategory === 'all' || this.selectedCategory === 'semua') return visible;
-          const selNorm = this.normalizeCatId(this.selectedCategory);
-          return visible.filter(item => {
-            if (item.category === this.selectedCategory) return true;
-            return this.normalizeCatId(item.category) === selNorm || this.normalizeCatId(item.categoryLabel) === selNorm;
-          });
-        },
+      get filteredMenuItems() {
+      // 1. Ambil yang tampil & LANGSUNG SORTIR berdasarkan Favorit
+      const visible = this.menuItems
+        .filter(item => item.showOnMain !== false)
+        .sort((a, b) => {
+          const favA = Number(a.favoriteOrder) || 0;
+          const favB = Number(b.favoriteOrder) || 0;
+          if (favA > 0 && favB > 0) return favA - favB;
+          if (favA > 0) return -1;
+          if (favB > 0) return 1;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+
+      // 2. Jika kategori "Semua", kembalikan yang sudah tersortir
+      if (this.selectedCategory === 'all' || this.selectedCategory === 'semua') return visible;
+
+      // 3. Jika kategori spesifik, filter dari data yang sudah tersortir
+      const selNorm = this.normalizeCatId(this.selectedCategory);
+      return visible.filter(item => {
+        if (item.category === this.selectedCategory) return true;
+        return this.normalizeCatId(item.category) === selNorm || this.normalizeCatId(item.categoryLabel) === selNorm;
+      });
+      },
 
         get paginatedMenuItems() {
           const list = this.filteredMenuItems;
@@ -9042,6 +9063,7 @@ git push -u origin main</pre>
             description: '',
             isSpicy: false,
             showOnMain: true
+            favoriteOrder: 0
           };
           this.isMenuFormOpen = true;
         },
@@ -9076,6 +9098,7 @@ git push -u origin main</pre>
             description: item.description || '',
             isSpicy: Boolean(item.isSpicy),
             showOnMain: item.showOnMain !== false
+            favoriteOrder: item.favoriteOrder || 0,
           };
           this.isMenuFormOpen = true;
         },
