@@ -100,6 +100,9 @@
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
+  <!-- Favicon dinamis dari siteConfig.logoImage (diatur via Admin CMS) -->
+  <link rel="icon" id="dynamic-favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🍜%3C/text%3E%3C/svg%3E">
+
   <!-- Alpine.js via CDN (defer) -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
 
@@ -5744,6 +5747,18 @@ git push -u origin main</pre>
 
     // 4. Jalankan Inisialisasi
     initFirebaseModule(activeFirebaseConfig);
+    // ✅ Fungsi untuk memperbarui favicon dari siteConfig.logoImage
+    window.updateDynamicFavicon = (config) => {
+      const favicon = document.getElementById('dynamic-favicon');
+      if (!favicon) return;
+      const logoImage = config && config.logoImage ? String(config.logoImage).trim() : '';
+      if (logoImage && logoImage.length > 10) {
+        favicon.href = logoImage;
+      } else {
+        favicon.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🍜%3C/text%3E%3C/svg%3E";
+      }
+    };
+
     // Expose helpers ke window untuk Alpine.js
     window.FirebaseBridge = {
       isDemo: () => !db,
@@ -5870,7 +5885,12 @@ git push -u origin main</pre>
           const configRef = ref(db, 'site_config');
           return onValue(configRef, (snapshot) => {
             const val = snapshot.val();
-            if (val) callback(val);
+            if (val) {
+              callback(val);
+              if (typeof window.updateDynamicFavicon === 'function') {
+                window.updateDynamicFavicon(val);
+              }
+            }
           });
         }
         return () => {};
