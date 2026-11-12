@@ -9352,22 +9352,19 @@ git push -u origin main</pre>
           }
 
           const count = this.menuItems.filter(m => m.category === catId).length;
-          let confirmMsg = 'Yakin ingin menghapus kategori ini?';
+          const catName = this.menuCategories.find(c => c.id === catId)?.name || catId;
+
           if (count > 0) {
-            confirmMsg = `Terdapat ${count} menu dalam kategori ini. Jika dihapus, menu tersebut akan dipindahkan ke kategori "Semua Menu". Lanjutkan hapus kategori?`;
+            const menuNames = this.menuItems
+              .filter(m => m.category === catId)
+              .map(m => m.name || m.categoryLabel || 'Tanpa Nama')
+              .join(', ');
+            alert(`Kategori "${catName}" tidak dapat dihapus karena masih memiliki ${count} menu:\n\n${menuNames}\n\nPindahkan atau hapus menu di kategori ini terlebih dahulu sebelum menghapus kategori.`);
+            return;
           }
 
-          if (confirm(confirmMsg)) {
+          if (confirm(`Yakin ingin menghapus kategori "${catName}"?`)) {
             this.menuCategories = this.menuCategories.filter(c => c.id !== catId);
-            if (count > 0) {
-              this.menuItems.forEach(m => {
-                if (m.category === catId) {
-                  m.category = 'all';
-                  m.categoryLabel = 'Semua Menu';
-                }
-              });
-              await window.FirebaseBridge.saveMenu(this.menuItems);
-            }
             if (this.selectedCategory === catId) {
               this.selectedCategory = 'all';
             }
