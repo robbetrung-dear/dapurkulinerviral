@@ -1,6 +1,6 @@
 /**
  customKasirTitle: 'Kasir Pintar',
- customKasirSubtitle: 'Dapur Kuliner Viral',
+ customKasirSubtitle: '',
  * /public/kasir-app.js — BAGIAN 1 dari 3 (Transaksi & Pembayaran)
  * Sistem Kasir Pintar POS - [Nama Toko] & Catering Rumahan
  * 
@@ -25,7 +25,7 @@ window.kasirApp = () => ({
     appReady: false,
     scannerEnabled: true,
     splashKasirTitle: 'KASIR',
-    splashKasirSubtitle: 'Digital Culinary',
+    splashKasirSubtitle: '',
 
   // =========================================================================
   // 1. STATE DASAR & NAVIGASI
@@ -51,7 +51,7 @@ window.kasirApp = () => ({
  
   // ✅ Custom Title (dari Admin Panel → Security)
   customKasirTitle: 'Kasir Pintar',
-  customKasirSubtitle: 'Dapur Kuliner Viral',
+  customKasirSubtitle: '',
 
   // Katalog Menu & Keranjang
   cart: [],
@@ -663,7 +663,7 @@ try {
         if (val.kasirTitle) this.customKasirTitle = val.kasirTitle;
         if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
         this.splashKasirTitle = 'KASIR';
-        this.splashKasirSubtitle = this.customKasirSubtitle || 'Digital Culinary';
+        this.splashKasirSubtitle = this.customKasirSubtitle || '';
         console.log('[KASIR] Custom title loaded:', val.kasirTitle);
 
                // 🏢 Sync info bisnis (brand, alamat, telepon)
@@ -2861,7 +2861,7 @@ try {
     if (custPhone) {
       const custName = (orderData && (orderData.customerName || orderData.name)) || this.customerName || 'Pelanggan';
       const itemsSummary = (this.currentOrder.items || []).map(it => `- ${it.name || it.id} x${it.qty}`).join('\n');
-      const waMsg = `Halo Kak ${custName}, terima kasih sudah bertransaksi di ${this.customKasirTitle || 'Dapur Kuliner Viral'}! ✨\n\nNo. Order: #${txId}\nTotal: ${this.formatRupiah(grandTotal)}\nMetode: ${pm.toUpperCase()}\nTanggal: ${dateStr}\n\nPesanan:\n${itemsSummary}\n\nStruk transaksi Anda telah berhasil diproses. Semoga puas dengan hidangan kami! 🙏`;
+      const waMsg = `Halo Kak ${custName}, terima kasih sudah bertransaksi di ${this.customKasirTitle}! ✨\n\nNo. Order: #${txId}\nTotal: ${this.formatRupiah(grandTotal)}\nMetode: ${pm.toUpperCase()}\nTanggal: ${dateStr}\n\nPesanan:\n${itemsSummary}\n\nStruk transaksi Anda telah berhasil diproses. Semoga puas dengan hidangan kami! 🙏`;
       this.sendWhatsAppNotification(custPhone, waMsg, 'pos_receipt');
     }
 
@@ -4430,7 +4430,7 @@ const text = `*${brand} - STRUK TRANSAKSI*\n\n` +
       const phone = orderData.customerPhone || orderData.phone || orderData.customer_phone || '';
       if (phone) {
         const custName = orderData.customerName || orderData.customer_name || 'Pelanggan';
-        const confMsg = `Halo Kak ${custName}, pesanan Anda #${orderId} telah kami KONFIRMASI dan sedang disiapkan di dapur! 🍳 Terima kasih telah memesan di ${this.customKasirTitle || 'Dapur Kuliner Viral'}.`;
+        const confMsg = `Halo Kak ${custName}, pesanan Anda #${orderId} telah kami KONFIRMASI dan sedang disiapkan di dapur! 🍳 Terima kasih telah memesan di ${this.customKasirTitle}.`;
         this.sendWhatsAppNotification(phone, confMsg, 'order_confirmed');
       }
     } catch (e) {
@@ -9789,7 +9789,7 @@ const text = `*${brand} - STRUK TRANSAKSI*\n\n` +
       ctx.fillStyle = '#111827';
       ctx.font = 'bold 16px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(this.customKasirTitle || 'Dapur Kuliner Viral', 200, 35);
+      ctx.fillText(this.customKasirTitle, 200, 35);
 
       ctx.font = 'bold 13px sans-serif';
       ctx.fillStyle = '#047857';
@@ -9882,7 +9882,7 @@ const text = `*${brand} - STRUK TRANSAKSI*\n\n` +
       const doc = new window.jspdf.jsPDF('p', 'mm', [80, 140]);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(this.customKasirTitle || 'Dapur Kuliner Viral', 40, 8, { align: 'center' });
+      doc.text(this.customKasirTitle, 40, 8, { align: 'center' });
 
       doc.setFontSize(9);
       doc.text('BUKTI TANDA TERIMA KONSINYASI', 40, 13, { align: 'center' });
@@ -9950,7 +9950,7 @@ const text = `*${brand} - STRUK TRANSAKSI*\n\n` +
     const itemsText = (rec.items || []).map(i =>
       `- ${i.name} (${i.sku}): ${i.qty} ${i.unit} x Rp ${this.formatNumber(i.price)} = Rp ${this.formatNumber(i.total)}`
     ).join('\n');
-    const msg = `*BUKTI TANDA TERIMA BARANG KONSINYASI*\n${this.customKasirTitle || 'Dapur Kuliner Viral'}\n\nNo. Terima: ${rec.receiveId}\nTanggal: ${rec.date} ${rec.time || ''}\nSupplier: ${rec.supplierName}\n\n*Daftar Barang:*\n${itemsText}\n\n*Total Nilai: Rp ${this.formatNumber(rec.totalValue)}*\n\nBarang titipan konsinyasi telah diterima dengan baik. Terima kasih! 🙏`;
+    const msg = `*BUKTI TANDA TERIMA BARANG KONSINYASI*\n${this.customKasirTitle}\n\nNo. Terima: ${rec.receiveId}\nTanggal: ${rec.date} ${rec.time || ''}\nSupplier: ${rec.supplierName}\n\n*Daftar Barang:*\n${itemsText}\n\n*Total Nilai: Rp ${this.formatNumber(rec.totalValue)}*\n\nBarang titipan konsinyasi telah diterima dengan baik. Terima kasih! 🙏`;
 
     // ✅ FIX: window.open SINKRON (dalam user gesture) — popup blocker tidak block
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
@@ -10238,7 +10238,7 @@ const text = `*${brand} - STRUK TRANSAKSI*\n\n` +
 
       // WhatsApp Notifikasi ke Supplier
       if (supSummary.contact) {
-        const msg = `*BUKTI SETTLEMENT KONSINYASI HARIAN*\n${this.customKasirTitle || 'Dapur Kuliner Viral'}\n\nID Settlement: ${stlId}\nTanggal: ${this.settlementDate}\nSupplier: ${supSummary.supplierName}\n\nTotal Barang Laku : ${supSummary.soldQty} pcs\nTotal Pembayaran  : Rp ${this.formatNumber(amount)}\nMetode Pembayaran : ${pm.toUpperCase()}\nStatus: LUNAS DIBAYARKAN ✅\n\nTerima kasih atas kerja samanya! 🙏`;
+        const msg = `*BUKTI SETTLEMENT KONSINYASI HARIAN*\n${this.customKasirTitle}\n\nID Settlement: ${stlId}\nTanggal: ${this.settlementDate}\nSupplier: ${supSummary.supplierName}\n\nTotal Barang Laku : ${supSummary.soldQty} pcs\nTotal Pembayaran  : Rp ${this.formatNumber(amount)}\nMetode Pembayaran : ${pm.toUpperCase()}\nStatus: LUNAS DIBAYARKAN ✅\n\nTerima kasih atas kerja samanya! 🙏`;
         this.sendWhatsAppNotification(supSummary.contact, msg, 'settlement');
       }
     } catch (err) {
@@ -10765,7 +10765,7 @@ const text = `*${brand} - STRUK TRANSAKSI*\n\n` +
       const doc = new window.jspdf.jsPDF('p', 'mm', [80, 150]);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(this.customKasirTitle || 'Dapur Kuliner Viral', 40, 8, { align: 'center' });
+      doc.text(this.customKasirTitle, 40, 8, { align: 'center' });
       doc.setFontSize(9);
       doc.text('LAPORAN SETTLEMENT KONSINYASI', 40, 13, { align: 'center' });
       doc.setLineWidth(0.2);

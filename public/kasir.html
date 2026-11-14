@@ -318,10 +318,10 @@
           <!-- Blok nama aplikasi: sejajar horizontal di samping logo -->
           <div class="hidden sm:flex flex-col justify-center leading-tight min-w-0 text-left">
             <div class="flex flex-row flex-wrap items-center gap-1.5">
-              <span class="font-extrabold text-sm sm:text-base tracking-tight text-stone-900 truncate" x-text="customKasirTitle || 'Kasir Pintar'"></span>
+              <span class="font-extrabold text-sm sm:text-base tracking-tight text-stone-900 truncate" x-text="customKasirTitle || ''"></span>
               <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-extrabold uppercase flex-shrink-0">POS</span>
             </div>
-            <p class="text-[10px] text-stone-500 truncate mt-0.5" x-text="customKasirSubtitle || 'Dapur Kuliner Viral'"></p>
+            <p class="text-[10px] text-stone-500 truncate mt-0.5" x-text="customKasirSubtitle || ''"></p>
           </div>
         </a>
 
@@ -3255,7 +3255,7 @@
 
             <div class="max-w-3xl mx-auto bg-stone-50 p-6 rounded-2xl border border-stone-200 space-y-4">
                 <div class="text-center pb-4 border-b border-stone-200">
-                <h4 class="font-extrabold text-stone-900 text-lg uppercase tracking-tight" x-text="(siteInfo && siteInfo.brandName ? siteInfo.brandName : (customKasirSubtitle || 'Dapur Kuliner Viral')).toUpperCase()"></h4>
+                <h4 class="font-extrabold text-stone-900 text-lg uppercase tracking-tight" x-text="(siteInfo && siteInfo.brandName ? siteInfo.brandName : (customKasirSubtitle || '')).toUpperCase()"></h4>
                 <h5 class="font-black text-emerald-800 text-base">LAPORAN LABA RUGI OPERASIONAL</h5>
                 <p class="text-xs text-stone-500 font-mono mt-0.5">Untuk Periode Berakhir Hari Ini</p>
               </div>
@@ -4339,7 +4339,7 @@
         <!-- Preview Kertas Struk Thermal (Monokrom) -->
         <div id="receiptPrintArea" class="bg-stone-50 p-5 rounded-2xl border border-stone-200 font-mono text-[12px] space-y-3 text-stone-800">
           <div class="text-center border-b border-dashed border-stone-300 pb-3">
-            <h5 class="font-black text-sm uppercase" x-text="(siteInfo && siteInfo.brandName ? siteInfo.brandName : 'Dapur Kuliner Viral').toUpperCase()"></h5>
+            <h5 class="font-black text-sm uppercase" x-text="(siteInfo && siteInfo.brandName ? siteInfo.brandName : '').toUpperCase()"></h5>
             <p class="text-[10px] text-stone-500" x-text="(siteInfo && siteInfo.address) || 'Jl. Kuliner Viral No. 88, Jakarta Selatan'">Jl. Kuliner Viral No. 88, Jakarta Selatan</p>
             <p class="text-[10px] text-stone-500" x-text="'Telp/WA: ' + ((siteInfo && siteInfo.phone) || '0812-3456-7890')">Telp/WA: 0812-3456-7890</p>
           </div>
@@ -4404,7 +4404,7 @@
 
           <!-- FASE 5: footer standar struk (nama outlet dari siteConfig.brandName) -->
           <div class="text-center text-[10px] pt-3 border-t border-dashed border-stone-300 leading-snug text-stone-700"
-            x-text="'Terima kasih sudah berbelanja di ' + ((siteInfo && siteInfo.brandName) ? siteInfo.brandName : 'Dapur Kuliner Viral') + ' & selamat menikmati.'"></div>
+            x-text="'Terima kasih sudah berbelanja di ' + ((siteInfo && siteInfo.brandName) ? siteInfo.brandName : '') + ' & selamat menikmati.'"></div>
         </div>
 
         <!-- ✅ FEATURE-3 + FASE 5: nomor WA pelanggan (auto-populate readonly untuk order online) -->
@@ -7538,7 +7538,7 @@
       <!-- Preview Struk Simple -->
       <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 font-mono text-xs space-y-3">
         <div class="text-center border-b border-stone-200 pb-2">
-          <h4 class="font-black text-sm text-stone-900 font-sans" x-text="customKasirTitle || 'Dapur Kuliner Viral'"></h4>
+          <h4 class="font-black text-sm text-stone-900 font-sans" x-text="customKasirTitle || ''"></h4>
           <span class="text-[10px] text-emerald-700 font-bold uppercase block font-sans">BUKTI TANDA TERIMA KONSINYASI</span>
         </div>
 
