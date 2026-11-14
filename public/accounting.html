@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sistem Akuntansi & Keuangan - Digital Culinary</title>
+  <title>Sistem Akuntansi & Keuangan - <span x-text="siteName || ''"></span></title>
   
   <!-- Global safety shield: handle cross-origin Script error and prevent uncaught runtime stops -->
   <script>
@@ -386,7 +386,7 @@
               <span class="font-extrabold text-base tracking-tight text-stone-900">Akuntansi</span>
               <span class="px-1.5 py-0.5 rounded-md bg-brand-100 text-brand-800 text-[10px] font-extrabold uppercase">FINANCE</span>
             </div>
-            <span class="..." x-text="siteName">Dapur Kuliner Viral</span>
+            <span class="..." x-text="siteName || ''"></span>
           </div>
         </a>
 
@@ -1192,7 +1192,7 @@
           <div class="p-6 rounded-3xl bg-white border border-stone-200 shadow-xs space-y-6">
             
             <div class="border-b-2 border-stone-900 pb-4 text-center space-y-1">
-              <h4 class="..." x-text="siteName.toUpperCase()">DAPUR KULINER VIRAL</h4>
+              <h4 class="..." x-text="(siteName || '').toUpperCase()"></h4>
               <h4 class="text-base font-bold text-stone-700" x-text="reportSubTab === 'pl' ? 'LAPORAN LABA RUGI KOMPREHENSIF' : (reportSubTab === 'cashFlow' ? 'LAPORAN ARUS KAS (METODE LANGSUNG)' : 'LAPORAN POSISI KEUANGAN (NERACA)')"></h4>
               <p class="text-xs text-stone-500 font-mono">Untuk Periode yang Berakhir pada <span x-text="bulanAktif"></span></p>
             </div>

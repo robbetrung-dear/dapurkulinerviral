@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * SISTEM AKUNTANSI & KEUANGAN (DOUBLE-ENTRY ACCOUNTING ENGINE)
- * Dapur Kuliner Viral - Panel Admin & Ownerj.debitName || ('Akun '
+ * [Nama Toko] - Panel Admin & Ownerj.debitName || ('Akun '
  * 
  * Modul:
  * 1. Chart of Accounts (COA) Standar Resto & Catering (Real dari Firebase / Endpoint)
@@ -155,11 +155,11 @@ window.accountingApp = function() {
     // ------------------------------------------------------------------------
     appReady: false,
     splashAkunTitle: 'AKUNTANSI',
-    splashAkunSubtitle: 'Digital Culinary',
+    splashAkunSubtitle: '',
     activeTab: 'dashboard',
     reportSubTab: 'pl',
     mobileMenuOpen: false,
-    siteName: 'Dapur Kuliner Viral',  // fallback, akan di-load dari site_config/brandName
+    siteName: '',  // fallback, akan di-load dari site_config/brandName
         // ✅ PIN Accounting gate
     supervisorPin: '211211',          // default, overwrite dari Firebase saat init
     showFinancePinModal: false,       // modal PIN aktif
@@ -581,7 +581,7 @@ window.accountingApp = function() {
           if (cached && cached.trim()) {
             this.siteName = cached.trim();
             this.splashAkunTitle = 'AKUNTANSI';
-            this.splashAkunSubtitle = this.siteName || 'Digital Culinary';
+            this.splashAkunSubtitle = this.siteName || '';
           }
         } catch (e) {}
 
@@ -605,7 +605,7 @@ window.accountingApp = function() {
           if (name && typeof name === 'string' && name.trim()) {
             this.siteName = name.trim();
             this.splashAkunTitle = 'AKUNTANSI';
-            this.splashAkunSubtitle = this.siteName || 'Digital Culinary';
+            this.splashAkunSubtitle = this.siteName || '';
             try { localStorage.setItem('dapur_site_name', this.siteName); } catch (e) {}
             console.log('[ACCT-APP] Site name loaded:', this.siteName);
           }
@@ -2402,11 +2402,11 @@ this.jurnalList.forEach(j => {
         }
 
         // pastikan nama outlet terbaru (site_config.brandName) — kalau fetch saat init sempat gagal
-        if (!this.siteName || this.siteName === 'Dapur Kuliner Viral') {
+        if (!this.siteName) {
           try { await this.loadSiteName(); } catch (e) {}
         }
         const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
-        const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+        const brand = String(this.siteName || '').toUpperCase();
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(15);
@@ -2569,7 +2569,7 @@ this.jurnalList.forEach(j => {
     // ------------------------ HELPERS LAYOUT LAPORAN PDF ----------------------
     /** Header dokumen standar (brand + judul + periode). Return y awal konten. */
     reportHeader(doc, title, periodeStr, generatedDate) {
-      const brand = sanitizeText(String(this.siteName || 'DAPUR KULINER VIRAL')).toUpperCase();
+      const brand = sanitizeText(String(this.siteName || '')).toUpperCase();
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.text(brand, 105, 18, { align: 'center' });
@@ -2914,7 +2914,7 @@ this.jurnalList.forEach(j => {
 
     /** Paket lengkap: cover + semua laporan multi-halaman. */
     async exportAllReportsPDF(doc, periodeStr, generatedDate) {
-      const brand = sanitizeText(String(this.siteName || 'DAPUR KULINER VIRAL')).toUpperCase();
+      const brand = sanitizeText(String(this.siteName || '')).toUpperCase();
       const sectionTitles = [
         'LAPORAN LABA RUGI (PROFIT & LOSS)',
         'LAPORAN ARUS KAS (CASH FLOW STATEMENT)',
@@ -2988,7 +2988,7 @@ this.jurnalList.forEach(j => {
     /** Section ringkas Laporan Transaksi Detail (dipakai di paket lengkap). */
     txDetailCompactSection(doc, data, periodeStr) {
       doc.addPage('a4', 'landscape');
-      const brand = String(this.siteName || 'DAPUR KULINER VIRAL').toUpperCase();
+      const brand = String(this.siteName || '').toUpperCase();
       doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
       doc.text(brand, 148, 12, { align: 'center' });
       doc.setFontSize(11);
@@ -3065,7 +3065,7 @@ this.jurnalList.forEach(j => {
         }
 
         // pastikan nama outlet terbaru (site_config.brandName) — ada localStorage fallback
-        if (!this.siteName || this.siteName === 'Dapur Kuliner Viral') {
+        if (!this.siteName) {
           try { await this.loadSiteName(); } catch (e) {}
         }
         const periodeStr = bulan || this.bulanAktif;

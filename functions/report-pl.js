@@ -56,7 +56,7 @@
 // 1. DATA DEFAULT PROFIL TOKO & OUTLET
 // ============================================================================
 const DEFAULT_COMPANY_SETTINGS = {
-  name: "DAPUR KULINER VIRAL",
+  name: "",
   tagline: "Spesialis Masakan Nusantara & Catering",
   address: "Jl. Boulevard Raya Blok A No. 12, Kelapa Gading, Jakarta Utara",
   phone: "0812-8888-9999",
@@ -265,7 +265,7 @@ function generatePLReportPDF(plData, company, kasirName) {
   // Header Banner Background
   drawRect(marginX, curY - 48, contentWidth, 54, [0.08, 0.13, 0.22]); // Dark Navy Theme
 
-  addText(company.name || "DAPUR KULINER VIRAL", marginX + 16, curY - 18, 14, true, [1, 1, 1]);
+  addText(company.name || "", marginX + 16, curY - 18, 14, true, [1, 1, 1]);
   addText(company.tagline || "Laporan Keuangan Resmi F&B & Catering", marginX + 16, curY - 34, 8.5, false, [0.8, 0.85, 0.9]);
   
   addRightAlignedText("LAPORAN LABA RUGI", pageWidth - marginX - 16, curY - 18, 13, true, [1, 1, 1]);

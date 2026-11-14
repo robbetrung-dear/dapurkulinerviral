@@ -1,8 +1,8 @@
 /**
  customKasirTitle: 'Kasir Pintar',
- customKasirSubtitle: 'Dapur Kuliner Viral',
+ customKasirSubtitle: '',
  * /public/kasir-app.js — BAGIAN 1 dari 3 (Transaksi & Pembayaran)
- * Sistem Kasir Pintar POS - Dapur Kuliner Viral & Catering Rumahan
+ * Sistem Kasir Pintar POS - [Nama Toko] & Catering Rumahan
  * 
  * FUNGSI UTAMA:
  * 1. initKasir(): Validasi sesi, jam realtime, sinkronisasi menu, inventory & pending reconcile
@@ -25,7 +25,7 @@ window.kasirApp = () => ({
     appReady: false,
     scannerEnabled: true,
     splashKasirTitle: 'KASIR',
-    splashKasirSubtitle: 'Digital Culinary',
+    splashKasirSubtitle: '',
 
   // =========================================================================
   // 1. STATE DASAR & NAVIGASI
@@ -51,7 +51,7 @@ window.kasirApp = () => ({
  
   // ✅ Custom Title (dari Admin Panel → Security)
   customKasirTitle: 'Kasir Pintar',
-  customKasirSubtitle: 'Dapur Kuliner Viral',
+  customKasirSubtitle: '',
 
   // Katalog Menu & Keranjang
   cart: [],
@@ -523,7 +523,7 @@ window.kasirApp = () => ({
 
    // 🏢 Info Bisnis dari Admin Panel (/site_config) — untuk PDF & laporan
   siteInfo: {
-    brandName: 'Dapur Kuliner Viral & Catering Rumahan',
+    brandName: '',
     address: 'Jl. Kuliner Viral No. 88, Jakarta Selatan',
     phone: '0812-3456-7890'
   },
@@ -536,7 +536,7 @@ window.kasirApp = () => ({
     bankInstructions: 'Transfer sesuai nominal, konfirmasi ke WhatsApp admin.',
     qrisImage: '',
     qrisInstructions: 'Scan QRIS dan bayar sesuai nominal.',
-    qrisMerchantName: 'Dapur Kuliner Viral',
+    qrisMerchantName: '',
     qrisType: 'both',
     ewalletPhone: '',
     ewalletInstructions: ''
@@ -663,7 +663,7 @@ try {
         if (val.kasirTitle) this.customKasirTitle = val.kasirTitle;
         if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
         this.splashKasirTitle = 'KASIR';
-        this.splashKasirSubtitle = this.customKasirSubtitle || 'Digital Culinary';
+        this.splashKasirSubtitle = this.customKasirSubtitle || '';
         console.log('[KASIR] Custom title loaded:', val.kasirTitle);
 
                // 🏢 Sync info bisnis (brand, alamat, telepon)
@@ -2861,7 +2861,7 @@ try {
     if (custPhone) {
       const custName = (orderData && (orderData.customerName || orderData.name)) || this.customerName || 'Pelanggan';
       const itemsSummary = (this.currentOrder.items || []).map(it => `- ${it.name || it.id} x${it.qty}`).join('\n');
-      const waMsg = `Halo Kak ${custName}, terima kasih sudah bertransaksi di ${this.customKasirTitle || 'Dapur Kuliner Viral'}! ✨\n\nNo. Order: #${txId}\nTotal: ${this.formatRupiah(grandTotal)}\nMetode: ${pm.toUpperCase()}\nTanggal: ${dateStr}\n\nPesanan:\n${itemsSummary}\n\nStruk transaksi Anda telah berhasil diproses. Semoga puas dengan hidangan kami! 🙏`;
+      const waMsg = `Halo Kak ${custName}, terima kasih sudah bertransaksi di ${this.customKasirTitle || ''}! ✨\n\nNo. Order: #${txId}\nTotal: ${this.formatRupiah(grandTotal)}\nMetode: ${pm.toUpperCase()}\nTanggal: ${dateStr}\n\nPesanan:\n${itemsSummary}\n\nStruk transaksi Anda telah berhasil diproses. Semoga puas dengan hidangan kami! 🙏`;
       this.sendWhatsAppNotification(custPhone, waMsg, 'pos_receipt');
     }
 
@@ -2950,7 +2950,7 @@ try {
    * FASE 5: teks footer struk standar (nama outlet dari siteConfig.brandName).
    */
   strukFooterText() {
-    const brand = (this.siteInfo && this.siteInfo.brandName) ? String(this.siteInfo.brandName).trim() : 'Dapur Kuliner Viral';
+    const brand = (this.siteInfo && this.siteInfo.brandName) ? String(this.siteInfo.brandName).trim() : '';
     return `Terima kasih sudah berbelanja di ${brand} & selamat menikmati.`;
   },
 
@@ -3151,7 +3151,7 @@ try {
 
       doc.setFont('courier', 'bold');
       doc.setFontSize(11);
-      doc.text('DAPUR KULINER VIRAL', 40, 9, { align: 'center' });
+      doc.text('', 40, 9, { align: 'center' });
       doc.setFont('courier', 'normal');
       doc.setFontSize(7.5);
       doc.text('Jl. Kuliner Viral No. 88, Jaksel', 40, 13, { align: 'center' });
@@ -3266,7 +3266,7 @@ try {
 
         doc.setFont('courier', 'bold');
         doc.setFontSize(11);
-        doc.text('DAPUR KULINER VIRAL', 40, 9, { align: 'center' });
+        doc.text('', 40, 9, { align: 'center' });
         doc.setFont('courier', 'normal');
         doc.setFontSize(7.5);
         doc.text('Jl. Kuliner Viral No. 88, Jaksel', 40, 13, { align: 'center' });
@@ -3390,7 +3390,8 @@ try {
     if (sCharge > 0) details += `Service Charge (5%): ${this.formatRupiah(sCharge)}\n`;
     if (tax > 0) details += `PPN (11%): ${this.formatRupiah(tax)}\n`;
 
-    const text = `*DAPUR KULINER VIRAL - STRUK TRANSAKSI*\n\n` +
+    const brand = (this.siteInfo && this.siteInfo.brandName) ? this.siteInfo.brandName : '';
+const text = `*${brand} - STRUK TRANSAKSI*\n\n` +
       `No. Order: *${order.id}*\n` +
       `Tanggal: ${order.date || this.formatDate(Date.now())}\n` +
       `Kasir: ${this.kasirInfo.name}\n` +
@@ -3400,7 +3401,7 @@ try {
       `--------------------------------\n` +
       details +
       `*TOTAL: ${this.formatRupiah(order.total || order.tot || this.getCartGrandTotal())}*\n\n` +
-      `Terima kasih telah berbelanja di Dapur Kuliner Viral!`;
+      `Terima kasih telah berbelanja di ${(this.siteInfo && this.siteInfo.brandName) ? this.siteInfo.brandName : ''}!`;
     // ✅ FEATURE-3: prioritas nomor dari param → state receiptWAPhone → generic share
     const rawPhone = phoneInput !== undefined ? phoneInput : (this.receiptWAPhone || '');
     let cleanPhone = String(rawPhone || '').replace(/[^0-9]/g, '');
@@ -4429,7 +4430,7 @@ try {
       const phone = orderData.customerPhone || orderData.phone || orderData.customer_phone || '';
       if (phone) {
         const custName = orderData.customerName || orderData.customer_name || 'Pelanggan';
-        const confMsg = `Halo Kak ${custName}, pesanan Anda #${orderId} telah kami KONFIRMASI dan sedang disiapkan di dapur! 🍳 Terima kasih telah memesan di ${this.customKasirTitle || 'Dapur Kuliner Viral'}.`;
+        const confMsg = `Halo Kak ${custName}, pesanan Anda #${orderId} telah kami KONFIRMASI dan sedang disiapkan di dapur! 🍳 Terima kasih telah memesan di ${this.customKasirTitle || ''}.`;
         this.sendWhatsAppNotification(phone, confMsg, 'order_confirmed');
       }
     } catch (e) {
@@ -7030,7 +7031,7 @@ try {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.setTextColor(26, 26, 26);
-      doc.text(String(this.siteInfo.brandName || 'Dapur Kuliner Viral').toUpperCase(), 14, y);
+      doc.text(String(this.siteInfo.brandName || '').toUpperCase(), 14, y);
       y += 6;
 
       doc.setFont('helvetica', 'normal');
@@ -9788,7 +9789,7 @@ try {
       ctx.fillStyle = '#111827';
       ctx.font = 'bold 16px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(this.customKasirTitle || 'DAPUR KULINER VIRAL', 200, 35);
+      ctx.fillText(this.customKasirTitle || '', 200, 35);
 
       ctx.font = 'bold 13px sans-serif';
       ctx.fillStyle = '#047857';
@@ -9881,7 +9882,7 @@ try {
       const doc = new window.jspdf.jsPDF('p', 'mm', [80, 140]);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(this.customKasirTitle || 'DAPUR KULINER VIRAL', 40, 8, { align: 'center' });
+      doc.text(this.customKasirTitle || '', 40, 8, { align: 'center' });
 
       doc.setFontSize(9);
       doc.text('BUKTI TANDA TERIMA KONSINYASI', 40, 13, { align: 'center' });
@@ -9949,7 +9950,7 @@ try {
     const itemsText = (rec.items || []).map(i =>
       `- ${i.name} (${i.sku}): ${i.qty} ${i.unit} x Rp ${this.formatNumber(i.price)} = Rp ${this.formatNumber(i.total)}`
     ).join('\n');
-    const msg = `*BUKTI TANDA TERIMA BARANG KONSINYASI*\n${this.customKasirTitle || 'Dapur Kuliner Viral'}\n\nNo. Terima: ${rec.receiveId}\nTanggal: ${rec.date} ${rec.time || ''}\nSupplier: ${rec.supplierName}\n\n*Daftar Barang:*\n${itemsText}\n\n*Total Nilai: Rp ${this.formatNumber(rec.totalValue)}*\n\nBarang titipan konsinyasi telah diterima dengan baik. Terima kasih! 🙏`;
+    const msg = `*BUKTI TANDA TERIMA BARANG KONSINYASI*\n${this.customKasirTitle || ''}\n\nNo. Terima: ${rec.receiveId}\nTanggal: ${rec.date} ${rec.time || ''}\nSupplier: ${rec.supplierName}\n\n*Daftar Barang:*\n${itemsText}\n\n*Total Nilai: Rp ${this.formatNumber(rec.totalValue)}*\n\nBarang titipan konsinyasi telah diterima dengan baik. Terima kasih! 🙏`;
 
     // ✅ FIX: window.open SINKRON (dalam user gesture) — popup blocker tidak block
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
@@ -10237,7 +10238,7 @@ try {
 
       // WhatsApp Notifikasi ke Supplier
       if (supSummary.contact) {
-        const msg = `*BUKTI SETTLEMENT KONSINYASI HARIAN*\n${this.customKasirTitle || 'Dapur Kuliner Viral'}\n\nID Settlement: ${stlId}\nTanggal: ${this.settlementDate}\nSupplier: ${supSummary.supplierName}\n\nTotal Barang Laku : ${supSummary.soldQty} pcs\nTotal Pembayaran  : Rp ${this.formatNumber(amount)}\nMetode Pembayaran : ${pm.toUpperCase()}\nStatus: LUNAS DIBAYARKAN ✅\n\nTerima kasih atas kerja samanya! 🙏`;
+        const msg = `*BUKTI SETTLEMENT KONSINYASI HARIAN*\n${this.customKasirTitle || ''}\n\nID Settlement: ${stlId}\nTanggal: ${this.settlementDate}\nSupplier: ${supSummary.supplierName}\n\nTotal Barang Laku : ${supSummary.soldQty} pcs\nTotal Pembayaran  : Rp ${this.formatNumber(amount)}\nMetode Pembayaran : ${pm.toUpperCase()}\nStatus: LUNAS DIBAYARKAN ✅\n\nTerima kasih atas kerja samanya! 🙏`;
         this.sendWhatsAppNotification(supSummary.contact, msg, 'settlement');
       }
     } catch (err) {
@@ -10657,7 +10658,7 @@ try {
         `💵 Laba Kotor: Rp ${this.formatNumber(labaKotor)}`,
         '━━━━━━━━━━━━━━━━━━━━━━━━',
         '',
-        '🤖 Auto-report POS Digital Culinary'
+        '🤖 Auto-report POS'
       ];
 
       return lines.join('\n');
@@ -10731,7 +10732,7 @@ try {
       `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `Terima kasih atas kerja samanya!\n` +
       `Besok titipan lagi ya 🙏\n\n` +
-      `_POS Digital Culinary_`;
+      `_POS_`;
 
         // ✅ FIX: Langsung buka WhatsApp Web/App (bypass API)
     if (!phone) {
@@ -10764,7 +10765,7 @@ try {
       const doc = new window.jspdf.jsPDF('p', 'mm', [80, 150]);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(this.customKasirTitle || 'DAPUR KULINER VIRAL', 40, 8, { align: 'center' });
+      doc.text(this.customKasirTitle || '', 40, 8, { align: 'center' });
       doc.setFontSize(9);
       doc.text('LAPORAN SETTLEMENT KONSINYASI', 40, 13, { align: 'center' });
       doc.setLineWidth(0.2);

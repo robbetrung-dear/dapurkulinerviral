@@ -41,7 +41,7 @@
 // 1. DATA DEFAULT PROFIL TOKO & OUTLET (Fallback jika Firebase kosong)
 // ============================================================================
 const DEFAULT_COMPANY_SETTINGS = {
-  name: "DAPUR KULINER VIRAL",
+  name: "",
   tagline: "Spesialis Masakan Nusantara & Catering",
   address: "Jl. Boulevard Raya Blok A No. 12, Kelapa Gading, Jakarta Utara",
   phone: "0812-8888-9999",
@@ -210,7 +210,7 @@ function generateThermalReceiptPDF(receiptData, company) {
   }
 
   // --- 1. HEADER TOKO ---
-  addCenterText(company.name || "DAPUR KULINER VIRAL", 12, true);
+  addCenterText(company.name || "", 12, true);
   if (company.tagline) {
     addCenterText(company.tagline, 7.5, false);
   }
