@@ -4,7 +4,7 @@ export async function onRequest(context) {
   let projectId = env.FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID || "";
   // Default ke fallback yang sama dengan kasir-app.js agar endpoint tidak
   // pernah mengembalikan databaseURL kosong di production kalau env belum di-set.
-  const DEFAULT_DATABASE_URL = "https://digitalculinary-app-default-rtdb.asia-southeast1.firebasedatabase.app";
+  const DEFAULT_DATABASE_URL = "https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app";
   const databaseURL = env.FIREBASE_DATABASE_URL || env.VITE_FIREBASE_DATABASE_URL || DEFAULT_DATABASE_URL;
 
   // Auto-infer projectId from databaseURL if missing
@@ -23,8 +23,8 @@ export async function onRequest(context) {
     databaseURL: finalDatabaseURL,
     projectId: projectId,
     storageBucket: projectId ? projectId + '.appspot.com' : '',
-    messagingSenderId: "123456789012",
-    appId: "1:123456789012:web:abcdef1234567890"
+    messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID || env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
+    appId: env.FIREBASE_APP_ID || env.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef1234567890"
   };
 
   return new Response(JSON.stringify(config), {

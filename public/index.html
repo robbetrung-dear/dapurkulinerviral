@@ -61,9 +61,7 @@
   <!-- Google Fonts: Plus Jakarta Sans & Playfair Display -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- ✅ OPTIMASI: Preconnect Firebase RTDB untuk parallel handshake -->
-  <link rel="preconnect" href="https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app" crossorigin>
-  <link rel="dns-prefetch" href="https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app">
+  <!-- Firebase RTDB preconnect diatur secara dinamis via /api/firebase-config (environment variable) -->
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="dns-prefetch" href="https://www.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap" rel="stylesheet">
@@ -7122,8 +7120,20 @@ git push -u origin main</pre>
 
         async loadRecipes() {
           try {
-            const fbUrl = 'https://dapurkulinerviral-default-rtdb.asia-southeast1.firebasedatabase.app';
-            const res = await fetch(`${fbUrl}/recipes.json`);
+            let fbUrl = '';
+            try {
+              const cfgRes = await fetch('/api/firebase-config');
+              if (cfgRes.ok) {
+                const cfg = await cfgRes.json();
+                fbUrl = (cfg && cfg.databaseURL) || '';
+              }
+            } catch (e) { console.warn('[RECIPES] Config fetch error:', e); }
+            if (!fbUrl) {
+              console.warn('[RECIPES] Firebase config tidak tersedia — skip loadRecipes');
+              return;
+            }
+            const cleanUrl = fbUrl.endsWith('/') ? fbUrl.slice(0, -1) : fbUrl;
+            const res = await fetch(`${cleanUrl}/recipes.json`);
             const data = await res.json();
             if (data && typeof data === 'object') {
               const list = Object.entries(data || {}).map(([menuId, r]) => ({
