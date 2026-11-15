@@ -1,5 +1,5 @@
 /**
- customKasirTitle: 'Kasir Pintar',
+ customKasirTitle: '',
  customKasirSubtitle: '',
  * /public/kasir-app.js — BAGIAN 1 dari 3 (Transaksi & Pembayaran)
  * Sistem Kasir Pintar POS - [Nama Toko] & Catering Rumahan
@@ -50,7 +50,7 @@ window.kasirApp = () => ({
   isLoading: false,
  
   // ✅ Custom Title (dari Admin Panel → Security)
-  customKasirTitle: 'Kasir Pintar',
+  customKasirTitle: '',
   customKasirSubtitle: '',
 
   // Katalog Menu & Keranjang
