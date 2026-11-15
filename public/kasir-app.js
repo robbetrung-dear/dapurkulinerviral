@@ -24,7 +24,7 @@ window.kasirApp = () => ({
     _scanListenerBound: false,
     appReady: false,
     scannerEnabled: true,
-    splashKasirTitle: 'KASIR',
+    splashKasirTitle: (() => { try { const c = JSON.parse(localStorage.getItem('dapur_site_config') || '{}'); return c.kasirTitle || 'KASIR'; } catch(e) { return 'KASIR'; } })(),
     splashKasirSubtitle: '',
 
   // =========================================================================
@@ -662,7 +662,7 @@ try {
       if (val) {
         if (val.kasirTitle) this.customKasirTitle = val.kasirTitle;
         if (val.kasirSubtitle) this.customKasirSubtitle = val.kasirSubtitle;
-        this.splashKasirTitle = 'KASIR';
+        this.splashKasirTitle = val.kasirTitle || 'KASIR';
         this.splashKasirSubtitle = this.customKasirSubtitle || '';
         console.log('[KASIR] Custom title loaded:', val.kasirTitle);
 

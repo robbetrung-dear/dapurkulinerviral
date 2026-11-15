@@ -4,6 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kasir Pintar</title>
+<script>
+  // Set document.title from localStorage (panel admin kasir setting)
+  try {
+    const cfg = JSON.parse(localStorage.getItem('dapur_site_config') || '{}');
+    if (cfg && cfg.kasirTitle) {
+      document.title = cfg.kasirTitle;
+    }
+  } catch(e) {}
+</script>
 
     <!-- ✅ Security Guard: Wajib login kasir sebelum akses /kasir -->
   <script>
