@@ -698,6 +698,25 @@ try {
       }
     });
   }
+
+  // Fallback: baca dari localStorage (disimpan oleh panel admin via /site_config)
+  // Digunakan jika Firebase RTDB belum terhubung (env vars belum di-set di Cloudflare Pages)
+  try {
+    const localConfig = localStorage.getItem('dapur_site_config');
+    if (localConfig) {
+      const parsed = JSON.parse(localConfig);
+      if (parsed && !this.customKasirTitle && parsed.kasirTitle) {
+        this.customKasirTitle = parsed.kasirTitle;
+        console.log('[KASIR] customKasirTitle from localStorage:', parsed.kasirTitle);
+      }
+      if (parsed && !this.customKasirSubtitle && parsed.kasirSubtitle) {
+        this.customKasirSubtitle = parsed.kasirSubtitle;
+        console.log('[KASIR] customKasirSubtitle from localStorage:', parsed.kasirSubtitle);
+      }
+    }
+  } catch (e) {
+    console.warn('[KASIR] Load custom title from localStorage error:', e);
+  }
 } catch (e) {
   console.warn('[KASIR] Load custom title error:', e);
 }
